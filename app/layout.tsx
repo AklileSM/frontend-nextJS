@@ -3,6 +3,7 @@ import { Inter, Inter_Tight, IBM_Plex_Mono } from 'next/font/google';
 import { Toaster } from 'sonner';
 import { AuthProvider } from '@/context/AuthContext';
 import { SelectedDateProvider } from '@/context/SelectedDateContext';
+import { ClientLogger } from '@/components/diagnostics/ClientLogger';
 import './globals.css';
 
 const inter = Inter({
@@ -35,6 +36,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${inter.variable} ${interTight.variable} ${plexMono.variable}`}>
       <body className="bg-base-950 text-white antialiased">
+        <ClientLogger />
         <AuthProvider>
           <SelectedDateProvider>{children}</SelectedDateProvider>
         </AuthProvider>
