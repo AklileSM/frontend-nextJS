@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import { Inter, Inter_Tight, IBM_Plex_Mono } from 'next/font/google';
-import Script from 'next/script';
 import { Toaster } from 'sonner';
 import { AuthProvider } from '@/context/AuthContext';
 import { SelectedDateProvider } from '@/context/SelectedDateContext';
@@ -93,10 +92,11 @@ const browserBootLogger = `
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${inter.variable} ${interTight.variable} ${plexMono.variable}`}>
-      <Script id="sitescope-boot-logger" strategy="beforeInteractive">
-        {browserBootLogger}
-      </Script>
       <body className="bg-base-950 text-white antialiased">
+        <script
+          id="sitescope-boot-logger"
+          dangerouslySetInnerHTML={{ __html: browserBootLogger }}
+        />
         <ClientLogger />
         <AuthProvider>
           <SelectedDateProvider>{children}</SelectedDateProvider>
