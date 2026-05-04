@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -5,6 +7,10 @@ const nextConfig = {
     remotePatterns: [
       { protocol: 'http', hostname: 'localhost', port: '3002', pathname: '/**' },
     ],
+  },
+  webpack: (config) => {
+    config.resolve.alias['@'] = path.resolve(process.cwd());
+    return config;
   },
 };
 
