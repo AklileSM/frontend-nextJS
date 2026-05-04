@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Inter, Inter_Tight, IBM_Plex_Mono } from 'next/font/google';
+import Script from 'next/script';
 import { Toaster } from 'sonner';
 import { AuthProvider } from '@/context/AuthContext';
 import { SelectedDateProvider } from '@/context/SelectedDateContext';
@@ -32,9 +33,69 @@ export const metadata: Metadata = {
   description: 'Field documentation for construction sites — every photo, panorama, and 3D scan organized by room and date.',
 };
 
+const browserBootLogger = `
+  (function () {
+    var prefix = '[SiteScope boot]';
+    var extensionWarning = 'A listener indicated an asynchronous response by returning true, but the message channel closed before a response was received';
+
+    function serialize(value) {
+      if (!value) return value;
+      if (value instanceof Error) return { message: value.message, stack: value.stack };
+      try { return JSON.stringify(value); } catch (_) { return String(value); }
+    }
+
+    console.info(prefix, 'inline logger loaded', {
+      href: window.location.href,
+      timestamp: new Date().toISOString()
+    });
+
+    window.addEventListener('error', function (event) {
+      var target = event.target;
+      var resourceUrl = target && (target.src || target.href);
+
+      if (resourceUrl) {
+        console.error(prefix, 'resource failed before hydration', {
+          tagName: target.tagName,
+          url: resourceUrl
+        });
+        return;
+      }
+
+      if (event.message && event.message.indexOf(extensionWarning) !== -1) {
+        console.info(prefix, 'ignored extension warning');
+        return;
+      }
+
+      console.error(prefix, 'window error before hydration', {
+        message: event.message,
+        source: event.filename,
+        line: event.lineno,
+        column: event.colno,
+        error: serialize(event.error)
+      });
+    }, true);
+
+    window.addEventListener('unhandledrejection', function (event) {
+      var reason = event.reason;
+      var message = reason && reason.message ? reason.message : String(reason);
+
+      if (message.indexOf(extensionWarning) !== -1) {
+        event.preventDefault();
+        console.info(prefix, 'ignored extension promise warning');
+        return;
+      }
+
+      console.error(prefix, 'unhandled rejection before hydration', serialize(reason));
+    });
+  })();
+`;
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${inter.variable} ${interTight.variable} ${plexMono.variable}`}>
+      <Script id="sitescope-boot-logger" strategy="beforeInteractive">
+        {browserBootLogger}
+      </Script>
       <body className="bg-base-950 text-white antialiased">
         <ClientLogger />
         <AuthProvider>
