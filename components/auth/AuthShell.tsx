@@ -1,7 +1,4 @@
-'use client';
-
 import Link from 'next/link';
-import { motion } from 'framer-motion';
 import type { ReactNode } from 'react';
 import { Logo } from '@/components/landing/Logo';
 
@@ -22,21 +19,13 @@ export function AuthShell({ title, subtitle, altLink, children }: Props) {
       className="grid min-h-screen bg-base-950 text-white lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]"
       style={{ backgroundColor: '#020617', color: '#fff' }}
     >
-      <motion.aside
-        initial={false}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.45 }}
+      <aside
         className="relative hidden flex-col justify-between overflow-hidden border-r border-base-800 bg-base-900/30 px-12 py-10 lg:flex"
       >
         <BackgroundGrid />
         <Logo />
 
-        <motion.div
-          initial={false}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
-          className="relative max-w-[42ch]"
-        >
+        <div className="relative max-w-[42ch]">
           <p className="inline-flex items-center gap-3 font-mono text-[12px] uppercase tracking-[0.22em] text-amber-500">
             <span className="h-px w-8 bg-amber-500/60" />
             Site documentation
@@ -48,14 +37,9 @@ export function AuthShell({ title, subtitle, altLink, children }: Props) {
             Every photo, panorama, video, point cloud, and field report — keyed to the room and
             date it came from, ready for the timeline that already lives in your team.
           </p>
-        </motion.div>
+        </div>
 
-        <motion.div
-          initial={false}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.25 }}
-          className="relative rounded-md border border-base-800 bg-base-900/50 px-5 py-4"
-        >
+        <div className="relative rounded-md border border-base-800 bg-base-900/50 px-5 py-4">
           <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-amber-500">
             Mock mode
           </p>
@@ -78,40 +62,23 @@ export function AuthShell({ title, subtitle, altLink, children }: Props) {
             </code>{' '}
             to see the error path.
           </p>
-        </motion.div>
-      </motion.aside>
+        </div>
+      </aside>
 
       <main className="flex flex-col px-6 py-10 sm:px-12 lg:px-16 xl:px-24">
         <div className="mb-10 lg:hidden">
           <Logo />
         </div>
-        <motion.div
-          initial={false}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-          className="my-auto w-full max-w-[440px]"
-        >
+        <div className="my-auto w-full max-w-[440px]">
           <h1 className="font-display text-[36px] font-semibold leading-[1.1] tracking-[-0.018em] text-white sm:text-[42px]">
             {title}
           </h1>
           {subtitle && (
             <p className="mt-3 text-[16px] leading-[1.65] text-ink-200">{subtitle}</p>
           )}
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.12, ease: [0.22, 1, 0.36, 1] }}
-            className="mt-8"
-          >
-            {children}
-          </motion.div>
+          <div className="mt-8">{children}</div>
           {altLink && (
-            <motion.p
-              initial={false}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.4, delay: 0.3 }}
-              className="mt-8 text-[14px] text-ink-300"
-            >
+            <p className="mt-8 text-[14px] text-ink-300">
               {altLink.prompt}{' '}
               <Link
                 href={altLink.href}
@@ -119,9 +86,9 @@ export function AuthShell({ title, subtitle, altLink, children }: Props) {
               >
                 {altLink.cta}
               </Link>
-            </motion.p>
+            </p>
           )}
-        </motion.div>
+        </div>
       </main>
     </div>
   );
