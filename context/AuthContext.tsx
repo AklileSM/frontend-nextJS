@@ -29,6 +29,19 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+const missingAuthProvider = async () => {
+  throw new Error('AuthProvider is not mounted.');
+};
+
+const fallbackAuthContext: AuthContextValue = {
+  user: null,
+  isAuthenticated: false,
+  isLoading: false,
+  login: missingAuthProvider,
+  register: missingAuthProvider,
+  logout: () => {},
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   // Phase 2 mock-mode: start logged out so /login is reachable. Both SSR and
   // CSR render `null` initially, so there is no hydration mismatch. Phase 12
@@ -88,6 +101,5 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
-  return ctx;
+  return ctx ?? fallbackAuthContext;
 }
