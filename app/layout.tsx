@@ -1,9 +1,5 @@
 import type { Metadata } from 'next';
 import { Inter, Inter_Tight, IBM_Plex_Mono } from 'next/font/google';
-import { Toaster } from 'sonner';
-import { AuthProvider } from '@/context/AuthContext';
-import { SelectedDateProvider } from '@/context/SelectedDateContext';
-import { ClientLogger } from '@/components/diagnostics/ClientLogger';
 import './globals.css';
 
 const inter = Inter({
@@ -97,22 +93,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           id="sitescope-boot-logger"
           dangerouslySetInnerHTML={{ __html: browserBootLogger }}
         />
-        <ClientLogger />
-        <AuthProvider>
-          <SelectedDateProvider>{children}</SelectedDateProvider>
-        </AuthProvider>
-        <Toaster
-          theme="dark"
-          position="bottom-right"
-          toastOptions={{
-            classNames: {
-              toast:
-                '!bg-base-900 !border !border-base-700 !text-white !font-body !text-[14px]',
-              error: '!bg-base-900 !border-amber-500/40',
-              description: '!text-ink-300',
-            },
-          }}
-        />
+        {children}
       </body>
     </html>
   );

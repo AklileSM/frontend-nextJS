@@ -2,10 +2,19 @@
 
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
+import { AuthPageProviders } from '@/components/providers/RouteProviders';
 
 export const dynamic = 'force-dynamic';
 
 export default function UnauthorizedPage() {
+  return (
+    <AuthPageProviders>
+      <UnauthorizedContent />
+    </AuthPageProviders>
+  );
+}
+
+function UnauthorizedContent() {
   const { user, logout } = useAuth();
 
   return (

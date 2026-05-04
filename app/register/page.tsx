@@ -1,5 +1,6 @@
 import { AuthShell } from '@/components/auth/AuthShell';
 import { RegisterForm } from '@/components/auth/RegisterForm';
+import { AuthPageProviders } from '@/components/providers/RouteProviders';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,7 +11,9 @@ export default function RegisterPage() {
       subtitle="Pick a username and password to start using SiteScope."
       altLink={{ href: '/login', prompt: 'Already have an account?', cta: 'Sign in' }}
     >
-      <RegisterForm />
+      <AuthPageProviders>
+        <RegisterForm />
+      </AuthPageProviders>
     </AuthShell>
   );
 }
