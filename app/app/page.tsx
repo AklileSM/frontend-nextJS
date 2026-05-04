@@ -8,6 +8,8 @@ import { ChartLocation } from '@/components/home/ChartLocation';
 import { MiniCalendar } from '@/components/layout/MiniCalendar';
 import { useAuth } from '@/context/AuthContext';
 
+export const dynamic = 'force-dynamic';
+
 type Tab = 'rooms' | 'calendar';
 
 const TABS: Array<{ id: Tab; label: string }> = [

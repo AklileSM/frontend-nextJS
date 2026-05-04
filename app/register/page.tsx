@@ -8,6 +8,8 @@ import { useAuth } from '@/context/AuthContext';
 import { AuthShell } from '@/components/auth/AuthShell';
 import { Field } from '@/components/auth/Field';
 
+export const dynamic = 'force-dynamic';
+
 export default function RegisterPage() {
   const router = useRouter();
   const { register, isAuthenticated } = useAuth();

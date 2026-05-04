@@ -2,6 +2,8 @@
 
 import { motion } from 'framer-motion';
 
+export const dynamic = 'force-dynamic';
+
 export default function ComparePlaceholder() {
   return (
     <div className="px-6 py-10 sm:px-10 lg:px-12 xl:px-16">

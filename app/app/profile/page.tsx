@@ -3,6 +3,8 @@
 import { motion } from 'framer-motion';
 import { useAuth } from '@/context/AuthContext';
 
+export const dynamic = 'force-dynamic';
+
 export default function ProfilePage() {
   const { user } = useAuth();
 

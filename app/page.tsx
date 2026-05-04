@@ -8,6 +8,8 @@ import { CompareSection } from '@/components/landing/CompareSection';
 import { Roles } from '@/components/landing/Roles';
 import { Footer } from '@/components/landing/Footer';
 
+export const dynamic = 'force-dynamic';
+
 export default function LandingPage() {
   return (
     <div className="min-h-screen bg-base-950 text-white">

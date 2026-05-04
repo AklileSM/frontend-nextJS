@@ -26,6 +26,8 @@ import type {
   ExplorerByDateResponse,
 } from '@/types/api';
 
+export const dynamic = 'force-dynamic';
+
 const SUPPORT_BY_PROJECT: Record<string, boolean> = {
   'a6-stern': true,
   projectx: false,

@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 
+export const dynamic = 'force-dynamic';
+
 export default function UnauthorizedPage() {
   const { user, logout } = useAuth();
 

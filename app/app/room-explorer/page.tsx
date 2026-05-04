@@ -17,6 +17,8 @@ import type {
   ExplorerByRoomResponse,
 } from '@/types/api';
 
+export const dynamic = 'force-dynamic';
+
 const LAST_ROOM_KEY = 'a6.lastRoom';
 
 export default function RoomExplorerPage() {

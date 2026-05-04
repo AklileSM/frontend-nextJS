@@ -1,5 +1,7 @@
 import { ViewerStub } from '@/components/explorer/ViewerStub';
 
+export const dynamic = 'force-dynamic';
+
 export default function PdfViewerPage() {
   return (
     <ViewerStub
