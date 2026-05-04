@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+	<title>Potree Viewer</title>
+
+	<link rel="stylesheet" type="text/css" href="../build/potree/potree.css">
+	<link rel="stylesheet" type="text/css" href="../libs/jquery-ui/jquery-ui.min.css">
+	<link rel="stylesheet" type="text/css" href="../libs/openlayers3/ol.css">
+	<link rel="stylesheet" type="text/css" href="../libs/spectrum/spectrum.css">
+	<link rel="stylesheet" type="text/css" href="../libs/jstree/themes/mixed/style.css">
+	<link rel="stylesheet" type="text/css" href="./viewer-theme.css">
+</head>
+
+<body>
+	<script src="../libs/jquery/jquery-3.1.1.min.js"></script>
+	<script src="../libs/spectrum/spectrum.js"></script>
+	<script src="../libs/jquery-ui/jquery-ui.min.js"></script>
+	<script src="../libs/other/BinaryHeap.js"></script>
+	<script src="../libs/tween/tween.min.js"></script>
+	<script src="../libs/d3/d3.js"></script>
+	<script src="../libs/proj4/proj4.js"></script>
+	<script src="../libs/openlayers3/ol.js"></script>
+	<script src="../libs/i18next/i18next.js"></script>
+	<script src="../libs/jstree/jstree.js"></script>
+	<script src="../build/potree/potree.js"></script>
+	<script src="../libs/plasio/js/laslaz.js"></script>
+
+	<div class="potree_container" style="position: absolute; width: 100%; height: 100%; left: 0px; top: 0px; ">
+		<div id="potree_render_area"></div>
+		<div id="potree_sidebar_container"> </div>
+	</div>
+	<div id="pc_bottom_dock" role="region" aria-label="Point cloud controls">
+		<div class="pc-dock-header">
+			<span>Viewer Controls</span>
+			<button id="pc_toggle_dock" type="button" aria-expanded="true" title="Collapse controls">▾</button>
+		</div>
+		<div class="pc-dock-content">
+		<div class="pc-group">
+			<div class="pc-title">Render</div>
+			<label>Point Budget <span id="pc_budget_value">10M</span></label>
+			<input id="pc_budget" type="range" min="1000000" max="30000000" step="1000000" value="10000000" />
+			<label>Point Size <span id="pc_size_value">1.0</span></label>
+			<input id="pc_size" type="range" min="0.5" max="4" step="0.1" value="1" />
+		</div>
+		<div class="pc-group">
+			<div class="pc-title">Camera</div>
+			<label>FOV <span id="pc_fov_value">60°</span></label>
+			<input id="pc_fov" type="range" min="35" max="100" step="1" value="60" />
+			<label>Min Node Size <span id="pc_node_value">8</span></label>
+			<input id="pc_node" type="range" min="1" max="40" step="1" value="8" />
+		</div>
+		<div class="pc-group pc-inline">
+			<div class="pc-title">Quality</div>
+			<label class="pc-row">
+				<input id="pc_edl" type="checkbox" />
+				<span>EDL</span>
+			</label>
+			<label class="pc-row">Background
+				<select id="pc_bg">
+					<option value="gradient">Gradient</option>
+					<option value="black">Black</option>
+					<option value="skybox">Skybox</option>
+					<option value="white">White</option>
+				</select>
+			</label>
+			<label class="pc-row">Splat
+				<select id="pc_splat">
+					<option value="standard">Standard</option>
+					<option value="hq" selected>High</option>
+				</select>
+			</label>
+			<div class="pc-actions">
+				<button id="pc_fit" type="button">Fit</button>
+				<button id="pc_reset" type="button">Reset</button>
+			</div>
+		</div>
+		<div class="pc-group pc-inline">
+			<div class="pc-title">Move & Measure</div>
+			<label class="pc-row">Movement
+				<select id="pc_move_mode">
+					<option value="orbit" selected>Orbit</option>
+					<option value="earth">Earth</option>
+					<option value="fps">First Person</option>
+					<option value="heli">Helicopter</option>
+				</select>
+			</label>
+			<label>Move Speed <span id="pc_speed_value">10</span></label>
+			<input id="pc_speed" type="range" min="1" max="50" step="1" value="10" />
+			<div class="pc-actions">
+				<button id="pc_meas_distance" type="button">Distance</button>
+				<button id="pc_meas_area" type="button">Area</button>
+				<button id="pc_meas_point" type="button">Point</button>
+				<button id="pc_meas_clear" type="button">Clear</button>
+			</div>
+		</div>
+		</div>
+	</div>
+
+	<script type="module">
+
+		window.viewer = new Potree.Viewer(document.getElementById("potree_render_area"));
+
+		viewer.setEDLEnabled(false);
+		viewer.setFOV(60);
+		viewer.loadSettingsFromURL();
+		viewer.setPointBudget(10_000_000);
+		viewer.setShowBoundingBox(false);
+		viewer.setBackground("gradient");
+		viewer.setMinNodeSize(8);
+		viewer.setEDLRadius(1.0);
+		viewer.useHQ = true;
+		viewer.setDescription("");
+
+		const _params = new URLSearchParams(window.location.search);
+		const pointcloudUrl = _params.get("url");
+		let activeMaterial = null;
+
+		const $ = (id) => document.getElementById(id);
+		const elBudget = $("pc_budget");
+		const elBudgetVal = $("pc_budget_value");
+		const elSize = $("pc_size");
+		const elSizeVal = $("pc_size_value");
+		const elFov = $("pc_fov");
+		const elFovVal = $("pc_fov_value");
+		const elNode = $("pc_node");
+		const elNodeVal = $("pc_node_value");
+		const elEdl = $("pc_edl");
+		const elBg = $("pc_bg");
+		const elSplat = $("pc_splat");
+		const elFit = $("pc_fit");
+		const elReset = $("pc_reset");
+		const elToggleDock = $("pc_toggle_dock");
+		const elMoveMode = $("pc_move_mode");
+		const elSpeed = $("pc_speed");
+		const elSpeedVal = $("pc_speed_value");
+		const elMeasDistance = $("pc_meas_distance");
+		const elMeasArea = $("pc_meas_area");
+		const elMeasPoint = $("pc_meas_point");
+		const elMeasClear = $("pc_meas_clear");
+		const dock = $("pc_bottom_dock");
+
+		const applyRenderControls = () => {
+			viewer.setPointBudget(parseInt(elBudget.value, 10));
+			elBudgetVal.textContent = `${Math.round(parseInt(elBudget.value, 10) / 1000000)}M`;
+
+			viewer.setFOV(parseInt(elFov.value, 10));
+			elFovVal.textContent = `${elFov.value}°`;
+
+			viewer.setMinNodeSize(parseInt(elNode.value, 10));
+			elNodeVal.textContent = elNode.value;
+
+			viewer.setEDLEnabled(elEdl.checked);
+			viewer.setBackground(elBg.value);
+			viewer.useHQ = elSplat.value === "hq";
+			if (typeof viewer.setMoveSpeed === "function") {
+				viewer.setMoveSpeed(parseInt(elSpeed.value, 10));
+			}
+			elSpeedVal.textContent = elSpeed.value;
+
+			if (activeMaterial) {
+				activeMaterial.size = parseFloat(elSize.value);
+				elSizeVal.textContent = Number(elSize.value).toFixed(1);
+			}
+		};
+
+		[elBudget, elSize, elFov, elNode, elEdl, elBg, elSplat].forEach((el) => {
+			el.addEventListener("input", applyRenderControls);
+			el.addEventListener("change", applyRenderControls);
+		});
+		elSpeed.addEventListener("input", applyRenderControls);
+		elSpeed.addEventListener("change", applyRenderControls);
+
+		elMoveMode.addEventListener("change", () => {
+			if (elMoveMode.value === "orbit") {
+				viewer.setControls(viewer.orbitControls);
+			} else if (elMoveMode.value === "earth") {
+				viewer.setControls(viewer.earthControls);
+			} else if (elMoveMode.value === "fps") {
+				viewer.setControls(viewer.fpControls);
+				viewer.fpControls.lockElevation = false;
+			} else if (elMoveMode.value === "heli") {
+				viewer.setControls(viewer.fpControls);
+				viewer.fpControls.lockElevation = true;
+			}
+		});
+
+		elFit.addEventListener("click", () => viewer.fitToScreen());
+		elReset.addEventListener("click", () => {
+			elBudget.value = "10000000";
+			elSize.value = "1";
+			elFov.value = "60";
+			elNode.value = "8";
+			elEdl.checked = false;
+			elBg.value = "gradient";
+			elSplat.value = "hq";
+			elSpeed.value = "10";
+			elMoveMode.value = "orbit";
+			viewer.setControls(viewer.orbitControls);
+			applyRenderControls();
+			viewer.fitToScreen();
+		});
+
+		elMeasDistance.addEventListener("click", () => {
+			viewer.measuringTool.startInsertion({
+				showDistances: true,
+				showArea: false,
+				closed: false,
+				name: "Distance",
+			});
+		});
+		elMeasArea.addEventListener("click", () => {
+			viewer.measuringTool.startInsertion({
+				showDistances: true,
+				showArea: true,
+				closed: true,
+				name: "Area",
+			});
+		});
+		elMeasPoint.addEventListener("click", () => {
+			viewer.measuringTool.startInsertion({
+				showDistances: false,
+				showAngles: false,
+				showCoordinates: true,
+				showArea: false,
+				closed: true,
+				maxMarkers: 1,
+				name: "Point",
+			});
+		});
+		elMeasClear.addEventListener("click", () => {
+			viewer.scene.removeAllMeasurements();
+		});
+
+		elToggleDock.addEventListener("click", () => {
+			dock.classList.toggle("pc-collapsed");
+			const expanded = !dock.classList.contains("pc-collapsed");
+			elToggleDock.setAttribute("aria-expanded", expanded ? "true" : "false");
+			elToggleDock.textContent = expanded ? "▾" : "▴";
+			elToggleDock.title = expanded ? "Collapse controls" : "Expand controls";
+		});
+
+		applyRenderControls();
+
+		if (!pointcloudUrl) {
+			console.error("[Potree] Missing ?url= parameter (metadata.json or cloud.js URL).");
+		} else {
+			Potree.loadPointCloud(pointcloudUrl, "cloud", e => {
+				let scene = viewer.scene;
+				let pointcloud = e.pointcloud;
+				let material = pointcloud.material;
+				activeMaterial = material;
+				material.size = 1;
+				material.pointSizeType = Potree.PointSizeType.ADAPTIVE;
+				material.shape = Potree.PointShape.SQUARE;
+				pointcloud.showBoundingBox = false;
+				scene.addPointCloud(pointcloud);
+				viewer.setShowBoundingBox(false);
+				applyRenderControls();
+				viewer.fitToScreen();
+			});
+		}
+
+	</script>
+
+</body>
+</html>
