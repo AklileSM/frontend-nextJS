@@ -44,7 +44,7 @@ const browserBootLogger = `
       try { return JSON.stringify(value); } catch (_) { return String(value); }
     }
 
-    console.info(prefix, 'inline logger loaded', {
+    console.log(prefix, 'PAGE HTML LOADED BEFORE REACT HYDRATION', {
       href: window.location.href,
       timestamp: new Date().toISOString()
     });
