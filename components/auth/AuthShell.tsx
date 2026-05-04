@@ -18,9 +18,12 @@ type Props = {
 
 export function AuthShell({ title, subtitle, altLink, children }: Props) {
   return (
-    <div className="grid min-h-screen lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
+    <div
+      className="grid min-h-screen bg-base-950 text-white lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]"
+      style={{ backgroundColor: '#020617', color: '#fff' }}
+    >
       <motion.aside
-        initial={{ opacity: 0 }}
+        initial={false}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.45 }}
         className="relative hidden flex-col justify-between overflow-hidden border-r border-base-800 bg-base-900/30 px-12 py-10 lg:flex"
@@ -29,7 +32,7 @@ export function AuthShell({ title, subtitle, altLink, children }: Props) {
         <Logo />
 
         <motion.div
-          initial={{ opacity: 0, y: 16 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
           className="relative max-w-[42ch]"
@@ -48,7 +51,7 @@ export function AuthShell({ title, subtitle, altLink, children }: Props) {
         </motion.div>
 
         <motion.div
-          initial={{ opacity: 0, y: 8 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.25 }}
           className="relative rounded-md border border-base-800 bg-base-900/50 px-5 py-4"
@@ -83,7 +86,7 @@ export function AuthShell({ title, subtitle, altLink, children }: Props) {
           <Logo />
         </div>
         <motion.div
-          initial={{ opacity: 0, y: 12 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
           className="my-auto w-full max-w-[440px]"
@@ -104,7 +107,7 @@ export function AuthShell({ title, subtitle, altLink, children }: Props) {
           </motion.div>
           {altLink && (
             <motion.p
-              initial={{ opacity: 0 }}
+              initial={false}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.4, delay: 0.3 }}
               className="mt-8 text-[14px] text-ink-300"
