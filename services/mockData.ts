@@ -18,13 +18,45 @@ export const mockAdminUser: AuthUser = {
   id: 'mock-admin-1',
   username: 'admin',
   email: 'admin@sitescope.local',
-  role: 'admin',
+  is_admin: true,
 };
 
+const _now = new Date().toISOString();
+
 export const mockProjects: ApiProject[] = [
-  { id: 'p-a6', name: 'A6-Stern', slug: 'a6-stern' },
-  { id: 'p-x', name: 'Project X', slug: 'projectx' },
-  { id: 'p-y', name: 'Project Y', slug: 'projecty' },
+  {
+    id: 'p-a6',
+    name: 'A6-Stern',
+    slug: 'a6-stern',
+    description: 'Main construction site',
+    location: 'Berlin, Germany',
+    status: 'active',
+    owner_id: 'mock-admin-1',
+    created_at: _now,
+    updated_at: _now,
+  },
+  {
+    id: 'p-x',
+    name: 'Project X',
+    slug: 'projectx',
+    description: null,
+    location: null,
+    status: 'active',
+    owner_id: 'mock-admin-1',
+    created_at: _now,
+    updated_at: _now,
+  },
+  {
+    id: 'p-y',
+    name: 'Project Y',
+    slug: 'projecty',
+    description: null,
+    location: null,
+    status: 'active',
+    owner_id: 'mock-admin-1',
+    created_at: _now,
+    updated_at: _now,
+  },
 ];
 
 export const mockRooms: ApiRoom[] = [

@@ -6,14 +6,14 @@ import { Trash2, FileText, Image as ImageIcon, Box, Video, Eye } from 'lucide-re
 import { format, parseISO } from 'date-fns';
 import { useState } from 'react';
 import { setViewerContext, viewerHrefFor } from './viewerContext';
-import type { ApiMediaFile, Role } from '@/types/api';
+import type { ApiMediaFile } from '@/types/api';
 
 type Props = {
   file: ApiMediaFile;
   roomSlug: string;
   date: string;
   origin: 'project' | 'room';
-  role: Role | null;
+  isAdmin: boolean;
   onDelete: (file: ApiMediaFile) => void;
 };
 
@@ -27,10 +27,10 @@ const TYPE_META: Record<
   pdf: { label: 'PDF', gradient: 'from-base-700/60 via-base-800 to-base-900', tint: 'text-ink-200', Icon: FileText },
 };
 
-export function Thumbnail({ file, roomSlug, date, origin, role, onDelete }: Props) {
+export function Thumbnail({ file, roomSlug, date, origin, isAdmin, onDelete }: Props) {
   const router = useRouter();
   const meta = TYPE_META[file.type];
-  const canDelete = role === 'admin' || role === 'manager';
+  const canDelete = isAdmin;
   const [pending, setPending] = useState(false);
 
   const open = () => {

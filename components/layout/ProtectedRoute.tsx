@@ -3,14 +3,13 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, type ReactNode } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import type { Role } from '@/types/api';
 
 type Props = {
   children: ReactNode;
-  roles?: Role[];
+  requireAdmin?: boolean;
 };
 
-export function ProtectedRoute({ children, roles }: Props) {
+export function ProtectedRoute({ children, requireAdmin }: Props) {
   const { user, isAuthenticated } = useAuth();
   const router = useRouter();
 
@@ -19,12 +18,12 @@ export function ProtectedRoute({ children, roles }: Props) {
       router.replace('/login');
       return;
     }
-    if (roles && user && !roles.includes(user.role)) {
+    if (requireAdmin && user && !user.is_admin) {
       router.replace('/unauthorized');
     }
-  }, [isAuthenticated, roles, router, user]);
+  }, [isAuthenticated, requireAdmin, router, user]);
 
   if (!isAuthenticated) return null;
-  if (roles && user && !roles.includes(user.role)) return null;
+  if (requireAdmin && user && !user.is_admin) return null;
   return <>{children}</>;
 }

@@ -8,10 +8,12 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Folder,
+  FolderOpen,
   Home,
   Image as ImageIcon,
   FileText,
   Box,
+  ShieldCheck,
   Video,
   type LucideIcon,
 } from 'lucide-react';
@@ -97,6 +99,13 @@ export function Sidebar() {
 
         <nav className="flex-1 overflow-y-auto px-3 py-4">
           <NavLink href="/app" icon={<Home size={14} />} label="Home" expanded={open} />
+          <NavLink
+            href="/app/projects"
+            icon={<FolderOpen size={14} />}
+            label="Projects"
+            expanded={open}
+            isActive={false}
+          />
 
           <SectionLabel expanded={open}>Projects</SectionLabel>
           <ul className="space-y-0.5">
@@ -107,6 +116,18 @@ export function Sidebar() {
             ))}
             {!projects && <li className="px-3 py-2 font-mono text-[11px] text-ink-400">Loading…</li>}
           </ul>
+
+          {user?.is_admin && (
+            <>
+              <SectionLabel expanded={open}>Platform</SectionLabel>
+              <NavLink
+                href="/app/admin"
+                icon={<ShieldCheck size={14} />}
+                label="Admin panel"
+                expanded={open}
+              />
+            </>
+          )}
         </nav>
 
         <div className={`border-t border-base-800 ${open ? 'block' : 'hidden lg:hidden'}`}>
@@ -116,7 +137,7 @@ export function Sidebar() {
           <MiniCalendar />
         </div>
 
-        <UserFooter expanded={open} username={user?.username ?? '—'} role={user?.role ?? 'viewer'} />
+        <UserFooter expanded={open} username={user?.username ?? '—'} role={user?.is_admin ? 'admin' : 'member'} />
       </aside>
     </>
   );

@@ -1,14 +1,10 @@
-// Mirror of the live backend response shapes. Names are kept identical to the existing
-// `frontend/src/services/apiClient.ts` so future phases can swap the mock client for the
-// real one without touching component imports.
-
-export type Role = 'admin' | 'manager' | 'viewer';
+// Mirror of the live backend response shapes.
 
 export interface AuthUser {
   id: string;
   username: string;
   email: string | null;
-  role: Role;
+  is_admin: boolean;
 }
 
 export interface ApiTokenResponse {
@@ -18,7 +14,7 @@ export interface ApiTokenResponse {
     id: string;
     username: string;
     email: string | null;
-    role: string;
+    is_admin: boolean;
   };
 }
 
@@ -26,6 +22,29 @@ export interface ApiProject {
   id: string;
   name: string;
   slug: string;
+  description: string | null;
+  location: string | null;
+  status: string;
+  owner_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ApiProjectMember {
+  user_id: string;
+  username: string;
+  email: string | null;
+  role: 'owner' | 'editor' | 'viewer';
+  joined_at: string;
+}
+
+export interface AdminUser {
+  id: string;
+  username: string;
+  email: string | null;
+  is_admin: boolean;
+  is_active: boolean;
+  created_at: string;
 }
 
 export interface ApiRoom {

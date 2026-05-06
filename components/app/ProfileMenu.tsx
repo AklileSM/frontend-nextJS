@@ -16,7 +16,6 @@ function getInitials(name: string): string {
 
 const roleStyle: Record<string, string> = {
   admin: 'bg-amber-500/15 text-amber-500',
-  manager: 'bg-steel-500/15 text-steel-400',
   viewer: 'bg-base-800 text-ink-200',
 };
 
@@ -91,10 +90,10 @@ export function ProfileMenu() {
                 </div>
                 <div
                   className={`mt-1.5 inline-flex items-center rounded-sm px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.18em] ${
-                    roleStyle[user.role] ?? roleStyle.viewer
+                    user.is_admin ? roleStyle.admin : roleStyle.viewer
                   }`}
                 >
-                  {user.role}
+                  {user.is_admin ? 'admin' : 'member'}
                 </div>
               </div>
             </div>

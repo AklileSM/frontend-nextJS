@@ -28,12 +28,6 @@ import type {
 
 export const dynamic = 'force-dynamic';
 
-const SUPPORT_BY_PROJECT: Record<string, boolean> = {
-  'a6-stern': true,
-  projectx: false,
-  projecty: false,
-};
-
 export default function FileExplorerPage() {
   const { slug } = useParams<{ slug: string }>();
   const params = useSearchParams();
@@ -51,8 +45,8 @@ export default function FileExplorerPage() {
   const [roomFilter, setRoomFilter] = useState<Set<string> | null>(null);
 
   const date = params.get('date') ?? mockCaptureDates[mockCaptureDates.length - 1];
-  const isSupported = SUPPORT_BY_PROJECT[slug] ?? false;
-  const canUpload = user?.role === 'admin';
+  const isAdmin = user?.is_admin ?? false;
+  const canUpload = isAdmin;
 
   // Load project metadata + rooms once
   useEffect(() => {
@@ -70,7 +64,7 @@ export default function FileExplorerPage() {
 
   // Load files for date whenever the date or reload token changes
   useEffect(() => {
-    if (!isSupported) return;
+    if (!project) return;
     let cancelled = false;
     setResponse(null);
     getExplorerByDate(date).then((r) => {
@@ -79,7 +73,7 @@ export default function FileExplorerPage() {
     return () => {
       cancelled = true;
     };
-  }, [date, isSupported, reloadToken]);
+  }, [date, project, reloadToken]);
 
   // Reset the room filter to "all" whenever the active date changes — the set
   // of rooms with files on the new date is different.
@@ -140,19 +134,10 @@ export default function FileExplorerPage() {
     }
   }, [pendingDelete]);
 
-  if (!isSupported) {
+  if (!project) {
     return (
       <div className="px-6 py-10 sm:px-8 lg:px-12 xl:px-16">
-        <p className="font-mono text-[12px] uppercase tracking-[0.22em] text-amber-500">
-          Project · {slug}
-        </p>
-        <h1 className="mt-3 font-display text-[40px] font-semibold tracking-tight text-white">
-          {project?.name ?? slug}
-        </h1>
-        <div className="mt-8 max-w-[68ch] rounded-md border border-base-800 bg-base-900/30 p-6 text-[14px] text-ink-200">
-          No captures have been added to this project yet. Once an admin uploads files, they will
-          appear here organised by room and date.
-        </div>
+        <div className="h-8 w-40 animate-pulse rounded bg-base-800" />
       </div>
     );
   }
@@ -244,7 +229,7 @@ export default function FileExplorerPage() {
                 date={date}
                 files={files}
                 total={total}
-                role={user?.role ?? null}
+                isAdmin={isAdmin}
                 onDelete={setPendingDelete}
               />
             );
@@ -299,7 +284,7 @@ function RoomSection({
   date,
   files,
   total,
-  role,
+  isAdmin,
   onDelete,
 }: {
   roomName: string;
@@ -307,7 +292,7 @@ function RoomSection({
   date: string;
   files: ApiMediaFile[];
   total: number;
-  role: 'admin' | 'manager' | 'viewer' | null;
+  isAdmin: boolean;
   onDelete: (file: ApiMediaFile) => void;
 }) {
   return (
@@ -327,7 +312,7 @@ function RoomSection({
         roomSlug={roomSlug}
         date={date}
         origin="project"
-        role={role}
+        isAdmin={isAdmin}
         onDelete={onDelete}
       />
     </section>

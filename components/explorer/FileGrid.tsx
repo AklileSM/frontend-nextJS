@@ -2,18 +2,18 @@
 
 import { motion } from 'framer-motion';
 import { Thumbnail } from './Thumbnail';
-import type { ApiMediaFile, Role } from '@/types/api';
+import type { ApiMediaFile } from '@/types/api';
 
 type Props = {
   files: ApiMediaFile[];
   roomSlug: string;
   date: string;
   origin: 'project' | 'room';
-  role: Role | null;
+  isAdmin: boolean;
   onDelete: (file: ApiMediaFile) => void;
 };
 
-export function FileGrid({ files, roomSlug, date, origin, role, onDelete }: Props) {
+export function FileGrid({ files, roomSlug, date, origin, isAdmin, onDelete }: Props) {
   if (files.length === 0) {
     return (
       <div className="rounded-md border border-dashed border-base-700 bg-base-900/30 px-4 py-8 text-center text-[13px] text-ink-300">
@@ -36,7 +36,7 @@ export function FileGrid({ files, roomSlug, date, origin, role, onDelete }: Prop
             roomSlug={roomSlug}
             date={date}
             origin={origin}
-            role={role}
+            isAdmin={isAdmin}
             onDelete={onDelete}
           />
         </motion.div>

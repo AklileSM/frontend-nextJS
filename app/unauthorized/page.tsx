@@ -30,7 +30,7 @@ function UnauthorizedContent() {
         </h1>
         <p className="mt-4 text-[16px] leading-[1.65] text-ink-200">
           {user
-            ? `Your account (${user.username}, role ${user.role}) doesn't have permission for that page.`
+            ? `Your account (${user.username}) doesn't have permission for that page.`
             : "You're not signed in. Sign in to continue."}
         </p>
         <div className="mt-9 flex flex-wrap items-center justify-center gap-3">

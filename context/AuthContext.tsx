@@ -9,20 +9,19 @@ import {
   type ReactNode,
 } from 'react';
 import { apiLogin, apiRegister } from '@/services/apiClient';
-import type { AuthUser, Role } from '@/types/api';
+import type { AuthUser } from '@/types/api';
 
-export type { AuthUser, Role };
+export type { AuthUser };
 
 type AuthContextValue = {
   user: AuthUser | null;
   isAuthenticated: boolean;
   isLoading: false;
-  login: (params: { username: string; password: string; remember?: boolean }) => Promise<void>;
+  login: (params: { username: string; password: string }) => Promise<void>;
   register: (params: {
     username: string;
     password: string;
     email?: string;
-    remember?: boolean;
   }) => Promise<void>;
   logout: () => void;
 };
@@ -55,7 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         id: data.user.id,
         username: data.user.username,
         email: data.user.email,
-        role: (data.user.role as Role) ?? 'viewer',
+        is_admin: data.user.is_admin ?? false,
       });
     },
     [],
@@ -76,7 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         id: data.user.id,
         username: data.user.username,
         email: data.user.email,
-        role: (data.user.role as Role) ?? 'viewer',
+        is_admin: data.user.is_admin ?? false,
       });
     },
     [],

@@ -21,6 +21,7 @@ import {
   mockViewerDrafts,
 } from './mockData';
 import type {
+  AdminUser,
   ApiAnnotation,
   ApiComparisonDraft,
   ApiComparisonDraftDetail,
@@ -37,17 +38,12 @@ import type {
   ExplorerByDateResponse,
   ExplorerByRoomResponse,
   ExplorerDatesSummaryResponse,
-  Role,
   UploadSingleResponse,
 } from '@/types/api';
 
-// Mock auth heuristics (see apiLogin / apiRegister): username "fail" throws so
-// the error path is demoable; usernames "admin" / "manager" / "viewer" return
-// that role; anything else defaults to admin.
-function roleFromUsername(username: string): Role {
-  const lower = username.trim().toLowerCase();
-  if (lower === 'manager' || lower === 'viewer') return lower;
-  return 'admin';
+// Mock auth heuristic: username "admin" gets is_admin=true; anything else is a regular member.
+function isAdminFromUsername(username: string): boolean {
+  return username.trim().toLowerCase() !== 'viewer';
 }
 
 export const API_BASE = '/api';
@@ -62,11 +58,11 @@ export async function apiLogin(username: string, _password: string): Promise<Api
   if (username.trim().toLowerCase() === 'fail') {
     throw new Error('Invalid username or password.');
   }
-  const role = roleFromUsername(username);
+  const is_admin = isAdminFromUsername(username);
   return {
     access_token: 'mock-access-token',
     token_type: 'bearer',
-    user: { ...mockAdminUser, username, role },
+    user: { ...mockAdminUser, username, is_admin },
   };
 }
 
@@ -79,11 +75,11 @@ export async function apiRegister(
   if (username.trim().toLowerCase() === 'fail') {
     throw new Error('Could not create that account. Try another username.');
   }
-  const role = roleFromUsername(username);
+  const is_admin = isAdminFromUsername(username);
   return {
     access_token: 'mock-access-token',
     token_type: 'bearer',
-    user: { ...mockAdminUser, username, email: email?.trim() || null, role },
+    user: { ...mockAdminUser, username, email: email?.trim() || null, is_admin },
   };
 }
 
@@ -97,6 +93,87 @@ export async function apiFetchCurrentUser(): Promise<ApiTokenResponse['user']> {
 export async function listProjects(): Promise<ApiProject[]> {
   await wait();
   return mockProjects;
+}
+
+export async function createProject(params: {
+  name: string;
+  slug: string;
+  description: string | null;
+  location: string | null;
+}): Promise<ApiProject> {
+  await wait(200);
+  const existing = mockProjects.find((p) => p.slug === params.slug);
+  if (existing) throw new Error('A project with that slug already exists');
+  const now = new Date().toISOString();
+  const project: ApiProject = {
+    id: makeMockId('p'),
+    name: params.name,
+    slug: params.slug,
+    description: params.description,
+    location: params.location,
+    status: 'active',
+    owner_id: mockAdminUser.id,
+    created_at: now,
+    updated_at: now,
+  };
+  mockProjects.push(project);
+  return project;
+}
+
+// --- Admin ------------------------------------------------------------------
+
+const mockUsers: AdminUser[] = [
+  {
+    id: mockAdminUser.id,
+    username: mockAdminUser.username,
+    email: mockAdminUser.email,
+    is_admin: true,
+    is_active: true,
+    created_at: new Date('2025-01-01').toISOString(),
+  },
+  {
+    id: makeMockId('u'),
+    username: 'alice',
+    email: 'alice@example.com',
+    is_admin: false,
+    is_active: true,
+    created_at: new Date('2025-03-15').toISOString(),
+  },
+  {
+    id: makeMockId('u'),
+    username: 'bob',
+    email: null,
+    is_admin: false,
+    is_active: false,
+    created_at: new Date('2025-04-20').toISOString(),
+  },
+];
+
+export async function listAdminUsers(): Promise<AdminUser[]> {
+  await wait();
+  return [...mockUsers];
+}
+
+export async function updateAdminUser(
+  userId: string,
+  patch: Partial<Pick<AdminUser, 'is_admin' | 'is_active' | 'email'>>,
+): Promise<AdminUser> {
+  await wait(150);
+  const user = mockUsers.find((u) => u.id === userId);
+  if (!user) throw new Error('User not found');
+  Object.assign(user, patch);
+  return { ...user };
+}
+
+export async function listAdminProjects(): Promise<ApiProject[]> {
+  await wait();
+  return [...mockProjects];
+}
+
+export async function deleteAdminProject(projectId: string): Promise<void> {
+  await wait(200);
+  const idx = mockProjects.findIndex((p) => p.id === projectId);
+  if (idx >= 0) mockProjects.splice(idx, 1);
 }
 
 export async function listRooms(): Promise<ApiRoom[]> {

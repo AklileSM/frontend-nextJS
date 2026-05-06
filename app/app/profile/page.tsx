@@ -23,7 +23,7 @@ export default function ProfilePage() {
           {user?.username}
         </h1>
         <p className="mt-3 text-[16px] text-ink-300">
-          {user?.email ?? 'no email on file'} · role <span className="text-white">{user?.role}</span>
+          {user?.email ?? 'no email on file'} · <span className="text-white">{user?.is_admin ? 'admin' : 'member'}</span>
         </p>
 
         <div className="mt-10 max-w-[68ch] rounded-md border border-base-800 bg-base-900/30 p-6 text-[14.5px] leading-[1.7] text-ink-200">

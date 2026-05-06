@@ -207,7 +207,7 @@ function Inner() {
                 roomSlug={activeSlug ?? ''}
                 files={files}
                 total={total}
-                role={user?.role ?? null}
+                isAdmin={user?.is_admin ?? false}
                 onDelete={setPendingDelete}
               />
             );
@@ -252,14 +252,14 @@ function DateSection({
   roomSlug,
   files,
   total,
-  role,
+  isAdmin,
   onDelete,
 }: {
   date: string;
   roomSlug: string;
   files: ApiMediaFile[];
   total: number;
-  role: 'admin' | 'manager' | 'viewer' | null;
+  isAdmin: boolean;
   onDelete: (file: ApiMediaFile) => void;
 }) {
   return (
@@ -277,7 +277,7 @@ function DateSection({
         roomSlug={roomSlug}
         date={date}
         origin="room"
-        role={role}
+        isAdmin={isAdmin}
         onDelete={onDelete}
       />
     </section>
