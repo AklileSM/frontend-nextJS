@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { Trash2 } from 'lucide-react';
 import { listAdminProjects, deleteAdminProject } from '@/services/apiClient';
+import { formatIsoDate } from '@/services/dateFormat';
 import type { ApiProject } from '@/types/api';
 
 export const dynamic = 'force-dynamic';
@@ -113,7 +114,7 @@ export default function AdminProjectsPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3 font-mono text-[11px] text-ink-400">
-                    {new Date(project.created_at).toLocaleDateString()}
+                    {formatIsoDate(project.created_at)}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <button

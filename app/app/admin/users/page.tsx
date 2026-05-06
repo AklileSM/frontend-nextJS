@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { Shield, ShieldOff, UserCheck, UserX } from 'lucide-react';
 import { listAdminUsers, updateAdminUser } from '@/services/apiClient';
+import { formatIsoDate } from '@/services/dateFormat';
 import type { AdminUser } from '@/types/api';
 
 export const dynamic = 'force-dynamic';
@@ -102,7 +103,7 @@ export default function AdminUsersPage() {
                   <td className="px-4 py-3 font-medium text-white">{user.username}</td>
                   <td className="px-4 py-3 text-ink-300">{user.email ?? '—'}</td>
                   <td className="px-4 py-3 font-mono text-[11px] text-ink-400">
-                    {new Date(user.created_at).toLocaleDateString()}
+                    {formatIsoDate(user.created_at)}
                   </td>
                   <td className="px-4 py-3 text-center">
                     <button

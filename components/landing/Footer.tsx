@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { Logo } from './Logo';
 
+const COPYRIGHT_YEAR = 2026;
+
 const cols = [
   {
     heading: 'Platform',
@@ -27,7 +29,6 @@ const cols = [
 ];
 
 export function Footer() {
-  const year = new Date().getFullYear();
   return (
     <footer className="border-t border-base-800 bg-base-950">
       <div className="mx-auto grid max-w-[1480px] gap-14 px-8 py-16 sm:px-12 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,2fr)] lg:px-24 xl:px-32">
@@ -64,7 +65,7 @@ export function Footer() {
 
       <div className="border-t border-base-800">
         <div className="mx-auto flex max-w-[1480px] flex-col items-start justify-between gap-2 px-8 py-6 text-[13px] text-ink-400 sm:flex-row sm:items-center sm:px-12 lg:px-24 xl:px-32">
-          <span>© {year} SiteScope</span>
+          <span>© {COPYRIGHT_YEAR} SiteScope</span>
           <span>Built for the field.</span>
         </div>
       </div>
