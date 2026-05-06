@@ -1,6 +1,5 @@
 import { AuthShell } from '@/components/auth/AuthShell';
-import { LoginForm } from '@/components/auth/LoginForm';
-import { AuthPageProviders } from '@/components/providers/RouteProviders';
+import { LoginClientIsland } from '@/components/auth/LoginClientIsland';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,9 +16,7 @@ export default function LoginPage({ searchParams }: LoginPageProps) {
       subtitle="Welcome back. Use your username and password."
       altLink={{ href: '/register', prompt: "Don't have an account?", cta: 'Create one' }}
     >
-      <AuthPageProviders>
-        <LoginForm next={searchParams?.next} />
-      </AuthPageProviders>
+      <LoginClientIsland next={searchParams?.next} />
     </AuthShell>
   );
 }
