@@ -11,7 +11,7 @@ RUN npm ci --include=dev
 
 COPY . .
 
-RUN rm -rf .next && npm run build
+RUN rm -rf .next && npm run dev
 
 ENV NODE_ENV=production
 
