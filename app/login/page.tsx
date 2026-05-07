@@ -1,8 +1,22 @@
-export default function LoginPage() {
+import { AuthShell } from '@/components/auth/AuthShell';
+import { LoginClientIsland } from '@/components/auth/LoginClientIsland';
+
+export const dynamic = 'force-dynamic';
+
+type LoginPageProps = {
+  searchParams?: {
+    next?: string;
+  };
+};
+
+export default function LoginPage({ searchParams }: LoginPageProps) {
   return (
-    <main style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 48 }}>
-      <h1>Sign in test</h1>
-      <p>If this renders, the issue is in AuthShell/client islands/providers.</p>
-    </main>
+    <AuthShell
+      title="Sign in"
+      subtitle="Welcome back. Use your username and password."
+      altLink={{ href: '/register', prompt: "Don't have an account?", cta: 'Create one' }}
+    >
+      <LoginClientIsland next={searchParams?.next} />
+    </AuthShell>
   );
 }
