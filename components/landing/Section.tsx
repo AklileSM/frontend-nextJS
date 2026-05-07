@@ -1,11 +1,8 @@
 'use client';
 
-import { motion } from 'framer-motion';
+import { motion, useScroll, useTransform, useSpring } from 'framer-motion';
+import { useRef } from 'react';
 import type { ReactNode } from 'react';
-
-// Section wrapper. Bigger gutters than before, plus a soft 1480px content cap so
-// ultra-wide displays don't span edge-to-edge. Per-element max-w-[70ch] continues
-// to govern reading length on prose blocks inside.
 
 type Props = {
   id?: string;
@@ -36,6 +33,43 @@ export function SectionEyebrow({ children }: { children: ReactNode }) {
   );
 }
 
+const containerVariants = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.12 } },
+};
+
+// Eyebrow: slides in from left in 2D — provides contrast to the 3D heading
+const eyebrowVariants = {
+  hidden: { opacity: 0, x: -18 },
+  visible: {
+    opacity: 1,
+    x: 0,
+    transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] },
+  },
+};
+
+// Heading: rotates from a tilted-back plane into the reading surface.
+// transformPerspective creates the depth illusion without a wrapper element.
+const titleVariants = {
+  hidden: { opacity: 0, y: 28, rotateX: 22 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    rotateX: 0,
+    transition: { duration: 0.78, ease: [0.22, 1, 0.36, 1] },
+  },
+};
+
+const subVariants = {
+  hidden: { opacity: 0, y: 16, rotateX: 10 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    rotateX: 0,
+    transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] },
+  },
+};
+
 export function SectionHeading({
   eyebrow,
   title,
@@ -47,25 +81,39 @@ export function SectionHeading({
 }) {
   return (
     <motion.header
-      initial={{ opacity: 0, y: 16 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: '-15% 0px' }}
-      transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+      initial="hidden"
+      whileInView="visible"
+      viewport={{ once: true, margin: '-12% 0px' }}
+      variants={containerVariants}
       className="max-w-[68ch]"
     >
-      <SectionEyebrow>{eyebrow}</SectionEyebrow>
-      <h2 className="mt-4 font-display text-[40px] font-semibold leading-[1.05] tracking-[-0.018em] text-white sm:text-[48px] lg:text-[54px]">
+      <motion.div variants={eyebrowVariants}>
+        <SectionEyebrow>{eyebrow}</SectionEyebrow>
+      </motion.div>
+
+      {/* transformPerspective gives the rotateX genuine depth without a wrapper */}
+      <motion.h2
+        variants={titleVariants}
+        style={{ transformPerspective: 800, transformOrigin: 'center top' }}
+        className="mt-4 font-display text-[40px] font-semibold leading-[1.05] tracking-[-0.018em] text-white sm:text-[48px] lg:text-[54px]"
+      >
         {title}
-      </h2>
+      </motion.h2>
+
       {sub && (
-        <p className="mt-5 text-[17px] leading-[1.7] text-ink-200">{sub}</p>
+        <motion.p
+          variants={subVariants}
+          style={{ transformPerspective: 800, transformOrigin: 'center top' }}
+          className="mt-5 text-[17px] leading-[1.7] text-ink-200"
+        >
+          {sub}
+        </motion.p>
       )}
     </motion.header>
   );
 }
 
-// Lightweight reveal wrapper for child blocks. Used for diagram panels, grids,
-// tables — anything that should drift up gently into view as the user scrolls.
+// Cards/panels rotate in like a flat surface tilting to face the viewer.
 export function Reveal({
   children,
   delay = 0,
@@ -77,12 +125,40 @@ export function Reveal({
 }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 18 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: '-10% 0px' }}
-      transition={{ duration: 0.55, delay, ease: [0.22, 1, 0.36, 1] }}
+      initial={{ opacity: 0, y: 44, rotateX: 16 }}
+      whileInView={{ opacity: 1, y: 0, rotateX: 0 }}
+      viewport={{ once: true, margin: '-8% 0px' }}
+      transition={{ duration: 0.72, delay, ease: [0.16, 1, 0.3, 1] }}
+      style={{ transformPerspective: 900, transformOrigin: 'center top' }}
       className={className}
     >
+      {children}
+    </motion.div>
+  );
+}
+
+// Genuine scroll parallax — wrap decorative/background layers.
+// Positive speed → drifts down relative to scroll (appears further away).
+// Negative speed → drifts up faster (appears closer / in front).
+export function ParallaxFloat({
+  children,
+  speed = 0.15,
+  className = '',
+}: {
+  children: ReactNode;
+  speed?: number;
+  className?: string;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const { scrollYProgress } = useScroll({
+    target: ref,
+    offset: ['start end', 'end start'],
+  });
+  const rawY = useTransform(scrollYProgress, [0, 1], [0, speed * 130]);
+  const y = useSpring(rawY, { stiffness: 55, damping: 18, restDelta: 0.001 });
+
+  return (
+    <motion.div ref={ref} style={{ y }} className={className}>
       {children}
     </motion.div>
   );
