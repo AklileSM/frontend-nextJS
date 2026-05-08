@@ -13,7 +13,7 @@ import type { ApiMediaFile } from '@/types/api';
 
 type Props = {
   file: ApiMediaFile;
-  viewerKind: 'static' | 'panorama';
+  viewerKind: 'static' | 'panorama' | 'point-cloud';
   aiDescription: string;
   state: Record<string, unknown>;
 };
