@@ -11,7 +11,7 @@ import {
   YAxis,
 } from 'recharts';
 import { useEffect, useState } from 'react';
-import { getExplorerByRoom, listRooms } from '@/services/apiClient';
+import { getExplorerByRoom, listProjects, listRooms } from '@/services/apiClient';
 
 type Row = { date: string; images: number; videos: number; pointclouds: number; pdfs: number };
 
@@ -28,25 +28,30 @@ export function ChartAll() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const rooms = await listRooms();
-      const a6 = rooms.filter((r) => r.project_id === 'p-a6');
-      const acc = new Map<string, Row>();
-      await Promise.all(
-        a6.map(async (room) => {
-          const res = await getExplorerByRoom(room.slug);
-          for (const [date, group] of Object.entries(res.dates)) {
-            const cur =
-              acc.get(date) ?? { date, images: 0, videos: 0, pointclouds: 0, pdfs: 0 };
-            cur.images += group.images.length;
-            cur.videos += group.videos.length;
-            cur.pointclouds += group.pointclouds.length;
-            cur.pdfs += group.pdfs.length;
-            acc.set(date, cur);
-          }
-        }),
-      );
-      if (cancelled) return;
-      setData(Array.from(acc.values()).sort((a, b) => a.date.localeCompare(b.date)));
+      try {
+        const [projects, rooms] = await Promise.all([listProjects(), listRooms()]);
+        const a6ProjectId = projects.find((p) => p.slug === 'a6-stern')?.id;
+        const targetRooms = a6ProjectId ? rooms.filter((r) => r.project_id === a6ProjectId) : rooms;
+        const acc = new Map<string, Row>();
+        await Promise.all(
+          targetRooms.map(async (room) => {
+            const res = await getExplorerByRoom(room.slug);
+            for (const [date, group] of Object.entries(res.dates)) {
+              const cur =
+                acc.get(date) ?? { date, images: 0, videos: 0, pointclouds: 0, pdfs: 0 };
+              cur.images += group.images.length;
+              cur.videos += group.videos.length;
+              cur.pointclouds += group.pointclouds.length;
+              cur.pdfs += group.pdfs.length;
+              acc.set(date, cur);
+            }
+          }),
+        );
+        if (cancelled) return;
+        setData(Array.from(acc.values()).sort((a, b) => a.date.localeCompare(b.date)));
+      } catch {
+        if (!cancelled) setData([]);
+      }
     })();
     return () => {
       cancelled = true;

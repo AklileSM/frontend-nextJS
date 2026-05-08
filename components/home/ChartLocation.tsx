@@ -11,7 +11,7 @@ import {
   YAxis,
 } from 'recharts';
 import { useEffect, useState } from 'react';
-import { getExplorerByRoom, listRooms } from '@/services/apiClient';
+import { getExplorerByRoom, listProjects, listRooms } from '@/services/apiClient';
 
 type Row = { room: string; slug: string; total: number };
 
@@ -21,25 +21,30 @@ export function ChartLocation({ hoveredRoom }: { hoveredRoom: string | null }) {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const rooms = await listRooms();
-      const a6 = rooms.filter((r) => r.project_id === 'p-a6');
-      const result: Row[] = await Promise.all(
-        a6.map(async (r) => {
-          const res = await getExplorerByRoom(r.slug);
-          const total = Object.values(res.dates).reduce(
-            (s, g) =>
-              s +
-              g.images.length +
-              g.videos.length +
-              g.pointclouds.length +
-              g.pdfs.length,
-            0,
-          );
-          return { room: r.name, slug: r.slug, total };
-        }),
-      );
-      if (cancelled) return;
-      setData(result);
+      try {
+        const [projects, rooms] = await Promise.all([listProjects(), listRooms()]);
+        const a6ProjectId = projects.find((p) => p.slug === 'a6-stern')?.id;
+        const targetRooms = a6ProjectId ? rooms.filter((r) => r.project_id === a6ProjectId) : rooms;
+        const result: Row[] = await Promise.all(
+          targetRooms.map(async (r) => {
+            const res = await getExplorerByRoom(r.slug);
+            const total = Object.values(res.dates).reduce(
+              (s, g) =>
+                s +
+                g.images.length +
+                g.videos.length +
+                g.pointclouds.length +
+                g.pdfs.length,
+              0,
+            );
+            return { room: r.name, slug: r.slug, total };
+          }),
+        );
+        if (cancelled) return;
+        setData(result);
+      } catch {
+        if (!cancelled) setData([]);
+      }
     })();
     return () => {
       cancelled = true;
