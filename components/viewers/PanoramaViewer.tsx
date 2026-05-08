@@ -27,7 +27,6 @@ export function PanoramaViewer() {
   const [imageReady, setImageReady] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const [debugging, setDebugging] = useState(false);
-  const [debugInfo, setDebugInfo] = useState<string[]>([]);
 
   const imageSrc = ctx?.file.full_src || ctx?.file.src || '';
 
@@ -72,7 +71,6 @@ export function PanoramaViewer() {
     if (!ctx || debugging) return;
     const info: string[] = [];
     setDebugging(true);
-    setDebugInfo([]);
     try {
       info.push(`file.type=${ctx.file.type}`);
       info.push(`file.src=${ctx.file.src}`);
@@ -107,7 +105,9 @@ export function PanoramaViewer() {
         info.push(`fetch failed: ${err instanceof Error ? err.message : String(err)}`);
       }
     } finally {
-      setDebugInfo(info);
+      console.group('[SiteScope] Panorama debug');
+      for (const line of info) console.info(line);
+      console.groupEnd();
       setDebugging(false);
     }
   };
@@ -173,14 +173,6 @@ export function PanoramaViewer() {
               alt={ctx.file.file_name}
               className="mt-3 max-h-40 w-full rounded border border-base-800 object-contain"
             />
-          </div>
-        )}
-        {debugInfo.length > 0 && (
-          <div className="rounded-md border border-base-800 bg-base-950/60 p-3">
-            <p className="mb-2 text-[12px] font-medium text-white">Panorama Debug Output</p>
-            <pre className="overflow-auto whitespace-pre-wrap break-words font-mono text-[11px] leading-5 text-ink-300">
-              {debugInfo.join('\n')}
-            </pre>
           </div>
         )}
 
