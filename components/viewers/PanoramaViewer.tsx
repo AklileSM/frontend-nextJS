@@ -26,6 +26,8 @@ export function PanoramaViewer() {
   const [analyzing, setAnalyzing] = useState(false);
   const [imageReady, setImageReady] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
+  const [debugging, setDebugging] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<string[]>([]);
 
   const imageSrc = ctx?.file.full_src || ctx?.file.src || '';
 
@@ -66,6 +68,50 @@ export function PanoramaViewer() {
     img.src = imageSrc;
   }, [ctx, imageSrc]);
 
+  const runDebug = async () => {
+    if (!ctx || debugging) return;
+    const info: string[] = [];
+    setDebugging(true);
+    setDebugInfo([]);
+    try {
+      info.push(`file.type=${ctx.file.type}`);
+      info.push(`file.src=${ctx.file.src}`);
+      info.push(`file.full_src=${ctx.file.full_src ?? '(null)'}`);
+      info.push(`resolved imageSrc=${imageSrc}`);
+
+      const probe = new Image();
+      const imageProbe = await new Promise<{ ok: boolean; width?: number; height?: number; error?: string }>(
+        (resolve) => {
+          probe.onload = () => resolve({ ok: true, width: probe.naturalWidth, height: probe.naturalHeight });
+          probe.onerror = () => resolve({ ok: false, error: 'Image decode/load failed in browser.' });
+          probe.src = imageSrc;
+        },
+      );
+      if (imageProbe.ok) {
+        info.push(`image probe ok: ${imageProbe.width}x${imageProbe.height}`);
+      } else {
+        info.push(`image probe failed: ${imageProbe.error}`);
+      }
+
+      try {
+        const res = await fetch(imageSrc, { method: 'GET' });
+        info.push(`fetch status=${res.status} ${res.statusText}`);
+        info.push(`content-type=${res.headers.get('content-type') ?? '(missing)'}`);
+        info.push(`content-length=${res.headers.get('content-length') ?? '(missing)'}`);
+        if (res.ok) {
+          const blob = await res.blob();
+          info.push(`blob.type=${blob.type || '(empty)'}`);
+          info.push(`blob.size=${blob.size}`);
+        }
+      } catch (err) {
+        info.push(`fetch failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    } finally {
+      setDebugInfo(info);
+      setDebugging(false);
+    }
+  };
+
   if (loading) return <div className="p-6 text-ink-300">Loading viewer...</div>;
   if (!ctx) return <div className="p-6 text-ink-300">No file selected. Open a file from explorer first.</div>;
 
@@ -83,6 +129,14 @@ export function PanoramaViewer() {
         </div>
 
         <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={runDebug}
+            disabled={debugging}
+            className="rounded border border-base-700 px-2 py-1 text-[12px] text-white hover:border-ink-300 disabled:opacity-50"
+          >
+            {debugging ? 'Running debug...' : 'Run Panorama Debug'}
+          </button>
           <Link
             href="/app/viewer/static"
             className="rounded border border-base-700 px-2 py-1 text-[12px] text-white hover:border-ink-300"
@@ -119,6 +173,14 @@ export function PanoramaViewer() {
               alt={ctx.file.file_name}
               className="mt-3 max-h-40 w-full rounded border border-base-800 object-contain"
             />
+          </div>
+        )}
+        {debugInfo.length > 0 && (
+          <div className="rounded-md border border-base-800 bg-base-950/60 p-3">
+            <p className="mb-2 text-[12px] font-medium text-white">Panorama Debug Output</p>
+            <pre className="overflow-auto whitespace-pre-wrap break-words font-mono text-[11px] leading-5 text-ink-300">
+              {debugInfo.join('\n')}
+            </pre>
           </div>
         )}
 
