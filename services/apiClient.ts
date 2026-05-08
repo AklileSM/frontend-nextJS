@@ -95,11 +95,11 @@ export type ApiProjectCreateRequest = {
 };
 
 export function listProjects(): Promise<ApiProject[]> {
-  return getJson<ApiProject[]>('/projects/');
+  return getJson<ApiProject[]>('/projects');
 }
 
 export function createProject(body: ApiProjectCreateRequest): Promise<ApiProject> {
-  return getJson<ApiProject>('/projects/', {
+  return getJson<ApiProject>('/projects', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -134,7 +134,7 @@ export async function deleteAdminProject(projectId: string): Promise<void> {
 
 export async function listRooms(): Promise<ApiRoom[]> {
   try {
-    return await getJson<ApiRoom[]>('/rooms/');
+    return await getJson<ApiRoom[]>('/rooms');
   } catch {
     return getJson<ApiRoom[]>('/rooms');
   }
@@ -485,7 +485,7 @@ export function createAnnotation(params: {
   y: number;
   text: string;
 }): Promise<ApiAnnotation> {
-  return getJson<ApiAnnotation>('/annotations/', {
+  return getJson<ApiAnnotation>('/annotations', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -498,7 +498,7 @@ export function createAnnotation(params: {
 }
 
 export function listReports(): Promise<ApiReport[]> {
-  return getJson<ApiReport[]>('/reports/');
+  return getJson<ApiReport[]>('/reports');
 }
 
 export async function deleteReport(reportId: string): Promise<void> {
