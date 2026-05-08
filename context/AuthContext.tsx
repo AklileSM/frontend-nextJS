@@ -4,11 +4,18 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from 'react';
-import { apiLogin, apiRegister } from '@/services/apiClient';
+import {
+  apiFetchCurrentUser,
+  apiLogin,
+  apiRegister,
+  clearAccessToken,
+  setAccessToken,
+} from '@/services/apiClient';
 import type { AuthUser } from '@/types/api';
 
 export type { AuthUser };
@@ -16,7 +23,7 @@ export type { AuthUser };
 type AuthContextValue = {
   user: AuthUser | null;
   isAuthenticated: boolean;
-  isLoading: false;
+  isLoading: boolean;
   login: (params: { username: string; password: string }) => Promise<void>;
   register: (params: {
     username: string;
@@ -35,21 +42,46 @@ const missingAuthProvider = async () => {
 const fallbackAuthContext: AuthContextValue = {
   user: null,
   isAuthenticated: false,
-  isLoading: false,
+  isLoading: true,
   login: missingAuthProvider,
   register: missingAuthProvider,
   logout: () => {},
 };
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  // Phase 2 mock-mode: start logged out so /login is reachable. Both SSR and
-  // CSR render `null` initially, so there is no hydration mismatch. Phase 12
-  // swaps this for real getMe() bootstrap with localStorage persistence.
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    const bootstrapUser = async () => {
+      try {
+        const me = await apiFetchCurrentUser();
+        if (!mounted) return;
+        setUser({
+          id: me.id,
+          username: me.username,
+          email: me.email,
+          is_admin: me.is_admin ?? false,
+        });
+      } catch {
+        if (!mounted) return;
+        setUser(null);
+        clearAccessToken();
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
+    };
+    void bootstrapUser();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const login = useCallback(
     async ({ username, password }: { username: string; password: string }) => {
       const data = await apiLogin(username, password);
+      setAccessToken(data.access_token);
       setUser({
         id: data.user.id,
         username: data.user.username,
@@ -71,6 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email?: string;
     }) => {
       const data = await apiRegister(username, password, email);
+      setAccessToken(data.access_token);
       setUser({
         id: data.user.id,
         username: data.user.username,
@@ -81,18 +114,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  const logout = useCallback(() => setUser(null), []);
+  const logout = useCallback(() => {
+    clearAccessToken();
+    setUser(null);
+  }, []);
 
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
       isAuthenticated: !!user,
-      isLoading: false,
+      isLoading,
       login,
       register,
       logout,
     }),
-    [user, login, register, logout],
+    [user, isLoading, login, register, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
