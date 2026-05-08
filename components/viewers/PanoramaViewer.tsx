@@ -1,22 +1,25 @@
 'use client';
 
 import Link from 'next/link';
-import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Sphere, useTexture } from '@react-three/drei';
+import { Canvas, useLoader, useThree } from '@react-three/fiber';
+import { OrbitControls } from '@react-three/drei';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { analyzeImage } from '@/services/apiClient';
 import { ReportBuilder } from '@/components/reports/ReportBuilder';
 import { useViewerContext } from './useViewerContext';
-import { SRGBColorSpace } from 'three';
+import { BackSide, SRGBColorSpace, TextureLoader } from 'three';
 
 function PanoramaSphere({ src }: { src: string }) {
-  const texture = useTexture(src);
+  const { gl } = useThree();
+  const texture = useLoader(TextureLoader, src);
   texture.colorSpace = SRGBColorSpace;
+  texture.anisotropy = gl.capabilities.getMaxAnisotropy();
   return (
-    <Sphere args={[10, 64, 64]} scale={[-1, 1, 1]}>
-      <meshBasicMaterial map={texture} />
-    </Sphere>
+    <mesh>
+      <sphereGeometry args={[500, 60, 40]} />
+      <meshBasicMaterial map={texture} side={BackSide} />
+    </mesh>
   );
 }
 
@@ -232,9 +235,9 @@ export function PanoramaViewer() {
 
         <div className="h-[70vh] overflow-hidden rounded-md border border-base-800 bg-black/30">
           {imageReady && !imageError ? (
-            <Canvas camera={{ position: [0, 0, 0.1], fov: 75 }}>
+            <Canvas camera={{ position: [0, 0, 20], fov: 70 }}>
               <PanoramaSphere src={panoramaSrc || imageSrc} />
-              <OrbitControls enablePan={false} enableZoom={true} rotateSpeed={-0.4} />
+              <OrbitControls enablePan={true} enableZoom={false} enableDamping={true} dampingFactor={0.3} />
             </Canvas>
           ) : (
             <div className="flex h-full w-full items-center justify-center p-6 text-center text-[13px] text-ink-300">
