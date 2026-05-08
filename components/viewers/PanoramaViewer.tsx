@@ -3,14 +3,16 @@
 import Link from 'next/link';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Sphere, useTexture } from '@react-three/drei';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { analyzeImage } from '@/services/apiClient';
 import { ReportBuilder } from '@/components/reports/ReportBuilder';
 import { useViewerContext } from './useViewerContext';
+import { SRGBColorSpace } from 'three';
 
 function PanoramaSphere({ src }: { src: string }) {
   const texture = useTexture(src);
+  texture.colorSpace = SRGBColorSpace;
   return (
     <Sphere args={[10, 64, 64]} scale={[-1, 1, 1]}>
       <meshBasicMaterial map={texture} />
@@ -22,6 +24,10 @@ export function PanoramaViewer() {
   const { ctx, loading } = useViewerContext();
   const [aiDescription, setAiDescription] = useState('');
   const [analyzing, setAnalyzing] = useState(false);
+  const [imageReady, setImageReady] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
+
+  const imageSrc = ctx?.file.full_src || ctx?.file.src || '';
 
   const backHref = useMemo(() => {
     if (!ctx) return '/app';
@@ -43,6 +49,22 @@ export function PanoramaViewer() {
       setAnalyzing(false);
     }
   };
+
+  useEffect(() => {
+    if (!ctx) return;
+    if (ctx.file.type !== 'image') {
+      setImageReady(false);
+      setImageError('Panorama viewer only supports image files.');
+      return;
+    }
+    setImageReady(false);
+    setImageError(null);
+    const img = new Image();
+    img.onload = () => setImageReady(true);
+    img.onerror = () =>
+      setImageError('Could not load this image as a panorama. Try opening it in Static viewer.');
+    img.src = imageSrc;
+  }, [ctx, imageSrc]);
 
   if (loading) return <div className="p-6 text-ink-300">Loading viewer...</div>;
   if (!ctx) return <div className="p-6 text-ink-300">No file selected. Open a file from explorer first.</div>;
@@ -78,11 +100,27 @@ export function PanoramaViewer() {
         </div>
 
         <div className="h-[70vh] overflow-hidden rounded-md border border-base-800 bg-black/30">
-          <Canvas camera={{ position: [0, 0, 0.1], fov: 75 }}>
-            <PanoramaSphere src={ctx.file.full_src || ctx.file.src} />
-            <OrbitControls enablePan={false} enableZoom={true} rotateSpeed={-0.4} />
-          </Canvas>
+          {imageReady && !imageError ? (
+            <Canvas camera={{ position: [0, 0, 0.1], fov: 75 }}>
+              <PanoramaSphere src={imageSrc} />
+              <OrbitControls enablePan={false} enableZoom={true} rotateSpeed={-0.4} />
+            </Canvas>
+          ) : (
+            <div className="flex h-full w-full items-center justify-center p-6 text-center text-[13px] text-ink-300">
+              {imageError ?? 'Loading panorama image...'}
+            </div>
+          )}
         </div>
+        {imageError && (
+          <div className="rounded-md border border-base-800 bg-base-950/60 p-3 text-[12px] text-ink-300">
+            <p>{imageError}</p>
+            <img
+              src={imageSrc}
+              alt={ctx.file.file_name}
+              className="mt-3 max-h-40 w-full rounded border border-base-800 object-contain"
+            />
+          </div>
+        )}
 
         {aiDescription && (
           <div className="rounded-md border border-base-800 bg-base-950/60 p-3 text-[13px] text-ink-200">
