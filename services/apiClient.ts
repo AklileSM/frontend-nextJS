@@ -21,22 +21,10 @@ import type {
 import type { ApiProjectMember } from '@/types/api';
 import { getAccessToken } from '@/auth/authSession';
 
-function resolveApiBase(): string {
-  const raw = (process.env.NEXT_PUBLIC_API_URL || '').trim();
-  if (!raw) return '/api';
-
-  // Docker service hostnames (e.g. http://backend:3001) are only resolvable
-  // inside containers, never in the browser. Use same-origin /api in that case.
-  try {
-    const parsed = new URL(raw);
-    if (parsed.hostname === 'backend') return '/api';
-  } catch {
-    // non-URL values are treated as-is
-  }
-  return raw;
-}
-
-export const API_BASE = resolveApiBase();
+// All API calls use the same-origin /api prefix. Next.js rewrites (next.config.mjs)
+// proxy /api/* to the backend at build/run time. This keeps the browser bundle
+// free of any internal Docker hostnames.
+export const API_BASE = '/api';
 
 async function parseApiError(response: Response): Promise<string> {
   try {
