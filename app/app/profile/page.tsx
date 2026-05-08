@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
@@ -17,6 +18,7 @@ import type { ApiComparisonDraft, ApiReport, ApiViewerFieldDraft } from '@/types
 export const dynamic = 'force-dynamic';
 
 export default function ProfilePage() {
+  const router = useRouter();
   const { user } = useAuth();
   const [tab, setTab] = useState<'reports' | 'drafts'>('reports');
   const [reports, setReports] = useState<ApiReport[]>([]);
@@ -105,14 +107,12 @@ export default function ProfilePage() {
   };
 
   const onOpen = async (report: ApiReport) => {
-    try {
-      const blob = await fetchReportPdfBlob(report);
-      const url = URL.createObjectURL(blob);
-      window.open(url, '_blank', 'noopener,noreferrer');
-      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Could not open report.');
+    if (!report.pdf_url) {
+      toast.error('This report has no PDF URL.');
+      return;
     }
+    const name = `report-${report.id}.pdf`;
+    router.push(`/app/pdf-viewer?src=${encodeURIComponent(report.pdf_url)}&name=${encodeURIComponent(name)}`);
   };
 
   const onDownload = async (report: ApiReport) => {
