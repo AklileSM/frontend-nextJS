@@ -27,10 +27,25 @@ export function PanoramaViewer() {
   const [imageReady, setImageReady] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const [panoramaSrc, setPanoramaSrc] = useState('');
+  const [panoramaDims, setPanoramaDims] = useState<{ width: number; height: number } | null>(null);
+  const [textureLimit, setTextureLimit] = useState<number | null>(null);
   const [debugging, setDebugging] = useState(false);
 
   const imageSrc = ctx?.file.full_src || ctx?.file.src || '';
-  const MAX_PANORAMA_DIMENSION = 4096;
+  const MAX_PANORAMA_DIMENSION = 2048;
+
+  const getDeviceTextureLimit = (): number => {
+    try {
+      const canvas = document.createElement('canvas');
+      const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+      if (!gl) return MAX_PANORAMA_DIMENSION;
+      const maxSize = (gl as WebGLRenderingContext).getParameter((gl as WebGLRenderingContext).MAX_TEXTURE_SIZE);
+      if (typeof maxSize !== 'number' || Number.isNaN(maxSize)) return MAX_PANORAMA_DIMENSION;
+      return Math.max(1024, Math.min(MAX_PANORAMA_DIMENSION, Math.floor(maxSize * 0.75)));
+    } catch {
+      return MAX_PANORAMA_DIMENSION;
+    }
+  };
 
   const backHref = useMemo(() => {
     if (!ctx) return '/app';
@@ -80,13 +95,16 @@ export function PanoramaViewer() {
 
       const w = loaded.naturalWidth;
       const h = loaded.naturalHeight;
-      if (Math.max(w, h) <= MAX_PANORAMA_DIMENSION) {
+      const deviceLimit = getDeviceTextureLimit();
+      setTextureLimit(deviceLimit);
+      if (Math.max(w, h) <= deviceLimit) {
         setPanoramaSrc(imageSrc);
+        setPanoramaDims({ width: w, height: h });
         setImageReady(true);
         return;
       }
 
-      const ratio = MAX_PANORAMA_DIMENSION / Math.max(w, h);
+      const ratio = deviceLimit / Math.max(w, h);
       const targetW = Math.max(1, Math.round(w * ratio));
       const targetH = Math.max(1, Math.round(h * ratio));
       const canvas = document.createElement('canvas');
@@ -109,6 +127,7 @@ export function PanoramaViewer() {
       const downscaledUrl = URL.createObjectURL(blob);
       objectUrlToRevoke = downscaledUrl;
       setPanoramaSrc(downscaledUrl);
+      setPanoramaDims({ width: targetW, height: targetH });
       setImageReady(true);
     };
 
@@ -130,6 +149,10 @@ export function PanoramaViewer() {
       info.push(`file.full_src=${ctx.file.full_src ?? '(null)'}`);
       info.push(`resolved imageSrc=${imageSrc}`);
       info.push(`resolved panoramaSrc=${panoramaSrc || '(not prepared yet)'}`);
+      info.push(`textureLimit=${textureLimit ?? '(unknown yet)'}`);
+      if (panoramaDims) {
+        info.push(`panoramaDims=${panoramaDims.width}x${panoramaDims.height}`);
+      }
 
       const probe = new Image();
       const imageProbe = await new Promise<{ ok: boolean; width?: number; height?: number; error?: string }>(
