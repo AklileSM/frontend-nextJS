@@ -26,9 +26,11 @@ export function PanoramaViewer() {
   const [analyzing, setAnalyzing] = useState(false);
   const [imageReady, setImageReady] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
+  const [panoramaSrc, setPanoramaSrc] = useState('');
   const [debugging, setDebugging] = useState(false);
 
   const imageSrc = ctx?.file.full_src || ctx?.file.src || '';
+  const MAX_PANORAMA_DIMENSION = 4096;
 
   const backHref = useMemo(() => {
     if (!ctx) return '/app';
@@ -60,11 +62,62 @@ export function PanoramaViewer() {
     }
     setImageReady(false);
     setImageError(null);
-    const img = new Image();
-    img.onload = () => setImageReady(true);
-    img.onerror = () =>
-      setImageError('Could not load this image as a panorama. Try opening it in Static viewer.');
-    img.src = imageSrc;
+    let mounted = true;
+    let objectUrlToRevoke: string | null = null;
+
+    const prepare = async () => {
+      const img = new Image();
+      const loaded = await new Promise<HTMLImageElement | null>((resolve) => {
+        img.onload = () => resolve(img);
+        img.onerror = () => resolve(null);
+        img.src = imageSrc;
+      });
+      if (!mounted) return;
+      if (!loaded) {
+        setImageError('Could not load this image as a panorama. Try opening it in Static viewer.');
+        return;
+      }
+
+      const w = loaded.naturalWidth;
+      const h = loaded.naturalHeight;
+      if (Math.max(w, h) <= MAX_PANORAMA_DIMENSION) {
+        setPanoramaSrc(imageSrc);
+        setImageReady(true);
+        return;
+      }
+
+      const ratio = MAX_PANORAMA_DIMENSION / Math.max(w, h);
+      const targetW = Math.max(1, Math.round(w * ratio));
+      const targetH = Math.max(1, Math.round(h * ratio));
+      const canvas = document.createElement('canvas');
+      canvas.width = targetW;
+      canvas.height = targetH;
+      const context = canvas.getContext('2d');
+      if (!context) {
+        setImageError('Could not prepare panorama texture (canvas unavailable).');
+        return;
+      }
+      context.drawImage(loaded, 0, 0, targetW, targetH);
+      const blob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.9),
+      );
+      if (!mounted) return;
+      if (!blob) {
+        setImageError('Could not prepare panorama texture.');
+        return;
+      }
+      const downscaledUrl = URL.createObjectURL(blob);
+      objectUrlToRevoke = downscaledUrl;
+      setPanoramaSrc(downscaledUrl);
+      setImageReady(true);
+    };
+
+    void prepare();
+
+    return () => {
+      mounted = false;
+      if (objectUrlToRevoke) URL.revokeObjectURL(objectUrlToRevoke);
+    };
   }, [ctx, imageSrc]);
 
   const runDebug = async () => {
@@ -76,6 +129,7 @@ export function PanoramaViewer() {
       info.push(`file.src=${ctx.file.src}`);
       info.push(`file.full_src=${ctx.file.full_src ?? '(null)'}`);
       info.push(`resolved imageSrc=${imageSrc}`);
+      info.push(`resolved panoramaSrc=${panoramaSrc || '(not prepared yet)'}`);
 
       const probe = new Image();
       const imageProbe = await new Promise<{ ok: boolean; width?: number; height?: number; error?: string }>(
@@ -156,7 +210,7 @@ export function PanoramaViewer() {
         <div className="h-[70vh] overflow-hidden rounded-md border border-base-800 bg-black/30">
           {imageReady && !imageError ? (
             <Canvas camera={{ position: [0, 0, 0.1], fov: 75 }}>
-              <PanoramaSphere src={imageSrc} />
+              <PanoramaSphere src={panoramaSrc || imageSrc} />
               <OrbitControls enablePan={false} enableZoom={true} rotateSpeed={-0.4} />
             </Canvas>
           ) : (
