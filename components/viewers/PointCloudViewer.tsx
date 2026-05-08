@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ReportBuilder } from '@/components/reports/ReportBuilder';
 import { useViewerContext } from './useViewerContext';
 
@@ -33,6 +33,14 @@ export function PointCloudViewer() {
       setIsFullscreen(false);
     }
   };
+
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
+  }, []);
 
   if (loading) return <div className="p-6 text-ink-300">Loading viewer...</div>;
   if (!ctx) return <div className="p-6 text-ink-300">No file selected. Open a file from explorer first.</div>;
@@ -66,6 +74,15 @@ export function PointCloudViewer() {
             <div className="flex h-full items-center justify-center text-[13px] text-ink-300">
               No point cloud URL. Open from explorer.
             </div>
+          )}
+          {isFullscreen && (
+            <button
+              type="button"
+              onClick={toggleFullscreen}
+              className="absolute right-4 top-4 z-20 rounded-md bg-base-950/80 px-3 py-1.5 text-[12px] font-medium text-white hover:bg-base-900"
+            >
+              Exit Fullscreen
+            </button>
           )}
         </div>
       </section>
