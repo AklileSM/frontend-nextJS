@@ -32,6 +32,9 @@ export function Thumbnail({ file, roomSlug, date, origin, isAdmin, onDelete }: P
   const meta = TYPE_META[file.type];
   const canDelete = isAdmin;
   const [pending, setPending] = useState(false);
+  const [thumbFailed, setThumbFailed] = useState(false);
+  const showThumbnail =
+    !thumbFailed && (file.type === 'image' || file.type === 'video' || file.type === 'pdf') && !!file.src;
 
   const open = () => {
     if (file.type === 'video') {
@@ -54,7 +57,21 @@ export function Thumbnail({ file, roomSlug, date, origin, isAdmin, onDelete }: P
         className={`relative block w-full bg-gradient-to-br ${meta.gradient} aspect-[4/3]`}
         aria-label={`Open ${file.file_name}`}
       >
-        <span className={`pointer-events-none absolute inset-0 flex items-center justify-center ${meta.tint}`}>
+        {showThumbnail && (
+          // Keep real thumbnails for media while retaining icon fallback for missing/broken URLs.
+          <img
+            src={file.src}
+            alt={file.file_name}
+            loading="lazy"
+            className="absolute inset-0 h-full w-full object-cover"
+            onError={() => setThumbFailed(true)}
+          />
+        )}
+        <span
+          className={`pointer-events-none absolute inset-0 flex items-center justify-center ${meta.tint} transition-opacity ${
+            showThumbnail ? 'opacity-0 group-hover:opacity-100' : 'opacity-100'
+          }`}
+        >
           <meta.Icon size={28} strokeWidth={1.5} />
         </span>
         {file.type === 'pointcloud' && (
