@@ -2,10 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { jsPDF } from 'jspdf';
 import { toast } from 'sonner';
 import {
   createComparisonDraft,
+  getComparisonDraft,
   listRooms,
   getExplorerByRoom,
   publishComparisonDrafts,
@@ -70,6 +72,7 @@ function SideViewer({ item }: { item: { date: string; file: ApiMediaFile } | nul
 }
 
 export function ComparePanel() {
+  const searchParams = useSearchParams();
   const [rooms, setRooms] = useState<ApiRoom[]>([]);
   const [byRoom, setByRoom] = useState<Record<string, Record<string, any>>>({});
   const [mediaType, setMediaType] = useState<MediaType>('image');
@@ -84,6 +87,7 @@ export function ComparePanel() {
   const [publishing, setPublishing] = useState(false);
   const [dirty, setDirty] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [hydratingDraft, setHydratingDraft] = useState(false);
 
   const flags = useMemo(
     () =>
@@ -120,6 +124,37 @@ export function ComparePanel() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    const id = searchParams.get('draft');
+    if (!id) return;
+    let cancelled = false;
+    setHydratingDraft(true);
+    void (async () => {
+      try {
+        const d = await getComparisonDraft(id);
+        if (cancelled) return;
+        const st = (d.state_json || {}) as Partial<CompareState>;
+        setDraftId(d.id);
+        setMediaType((st.mediaType as MediaType) || 'image');
+        setLeftRoom(st.leftRoomSlug || leftRoom);
+        setRightRoom(st.rightRoomSlug || rightRoom);
+        setLeftFileId(st.leftFileId || '');
+        setRightFileId(st.rightFileId || '');
+        setNotes(d.manual_observations || st.notes || '');
+        setFlagsInput((d.flags || st.flags || []).join(', '));
+        setDirty(false);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Could not load comparison draft.');
+      } finally {
+        if (!cancelled) setHydratingDraft(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const leftItems = useMemo(
     () => flattenFilesByType(byRoom[leftRoom] || {}, mediaType),
@@ -335,7 +370,7 @@ export function ComparePanel() {
         <aside className="space-y-3 rounded-md border border-base-800 bg-base-900/50 p-4">
           <h3 className="font-display text-[18px] text-white">Comparison Draft</h3>
           <p className="text-[12px] text-ink-300">
-            Status: {saving ? 'Autosaving...' : dirty ? 'Unsaved changes' : draftId ? 'Saved' : 'Not saved yet'}
+            Status: {hydratingDraft ? 'Loading draft...' : saving ? 'Autosaving...' : dirty ? 'Unsaved changes' : draftId ? 'Saved' : 'Not saved yet'}
           </p>
           <div className="space-y-1">
             <label className="text-[12px] text-ink-300">Notes</label>
