@@ -61,6 +61,12 @@ export function PanoramaViewer() {
         </div>
 
         <div className="flex flex-wrap gap-2">
+          <Link
+            href="/app/viewer/static"
+            className="rounded border border-base-700 px-2 py-1 text-[12px] text-white hover:border-ink-300"
+          >
+            Open in Static
+          </Link>
           <button
             type="button"
             onClick={runAi}

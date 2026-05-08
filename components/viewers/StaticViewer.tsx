@@ -85,6 +85,12 @@ export function StaticViewer() {
         </div>
 
         <div className="flex flex-wrap gap-2">
+          <Link
+            href="/app/viewer/panorama"
+            className="rounded border border-base-700 px-2 py-1 text-[12px] text-white hover:border-ink-300"
+          >
+            Open in Panorama
+          </Link>
           <button
             type="button"
             onClick={() => setScale((s) => Math.max(0.5, Number((s - 0.1).toFixed(2))))}
