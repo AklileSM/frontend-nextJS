@@ -10,10 +10,11 @@ type Props = {
 };
 
 export function ProtectedRoute({ children, requireAdmin }: Props) {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
+    if (isLoading) return;
     if (!isAuthenticated) {
       router.replace('/login');
       return;
@@ -21,8 +22,9 @@ export function ProtectedRoute({ children, requireAdmin }: Props) {
     if (requireAdmin && user && !user.is_admin) {
       router.replace('/unauthorized');
     }
-  }, [isAuthenticated, requireAdmin, router, user]);
+  }, [isAuthenticated, isLoading, requireAdmin, router, user]);
 
+  if (isLoading) return null;
   if (!isAuthenticated) return null;
   if (requireAdmin && user && !user.is_admin) return null;
   return <>{children}</>;

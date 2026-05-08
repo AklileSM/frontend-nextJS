@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter, Inter_Tight, IBM_Plex_Mono } from 'next/font/google';
 import './globals.css';
+import { AuthPageProviders } from '@/components/providers/RouteProviders';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -32,7 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${inter.variable} ${interTight.variable} ${plexMono.variable}`}>
       <body className="bg-base-950 text-white antialiased">
-        {children}
+        <AuthPageProviders>{children}</AuthPageProviders>
       </body>
     </html>
   );
