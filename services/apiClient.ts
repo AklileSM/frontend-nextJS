@@ -18,32 +18,10 @@ import type {
   ExplorerDatesSummaryResponse,
   UploadSingleResponse,
 } from '@/types/api';
-import type {
-  ApiProjectMember,
-} from '@/types/api';
+import type { ApiProjectMember } from '@/types/api';
+import { getAccessToken } from '@/auth/authSession';
 
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api';
-
-const ACCESS_TOKEN_KEY = 'a6_access_token';
-
-function canUseStorage(): boolean {
-  return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
-}
-
-export function getAccessToken(): string | null {
-  if (!canUseStorage()) return null;
-  return window.localStorage.getItem(ACCESS_TOKEN_KEY);
-}
-
-export function setAccessToken(token: string): void {
-  if (!canUseStorage()) return;
-  window.localStorage.setItem(ACCESS_TOKEN_KEY, token);
-}
-
-export function clearAccessToken(): void {
-  if (!canUseStorage()) return;
-  window.localStorage.removeItem(ACCESS_TOKEN_KEY);
-}
 
 async function parseApiError(response: Response): Promise<string> {
   try {
@@ -249,7 +227,6 @@ const POINTCLOUD_CHUNK_MAX_RETRIES = 3;
 async function uploadPointcloudInChunks(params: {
   file: File;
   roomSlug: string;
-  mediaType: 'image' | 'video' | 'pointcloud' | 'pdf';
   captureDate: string;
   onProgress?: (percent: number) => void;
   signal?: AbortSignal;
@@ -349,6 +326,97 @@ async function uploadPointcloudInChunks(params: {
   return doneRes.json() as Promise<UploadSingleResponse>;
 }
 
+function uploadViaXhr(params: {
+  url: string;
+  method: string;
+  file: File;
+  contentType: string;
+  onProgress?: (percent: number) => void;
+  signal?: AbortSignal;
+}): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open(params.method, params.url, true);
+    xhr.setRequestHeader('Content-Type', params.contentType);
+    xhr.upload.onprogress = (event) => {
+      if (!event.lengthComputable) return;
+      const percent = Math.min(99, Math.round((event.loaded / event.total) * 100));
+      params.onProgress?.(percent);
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        params.onProgress?.(100);
+        resolve();
+      } else {
+        reject(new Error(`Direct MinIO upload failed (${xhr.status})`));
+      }
+    };
+    xhr.onerror = () => reject(new Error('Direct MinIO upload failed (network error)'));
+    params.signal?.addEventListener(
+      'abort',
+      () => {
+        xhr.abort();
+        reject(new DOMException('Upload cancelled', 'AbortError'));
+      },
+      { once: true },
+    );
+    xhr.send(params.file);
+  });
+}
+
+async function uploadPointcloudDirect(params: {
+  file: File;
+  roomSlug: string;
+  captureDate: string;
+  onProgress?: (percent: number) => void;
+  signal?: AbortSignal;
+}): Promise<UploadSingleResponse> {
+  const token = getAccessToken();
+  if (!token) {
+    throw new Error('You must be signed in to upload.');
+  }
+
+  const initForm = new FormData();
+  initForm.append('room_slug', params.roomSlug);
+  initForm.append('capture_date', params.captureDate);
+  initForm.append('filename', params.file.name);
+  initForm.append('file_size', String(params.file.size));
+  initForm.append('content_type', params.file.type || 'application/octet-stream');
+
+  const initRes = await fetch(`${API_BASE}/upload/pointcloud/direct-init`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: initForm,
+    signal: params.signal,
+  });
+  if (!initRes.ok) {
+    throw new Error(await parseApiError(initRes));
+  }
+  const initData = (await initRes.json()) as { upload_id: string; upload_url: string; method?: string };
+
+  await uploadViaXhr({
+    url: initData.upload_url,
+    method: initData.method || 'PUT',
+    file: params.file,
+    contentType: params.file.type || 'application/octet-stream',
+    onProgress: params.onProgress,
+    signal: params.signal,
+  });
+
+  const doneForm = new FormData();
+  doneForm.append('upload_id', initData.upload_id);
+  const doneRes = await fetch(`${API_BASE}/upload/pointcloud/direct-complete`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: doneForm,
+    signal: params.signal,
+  });
+  if (!doneRes.ok) {
+    throw new Error(await parseApiError(doneRes));
+  }
+  return doneRes.json() as Promise<UploadSingleResponse>;
+}
+
 export async function uploadSingleFile(params: {
   file: File;
   roomSlug: string;
@@ -363,7 +431,24 @@ export async function uploadSingleFile(params: {
   }
 
   if (params.mediaType === 'pointcloud') {
-    return uploadPointcloudInChunks(params);
+    try {
+      return await uploadPointcloudDirect({
+        file: params.file,
+        roomSlug: params.roomSlug,
+        captureDate: params.captureDate,
+        onProgress: params.onProgress,
+        signal: params.signal,
+      });
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') throw err;
+      return uploadPointcloudInChunks({
+        file: params.file,
+        roomSlug: params.roomSlug,
+        captureDate: params.captureDate,
+        onProgress: params.onProgress,
+        signal: params.signal,
+      });
+    }
   }
 
   const form = new FormData();

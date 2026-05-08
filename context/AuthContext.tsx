@@ -13,9 +13,8 @@ import {
   apiFetchCurrentUser,
   apiLogin,
   apiRegister,
-  clearAccessToken,
-  setAccessToken,
 } from '@/services/apiClient';
+import { clearAccessToken, setAccessToken } from '@/auth/authSession';
 import type { AuthUser } from '@/types/api';
 
 export type { AuthUser };
