@@ -21,7 +21,22 @@ import type {
 import type { ApiProjectMember } from '@/types/api';
 import { getAccessToken } from '@/auth/authSession';
 
-export const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api';
+function resolveApiBase(): string {
+  const raw = (process.env.NEXT_PUBLIC_API_URL || '').trim();
+  if (!raw) return '/api';
+
+  // Docker service hostnames (e.g. http://backend:3001) are only resolvable
+  // inside containers, never in the browser. Use same-origin /api in that case.
+  try {
+    const parsed = new URL(raw);
+    if (parsed.hostname === 'backend') return '/api';
+  } catch {
+    // non-URL values are treated as-is
+  }
+  return raw;
+}
+
+export const API_BASE = resolveApiBase();
 
 async function parseApiError(response: Response): Promise<string> {
   try {
