@@ -92,18 +92,32 @@ export default function ProfilePage() {
     }
   };
 
-  const onDownload = async (report: ApiReport) => {
+  const fetchReportPdfBlob = async (report: ApiReport): Promise<Blob> => {
     if (!report.pdf_url) {
-      toast.error('This report has no PDF URL.');
-      return;
+      throw new Error('This report has no PDF URL.');
     }
+    const token = getAccessToken();
+    const res = await fetch(report.pdf_url, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) throw new Error(`Failed to load PDF (${res.status})`);
+    return res.blob();
+  };
+
+  const onOpen = async (report: ApiReport) => {
     try {
-      const token = getAccessToken();
-      const res = await fetch(report.pdf_url, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) throw new Error(`Failed to download (${res.status})`);
-      const blob = await res.blob();
+      const blob = await fetchReportPdfBlob(report);
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank', 'noopener,noreferrer');
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not open report.');
+    }
+  };
+
+  const onDownload = async (report: ApiReport) => {
+    try {
+      const blob = await fetchReportPdfBlob(report);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -164,6 +178,13 @@ export default function ProfilePage() {
                 <p className="text-[13px] font-medium text-white">{new Date(r.created_at).toLocaleString()}</p>
                 <p className="mt-1 text-[12px] text-ink-300">Flags: {r.flags.join(', ') || '(none)'}</p>
                 <div className="mt-3 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void onOpen(r)}
+                    className="rounded border border-base-700 px-2.5 py-1 text-[12px] text-white"
+                  >
+                    Open
+                  </button>
                   <button
                     type="button"
                     onClick={() => void onDownload(r)}
