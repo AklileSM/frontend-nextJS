@@ -122,6 +122,21 @@ export default function FileExplorerPage() {
     return result;
   }, [response, visibleRooms]);
 
+  // Auto-refresh while any point cloud in view is pending/processing conversion.
+  useEffect(() => {
+    if (!response) return;
+    const hasPendingConversion = visibleRooms.some((room) => {
+      const group = pickGroup(response.rooms, room);
+      if (!group) return false;
+      return group.pointclouds.some(
+        (f) => f.conversion_status === 'pending' || f.conversion_status === 'processing',
+      );
+    });
+    if (!hasPendingConversion) return;
+    const id = setInterval(() => setReloadToken((t) => t + 1), 5000);
+    return () => clearInterval(id);
+  }, [response, visibleRooms]);
+
   const handleDeleteConfirm = useCallback(async () => {
     if (!pendingDelete) return;
     try {

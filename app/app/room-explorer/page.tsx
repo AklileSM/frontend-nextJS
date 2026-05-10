@@ -153,6 +153,19 @@ function Inner() {
     return result;
   }, [datesEntries]);
 
+  // Auto-refresh while any point cloud in view is pending/processing conversion.
+  useEffect(() => {
+    if (!response) return;
+    const hasPendingConversion = datesEntries.some(([, group]) =>
+      group.pointclouds.some(
+        (f) => f.conversion_status === 'pending' || f.conversion_status === 'processing',
+      ),
+    );
+    if (!hasPendingConversion) return;
+    const id = setInterval(() => setReloadToken((t) => t + 1), 5000);
+    return () => clearInterval(id);
+  }, [response, datesEntries]);
+
   const handleDeleteConfirm = useCallback(async () => {
     if (!pendingDelete) return;
     try {

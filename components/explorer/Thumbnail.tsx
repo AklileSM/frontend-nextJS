@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Trash2, FileText, Image as ImageIcon, Box, Video, Eye } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { setViewerContext, viewerHrefFor } from './viewerContext';
 import type { ApiMediaFile } from '@/types/api';
 
@@ -33,10 +34,21 @@ export function Thumbnail({ file, roomSlug, date, origin, isAdmin, onDelete }: P
   const canDelete = isAdmin;
   const [pending, setPending] = useState(false);
   const [thumbFailed, setThumbFailed] = useState(false);
+  const conversionStatus = file.conversion_status ?? null;
+  const isPointcloud = file.type === 'pointcloud';
+  const isPointcloudReady = !isPointcloud || conversionStatus === 'ready';
   const showThumbnail =
     !thumbFailed && (file.type === 'image' || file.type === 'video' || file.type === 'pdf') && !!file.src;
 
   const open = () => {
+    if (isPointcloud && !isPointcloudReady) {
+      if (conversionStatus === 'failed') {
+        toast.error(file.conversion_error || 'Point cloud conversion failed. Retry upload or conversion.');
+      } else {
+        toast.info('Point cloud is still converting. Please wait until status is READY.');
+      }
+      return;
+    }
     if (file.type === 'video') {
       // Video opens in a new tab in the live app. For the mock we still hand
       // the file to the static viewer so deletion / draft flows can be tested.
@@ -88,9 +100,14 @@ export function Thumbnail({ file, roomSlug, date, origin, isAdmin, onDelete }: P
         <span className="absolute right-1.5 top-1.5 rounded-sm bg-base-950/80 px-1.5 py-0.5 font-mono text-[9px] font-medium tracking-widest text-ink-200">
           {meta.label}
         </span>
+        {isPointcloud && conversionStatus && conversionStatus !== 'ready' && (
+          <span className="absolute left-1.5 top-1.5 rounded-sm bg-base-950/85 px-1.5 py-0.5 font-mono text-[9px] font-medium tracking-widest text-amber-300">
+            {conversionStatus === 'processing' ? 'PROCESSING' : conversionStatus.toUpperCase()}
+          </span>
+        )}
         <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1.5 bg-base-950/0 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.16em] text-white opacity-0 transition-all duration-200 group-hover:bg-base-950/70 group-hover:opacity-100">
           <Eye size={11} />
-          Open
+          {isPointcloud && !isPointcloudReady ? 'Converting...' : 'Open'}
         </span>
       </button>
 
