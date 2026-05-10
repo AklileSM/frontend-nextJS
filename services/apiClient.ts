@@ -192,6 +192,25 @@ function sleep(ms: number): Promise<void> {
   });
 }
 
+function sleepAbortable(ms: number, signal?: AbortSignal): Promise<void> {
+  if (!signal) return sleep(ms);
+  if (signal.aborted) {
+    return Promise.reject(new DOMException('Upload cancelled', 'AbortError'));
+  }
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(t);
+      signal.removeEventListener('abort', onAbort);
+      reject(new DOMException('Upload cancelled', 'AbortError'));
+    };
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
 export async function analyzeImage(imageUrl: string, fileId?: string): Promise<string> {
   for (let attempt = 0; attempt < AI_POLL_MAX_ATTEMPTS; attempt++) {
     const result = await analyzeImageOnce(imageUrl, fileId);
@@ -246,6 +265,10 @@ async function uploadPointcloudInChunks(params: {
   initForm.append('file_size', String(params.file.size));
   initForm.append('content_type', params.file.type || 'application/octet-stream');
 
+  if (params.signal?.aborted) {
+    throw new DOMException('Upload cancelled', 'AbortError');
+  }
+
   const initRes = await fetch(`${API_BASE}/upload/pointcloud/init`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
@@ -271,6 +294,9 @@ async function uploadPointcloudInChunks(params: {
   const uploadOneChunkWithRetry = async (chunkIndex: number): Promise<void> => {
     let attempt = 0;
     while (attempt <= POINTCLOUD_CHUNK_MAX_RETRIES) {
+      if (params.signal?.aborted) {
+        throw new DOMException('Upload cancelled', 'AbortError');
+      }
       const start = chunkIndex * chunkSize;
       const end = Math.min(start + chunkSize, params.file.size);
       const blob = params.file.slice(start, end);
@@ -296,7 +322,7 @@ async function uploadPointcloudInChunks(params: {
       if (attempt >= POINTCLOUD_CHUNK_MAX_RETRIES) {
         throw new Error(`Chunk ${chunkIndex + 1}/${totalChunks} failed: ${err}`);
       }
-      await sleep(500 * 2 ** attempt);
+      await sleepAbortable(500 * 2 ** attempt, params.signal);
       attempt += 1;
     }
   };

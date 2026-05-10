@@ -2,14 +2,17 @@
 
 import { motion } from 'framer-motion';
 import { CloudUpload, Loader2, X } from 'lucide-react';
-import { useRef, useState, type DragEvent, type ChangeEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type DragEvent,
+  type ChangeEvent,
+} from 'react';
 import { toast } from 'sonner';
 import { uploadSingleFile } from '@/services/apiClient';
 import type { ApiMediaFile } from '@/types/api';
-
-// Admin-only chunked-upload affordance. Users pick a room slug + capture date
-// up front, then drop one or more files. The mock client simulates progress so
-// the same UX runs end-to-end without a backend.
 
 type Props = {
   roomSlug: string;
@@ -21,7 +24,7 @@ type Job = {
   id: string;
   file: File;
   progress: number;
-  state: 'pending' | 'uploading' | 'done' | 'error';
+  state: 'pending' | 'uploading' | 'done' | 'error' | 'cancelled';
   error?: string;
 };
 
@@ -37,7 +40,63 @@ function detectMediaType(file: File): ApiMediaFile['type'] {
 export function UploadZone({ roomSlug, captureDate, onUploaded }: Props) {
   const [dragOver, setDragOver] = useState(false);
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [confirmCancelJobId, setConfirmCancelJobId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
+  /** Pending jobs removed from the list before upload started — skip in the enqueue loop */
+  const skippedJobIdsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    const uploading = jobs.some((j) => j.state === 'uploading');
+    if (!uploading) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [jobs]);
+
+  const abortJob = useCallback((jobId: string) => {
+    abortControllersRef.current.get(jobId)?.abort();
+  }, []);
+
+  const runJob = async (job: Job) => {
+    const ac = new AbortController();
+    abortControllersRef.current.set(job.id, ac);
+    try {
+      await uploadSingleFile({
+        file: job.file,
+        roomSlug,
+        captureDate,
+        mediaType: detectMediaType(job.file),
+        signal: ac.signal,
+        onProgress: (p) => {
+          setJobs((prev) =>
+            prev.map((j) => (j.id === job.id ? { ...j, progress: p } : j)),
+          );
+        },
+      });
+      setJobs((prev) =>
+        prev.map((j) => (j.id === job.id ? { ...j, state: 'done', progress: 100 } : j)),
+      );
+      toast.success(`${job.file.name} uploaded.`);
+      onUploaded();
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        setJobs((prev) =>
+          prev.map((j) => (j.id === job.id ? { ...j, state: 'cancelled' } : j)),
+        );
+      } else {
+        const msg = err instanceof Error ? err.message : 'Upload failed.';
+        setJobs((prev) =>
+          prev.map((j) => (j.id === job.id ? { ...j, state: 'error', error: msg } : j)),
+        );
+        toast.error(msg);
+      }
+    } finally {
+      abortControllersRef.current.delete(job.id);
+    }
+  };
 
   const enqueue = async (files: File[]) => {
     const fresh: Job[] = files.map((file) => ({
@@ -49,33 +108,14 @@ export function UploadZone({ roomSlug, captureDate, onUploaded }: Props) {
     setJobs((prev) => [...prev, ...fresh]);
 
     for (const job of fresh) {
+      if (skippedJobIdsRef.current.has(job.id)) {
+        skippedJobIdsRef.current.delete(job.id);
+        continue;
+      }
       setJobs((prev) =>
         prev.map((j) => (j.id === job.id ? { ...j, state: 'uploading' } : j)),
       );
-      try {
-        await uploadSingleFile({
-          file: job.file,
-          roomSlug,
-          captureDate,
-          mediaType: detectMediaType(job.file),
-          onProgress: (p) => {
-            setJobs((prev) =>
-              prev.map((j) => (j.id === job.id ? { ...j, progress: p } : j)),
-            );
-          },
-        });
-        setJobs((prev) =>
-          prev.map((j) => (j.id === job.id ? { ...j, state: 'done', progress: 100 } : j)),
-        );
-        toast.success(`${job.file.name} uploaded.`);
-        onUploaded();
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Upload failed.';
-        setJobs((prev) =>
-          prev.map((j) => (j.id === job.id ? { ...j, state: 'error', error: msg } : j)),
-        );
-        toast.error(msg);
-      }
+      await runJob(job);
     }
   };
 
@@ -83,20 +123,69 @@ export function UploadZone({ roomSlug, captureDate, onUploaded }: Props) {
     e.preventDefault();
     setDragOver(false);
     const files = Array.from(e.dataTransfer.files ?? []);
-    if (files.length) enqueue(files);
+    if (files.length) void enqueue(files);
   };
 
   const onPick = (e: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
-    if (files.length) enqueue(files);
+    if (files.length) void enqueue(files);
     e.target.value = '';
   };
 
-  const remove = (id: string) => setJobs((prev) => prev.filter((j) => j.id !== id));
+  const remove = (id: string) => {
+    const j = jobs.find((x) => x.id === id);
+    if (j?.state === 'uploading') {
+      setConfirmCancelJobId(id);
+      return;
+    }
+    skippedJobIdsRef.current.add(id);
+    setJobs((prev) => prev.filter((x) => x.id !== id));
+  };
+
   const clearDone = () => setJobs((prev) => prev.filter((j) => j.state !== 'done'));
+
+  const confirmCancelJob = jobs.find((j) => j.id === confirmCancelJobId) ?? null;
 
   return (
     <div className="space-y-3">
+      {confirmCancelJob && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-base-950/75 px-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="cancel-upload-title"
+        >
+          <div className="w-full max-w-md rounded-lg border border-base-700 bg-base-900 p-6 shadow-xl">
+            <h2 id="cancel-upload-title" className="font-display text-lg font-semibold text-white">
+              Cancel upload?
+            </h2>
+            <p className="mt-2 text-[13px] leading-relaxed text-ink-300">
+              <span className="text-white">{confirmCancelJob.file.name}</span> will not be saved. This
+              cannot be undone.
+            </p>
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmCancelJobId(null)}
+                className="rounded-md border border-base-600 px-3 py-1.5 text-[13px] text-white hover:bg-base-800"
+              >
+                Keep uploading
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  abortJob(confirmCancelJob.id);
+                  setConfirmCancelJobId(null);
+                }}
+                className="rounded-md bg-red-600 px-3 py-1.5 text-[13px] font-medium text-white hover:bg-red-500"
+              >
+                Cancel upload
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <motion.div
         onDragOver={(e) => {
           e.preventDefault();
@@ -150,7 +239,11 @@ export function UploadZone({ roomSlug, captureDate, onUploaded }: Props) {
                     {job.file.name}
                   </p>
                   <span className="font-mono text-[11px] text-ink-300">
-                    {job.state === 'done' ? '100%' : `${job.progress}%`}
+                    {job.state === 'done'
+                      ? '100%'
+                      : job.state === 'cancelled'
+                        ? '—'
+                        : `${job.progress}%`}
                   </span>
                 </div>
                 <div className="mt-1.5 h-[3px] overflow-hidden rounded-full bg-base-800">
@@ -159,16 +252,32 @@ export function UploadZone({ roomSlug, captureDate, onUploaded }: Props) {
                     animate={{ width: `${job.progress}%` }}
                     transition={{ duration: 0.15 }}
                     className={`h-full ${
-                      job.state === 'error' ? 'bg-red-400' : 'bg-amber-500'
+                      job.state === 'error'
+                        ? 'bg-red-400'
+                        : job.state === 'cancelled'
+                          ? 'bg-ink-500'
+                          : 'bg-amber-500'
                     }`}
                   />
                 </div>
                 {job.state === 'error' && job.error && (
                   <p className="mt-1 font-mono text-[11px] text-red-400">{job.error}</p>
                 )}
+                {job.state === 'cancelled' && (
+                  <p className="mt-1 font-mono text-[11px] text-ink-400">Upload cancelled</p>
+                )}
               </div>
               {job.state === 'uploading' ? (
-                <Loader2 size={14} className="shrink-0 animate-spin text-amber-500" />
+                <div className="flex shrink-0 items-center gap-2">
+                  <Loader2 size={14} className="animate-spin text-amber-500" aria-hidden />
+                  <button
+                    type="button"
+                    onClick={() => setConfirmCancelJobId(job.id)}
+                    className="rounded border border-base-600 px-2 py-1 text-[11px] text-ink-200 hover:border-amber-500/60 hover:text-white"
+                  >
+                    Cancel
+                  </button>
+                </div>
               ) : (
                 <button
                   type="button"
