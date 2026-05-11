@@ -511,22 +511,7 @@ export function listAnnotations(fileId: string): Promise<ApiAnnotation[]> {
       created_at: string;
     }>
   >(`/annotations/file/${encodeURIComponent(fileId)}`).then((items) =>
-    items.map((item) => {
-      const data = item.data || {};
-      const xRaw = data.x;
-      const yRaw = data.y;
-      const textRaw = data.text;
-      const x = typeof xRaw === 'number' ? xRaw : Number(xRaw ?? 0);
-      const y = typeof yRaw === 'number' ? yRaw : Number(yRaw ?? 0);
-      return {
-        id: item.id,
-        file_id: item.file_id,
-        x: Number.isFinite(x) ? x : 0,
-        y: Number.isFinite(y) ? y : 0,
-        text: typeof textRaw === 'string' ? textRaw : '',
-        created_at: item.created_at,
-      };
-    }),
+    items.map((item) => normalizeAnnotation(item)),
   );
 }
 
@@ -554,22 +539,64 @@ export function createAnnotation(params: {
         text: params.text,
       },
     }),
-  }).then((item) => {
-    const data = item.data || {};
-    const xRaw = data.x;
-    const yRaw = data.y;
-    const textRaw = data.text;
-    const x = typeof xRaw === 'number' ? xRaw : Number(xRaw ?? 0);
-    const y = typeof yRaw === 'number' ? yRaw : Number(yRaw ?? 0);
-    return {
-      id: item.id,
-      file_id: item.file_id,
-      x: Number.isFinite(x) ? x : params.x,
-      y: Number.isFinite(y) ? y : params.y,
-      text: typeof textRaw === 'string' ? textRaw : params.text,
-      created_at: item.created_at,
-    };
-  });
+  }).then((item) => normalizeAnnotation(item, { x: params.x, y: params.y, text: params.text }));
+}
+
+export function updateAnnotation(params: {
+  annotationId: string;
+  x: number;
+  y: number;
+  text: string;
+}): Promise<ApiAnnotation> {
+  return getJson<{
+    id: string;
+    file_id: string;
+    annotation_type: string;
+    data: Record<string, unknown>;
+    created_at: string;
+  }>(`/annotations/${encodeURIComponent(params.annotationId)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      data: {
+        x: params.x,
+        y: params.y,
+        text: params.text,
+      },
+    }),
+  }).then((item) => normalizeAnnotation(item, { x: params.x, y: params.y, text: params.text }));
+}
+
+export async function deleteAnnotation(annotationId: string): Promise<void> {
+  const response = await apiFetch(`/annotations/${encodeURIComponent(annotationId)}`, { method: 'DELETE' }, true);
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
+}
+
+function normalizeAnnotation(
+  item: {
+    id: string;
+    file_id: string;
+    data: Record<string, unknown>;
+    created_at: string;
+  },
+  fallback?: { x: number; y: number; text: string },
+): ApiAnnotation {
+  const data = item.data || {};
+  const xRaw = data.x;
+  const yRaw = data.y;
+  const textRaw = data.text;
+  const x = typeof xRaw === 'number' ? xRaw : Number(xRaw ?? fallback?.x ?? 0);
+  const y = typeof yRaw === 'number' ? yRaw : Number(yRaw ?? fallback?.y ?? 0);
+  return {
+    id: item.id,
+    file_id: item.file_id,
+    x: Number.isFinite(x) ? x : (fallback?.x ?? 0),
+    y: Number.isFinite(y) ? y : (fallback?.y ?? 0),
+    text: typeof textRaw === 'string' ? textRaw : (fallback?.text ?? ''),
+    created_at: item.created_at,
+  };
 }
 
 export function listReports(): Promise<ApiReport[]> {
