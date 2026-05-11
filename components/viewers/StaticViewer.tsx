@@ -1,5 +1,6 @@
 'use client';
 
+import { AnimatePresence, motion } from 'framer-motion';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -11,8 +12,16 @@ import {
   updateAnnotation,
 } from '@/services/apiClient';
 import { ReportBuilder } from '@/components/reports/ReportBuilder';
+import { AnnotationDeleteConfirm } from '@/components/viewers/AnnotationDeleteConfirm';
 import type { ApiAnnotation } from '@/types/api';
 import { useViewerContext } from './useViewerContext';
+
+type AnnotationFormState = {
+  mode: 'create' | 'edit';
+  annotationId?: string;
+  pin: { x: number; y: number };
+  text: string;
+};
 
 export function StaticViewer() {
   const { ctx, loading } = useViewerContext();
@@ -21,27 +30,13 @@ export function StaticViewer() {
   const [analyzing, setAnalyzing] = useState(false);
   const [annotations, setAnnotations] = useState<ApiAnnotation[]>([]);
   const [placingAnnotation, setPlacingAnnotation] = useState(false);
-  const [draftPin, setDraftPin] = useState<{ x: number; y: number } | null>(null);
-  const [draftText, setDraftText] = useState('');
+  const [annotationForm, setAnnotationForm] = useState<AnnotationFormState | null>(null);
   const [savingAnnotation, setSavingAnnotation] = useState(false);
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
   const [showAnnotations, setShowAnnotations] = useState(true);
-  const [editingAnnotationId, setEditingAnnotationId] = useState<string | null>(null);
-  const [editingText, setEditingText] = useState('');
-  const [editingBusy, setEditingBusy] = useState(false);
-  const [editingPin, setEditingPin] = useState<{ x: number; y: number } | null>(null);
-  const [annotationMenuOpenId, setAnnotationMenuOpenId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (annotationMenuOpenId == null) return;
-    const onDocMouseDown = (e: MouseEvent) => {
-      const el = e.target as HTMLElement | null;
-      if (el?.closest('[data-annotation-actions-root]')) return;
-      setAnnotationMenuOpenId(null);
-    };
-    document.addEventListener('mousedown', onDocMouseDown);
-    return () => document.removeEventListener('mousedown', onDocMouseDown);
-  }, [annotationMenuOpenId]);
+  const [markerActionsForId, setMarkerActionsForId] = useState<string | null>(null);
+  const [detailsForId, setDetailsForId] = useState<string | null>(null);
+  const [pendingDeleteAnnotationId, setPendingDeleteAnnotationId] = useState<string | null>(null);
 
   const backHref = useMemo(() => {
     if (!ctx) return '/app';
@@ -64,17 +59,29 @@ export function StaticViewer() {
     if (!ctx) return;
     setAnnotations([]);
     setSelectedAnnotationId(null);
-    setDraftPin(null);
-    setDraftText('');
     setPlacingAnnotation(false);
-    setEditingAnnotationId(null);
-    setEditingText('');
-    setEditingPin(null);
+    setAnnotationForm(null);
     setShowAnnotations(true);
-    setAnnotationMenuOpenId(null);
+    setMarkerActionsForId(null);
+    setDetailsForId(null);
+    setPendingDeleteAnnotationId(null);
     setScale((s) => Math.max(1, s));
     void loadAnnotations();
   }, [ctx?.file.id]);
+
+  useEffect(() => {
+    const blocking =
+      annotationForm !== null || detailsForId !== null || markerActionsForId !== null;
+    if (!blocking) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      setAnnotationForm(null);
+      setDetailsForId(null);
+      setMarkerActionsForId(null);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [annotationForm, detailsForId, markerActionsForId]);
 
   const runAi = async () => {
     if (!ctx || analyzing) return;
@@ -90,41 +97,55 @@ export function StaticViewer() {
     }
   };
 
-  const addAnnotation = async () => {
-    if (!ctx || !draftPin || !draftText.trim() || savingAnnotation) return;
+  const submitAnnotationForm = async () => {
+    if (!ctx || !annotationForm || !annotationForm.text.trim() || savingAnnotation) return;
     setSavingAnnotation(true);
     try {
-      const ann = await createAnnotation({
-        fileId: ctx.file.id,
-        x: draftPin.x,
-        y: draftPin.y,
-        text: draftText.trim(),
-      });
-      setAnnotations((prev) => [ann, ...prev]);
-      setSelectedAnnotationId(ann.id);
-      setDraftPin(null);
-      setDraftText('');
-      setPlacingAnnotation(false);
-      toast.success('Annotation added.');
+      if (annotationForm.mode === 'create') {
+        const ann = await createAnnotation({
+          fileId: ctx.file.id,
+          x: annotationForm.pin.x,
+          y: annotationForm.pin.y,
+          text: annotationForm.text.trim(),
+        });
+        setAnnotations((prev) => [ann, ...prev]);
+        setSelectedAnnotationId(ann.id);
+        setPlacingAnnotation(false);
+        toast.success('Annotation added.');
+      } else if (annotationForm.annotationId) {
+        const updated = await updateAnnotation({
+          annotationId: annotationForm.annotationId,
+          x: annotationForm.pin.x,
+          y: annotationForm.pin.y,
+          text: annotationForm.text.trim(),
+        });
+        setAnnotations((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
+        setSelectedAnnotationId(updated.id);
+        toast.success('Annotation updated.');
+      }
+      setAnnotationForm(null);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Could not create annotation.');
+      toast.error(err instanceof Error ? err.message : 'Could not save annotation.');
     } finally {
       setSavingAnnotation(false);
     }
   };
 
   const onImageClickForAnnotation: React.MouseEventHandler<HTMLDivElement> = (e) => {
-    if (!placingAnnotation && !editingAnnotationId) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) return;
-    const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const y = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
-    if (placingAnnotation) {
-      setDraftPin({ x, y });
+    if (annotationForm?.mode === 'edit') {
+      const rect = e.currentTarget.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return;
+      const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      const y = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+      setAnnotationForm((prev) => (prev ? { ...prev, pin: { x, y } } : null));
       return;
     }
-    if (editingAnnotationId) {
-      setEditingPin({ x, y });
+    if (placingAnnotation && !annotationForm) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return;
+      const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      const y = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+      setAnnotationForm({ mode: 'create', pin: { x, y }, text: '' });
     }
   };
 
@@ -133,52 +154,58 @@ export function StaticViewer() {
     [annotations, selectedAnnotationId],
   );
 
-  const startEdit = (a: ApiAnnotation) => {
-    setSelectedAnnotationId(a.id);
-    setEditingAnnotationId(a.id);
-    setEditingText(a.text);
-    setEditingPin({ x: a.x, y: a.y });
-  };
+  const detailsAnnotation = useMemo(
+    () => (detailsForId ? annotations.find((a) => a.id === detailsForId) ?? null : null),
+    [annotations, detailsForId],
+  );
 
-  const saveEdit = async () => {
-    if (!selectedAnnotation || !editingAnnotationId || !editingText.trim() || editingBusy) return;
-    setEditingBusy(true);
-    try {
-      const pin = editingPin ?? { x: selectedAnnotation.x, y: selectedAnnotation.y };
-      const updated = await updateAnnotation({
-        annotationId: editingAnnotationId,
-        x: pin.x,
-        y: pin.y,
-        text: editingText.trim(),
-      });
-      setAnnotations((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
-      setEditingAnnotationId(null);
-      setEditingText('');
-      setEditingPin(null);
-      toast.success('Annotation updated.');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Could not update annotation.');
-    } finally {
-      setEditingBusy(false);
-    }
-  };
+  const markerActionsAnnotation = useMemo(
+    () =>
+      markerActionsForId ? annotations.find((a) => a.id === markerActionsForId) ?? null : null,
+    [annotations, markerActionsForId],
+  );
 
-  const removeAnnotation = async (id: string) => {
-    if (!window.confirm('Delete this annotation?')) return;
+  const markerActionsIndex = useMemo(() => {
+    if (!markerActionsForId) return -1;
+    return annotations.findIndex((a) => a.id === markerActionsForId);
+  }, [annotations, markerActionsForId]);
+
+  const pendingDeleteAnnotation = useMemo(
+    () =>
+      pendingDeleteAnnotationId
+        ? annotations.find((a) => a.id === pendingDeleteAnnotationId) ?? null
+        : null,
+    [annotations, pendingDeleteAnnotationId],
+  );
+
+  const performDeleteAnnotation = async () => {
+    if (!pendingDeleteAnnotationId) return;
+    const id = pendingDeleteAnnotationId;
     try {
       await deleteAnnotation(id);
       setAnnotations((prev) => prev.filter((a) => a.id !== id));
       if (selectedAnnotationId === id) setSelectedAnnotationId(null);
-      if (editingAnnotationId === id) {
-        setEditingAnnotationId(null);
-        setEditingText('');
-        setEditingPin(null);
-      }
+      setPendingDeleteAnnotationId(null);
+      setMarkerActionsForId(null);
+      setDetailsForId(null);
       toast.success('Annotation deleted.');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not delete annotation.');
     }
   };
+
+  const openEditForm = (a: ApiAnnotation) => {
+    setSelectedAnnotationId(a.id);
+    setMarkerActionsForId(null);
+    setAnnotationForm({
+      mode: 'edit',
+      annotationId: a.id,
+      pin: { x: a.x, y: a.y },
+      text: a.text,
+    });
+  };
+
+  const crosshairActive = placingAnnotation || annotationForm?.mode === 'edit';
 
   if (loading) return <div className="p-6 text-ink-300">Loading viewer...</div>;
   if (!ctx) return <div className="p-6 text-ink-300">No file selected. Open a file from explorer first.</div>;
@@ -215,8 +242,7 @@ export function StaticViewer() {
             type="button"
             onClick={() => {
               setPlacingAnnotation((v) => !v);
-              setDraftPin(null);
-              setDraftText('');
+              setAnnotationForm(null);
             }}
             className="rounded border border-base-700 px-2 py-1 text-[12px]"
           >
@@ -263,109 +289,77 @@ export function StaticViewer() {
                   −
                 </button>
               </div>
-            <div className="flex justify-center">
-              <div className="origin-top" style={{ transform: `scale(${scale})` }}>
-                <div
-                  className={`relative inline-block ${placingAnnotation || editingAnnotationId ? 'cursor-crosshair' : ''}`}
-                  onClick={onImageClickForAnnotation}
-                >
-                  <img
-                    src={ctx.file.full_src || ctx.file.src}
-                    alt={ctx.file.file_name}
-                    className="block max-h-[70vh] rounded-md"
-                  />
-
-                  {showAnnotations &&
-                    annotations.map((a, idx) => {
-                    const active = selectedAnnotationId === a.id;
-                    const markerX = editingAnnotationId === a.id && editingPin ? editingPin.x : a.x;
-                    const markerY = editingAnnotationId === a.id && editingPin ? editingPin.y : a.y;
-                    return (
-                      <button
-                        key={a.id}
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedAnnotationId(a.id);
-                          setAnnotationMenuOpenId(null);
-                          setPlacingAnnotation(false);
-                          setDraftPin(null);
-                          setDraftText('');
-                          requestAnimationFrame(() => {
-                            document
-                              .getElementById(`annotation-card-${a.id}`)
-                              ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                          });
-                        }}
-                        title={a.text}
-                        className={`absolute z-10 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 text-[10px] font-semibold transition-[transform,box-shadow] ${
-                          active
-                            ? 'z-20 h-7 w-7 border-amber-100 bg-amber-400 text-base-950 shadow-[0_0_0_3px_rgba(251,191,36,0.45)] ring-2 ring-amber-200/90'
-                            : 'h-5 w-5 border-amber-400 bg-base-950 text-amber-300 hover:border-amber-200 hover:bg-base-900'
-                        }`}
-                        style={{ left: `${markerX * 100}%`, top: `${markerY * 100}%` }}
-                      >
-                        {idx + 1}
-                      </button>
-                    );
-                    })}
-
-                  {draftPin && (
-                    <span
-                      className="pointer-events-none absolute h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-emerald-300 bg-emerald-500/30"
-                      style={{ left: `${draftPin.x * 100}%`, top: `${draftPin.y * 100}%` }}
+              <div className="flex justify-center">
+                <div className="origin-top" style={{ transform: `scale(${scale})` }}>
+                  <div
+                    className={`relative inline-block ${crosshairActive ? 'cursor-crosshair' : ''}`}
+                    onClick={onImageClickForAnnotation}
+                  >
+                    <img
+                      src={ctx.file.full_src || ctx.file.src}
+                      alt={ctx.file.file_name}
+                      className="block max-h-[70vh] rounded-md"
                     />
-                  )}
+
+                    {showAnnotations &&
+                      annotations.map((a, idx) => {
+                        const active = selectedAnnotationId === a.id;
+                        const markerX =
+                          annotationForm?.mode === 'edit' &&
+                          annotationForm.annotationId === a.id &&
+                          annotationForm.pin
+                            ? annotationForm.pin.x
+                            : a.x;
+                        const markerY =
+                          annotationForm?.mode === 'edit' &&
+                          annotationForm.annotationId === a.id &&
+                          annotationForm.pin
+                            ? annotationForm.pin.y
+                            : a.y;
+                        return (
+                          <button
+                            key={a.id}
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedAnnotationId(a.id);
+                              setMarkerActionsForId(a.id);
+                              setPlacingAnnotation(false);
+                              setAnnotationForm(null);
+                              requestAnimationFrame(() => {
+                                document
+                                  .getElementById(`annotation-card-${a.id}`)
+                                  ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                              });
+                            }}
+                            title={a.text}
+                            className={`absolute z-10 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 text-[10px] font-semibold transition-[transform,box-shadow] ${
+                              active
+                                ? 'z-20 h-7 w-7 border-amber-100 bg-amber-400 text-base-950 shadow-[0_0_0_3px_rgba(251,191,36,0.45)] ring-2 ring-amber-200/90'
+                                : 'h-5 w-5 border-amber-400 bg-base-950 text-amber-300 hover:border-amber-200 hover:bg-base-900'
+                            }`}
+                            style={{ left: `${markerX * 100}%`, top: `${markerY * 100}%` }}
+                          >
+                            {idx + 1}
+                          </button>
+                        );
+                      })}
+
+                    {annotationForm?.mode === 'create' && (
+                      <span
+                        className="pointer-events-none absolute h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-emerald-300 bg-emerald-500/30"
+                        style={{
+                          left: `${annotationForm.pin.x * 100}%`,
+                          top: `${annotationForm.pin.y * 100}%`,
+                        }}
+                      />
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
             </>
           )}
         </div>
-
-        {placingAnnotation && (
-          <div className="rounded-md border border-base-800 bg-base-950/60 p-3">
-            <p className="mb-2 text-[13px] font-medium text-white">New annotation</p>
-            {!draftPin ? (
-              <p className="text-[12px] text-ink-300">
-                Click a point on the image to place an annotation marker.
-              </p>
-            ) : (
-              <div className="space-y-2">
-                <p className="font-mono text-[11px] text-ink-300">
-                  Marker at x={draftPin.x.toFixed(3)} · y={draftPin.y.toFixed(3)}
-                </p>
-                <textarea
-                  value={draftText}
-                  onChange={(e) => setDraftText(e.target.value)}
-                  placeholder="Describe what you observed at this point..."
-                  className="min-h-[84px] w-full rounded border border-base-700 bg-base-900 px-2 py-1.5 text-[12px] text-white outline-none focus:border-amber-500"
-                />
-                <div className="flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDraftPin(null);
-                      setDraftText('');
-                      setPlacingAnnotation(false);
-                    }}
-                    className="rounded border border-base-700 px-2.5 py-1 text-[12px] text-ink-200"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={addAnnotation}
-                    disabled={!draftText.trim() || savingAnnotation}
-                    className="rounded bg-amber-500 px-2.5 py-1 text-[12px] font-medium text-base-950 disabled:opacity-50"
-                  >
-                    {savingAnnotation ? 'Saving...' : 'Save Annotation'}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
 
         {aiDescription && (
           <div className="rounded-md border border-base-800 bg-base-950/60 p-3 text-[13px] text-ink-200">
@@ -383,113 +377,23 @@ export function StaticViewer() {
                 id={`annotation-card-${a.id}`}
                 role="button"
                 tabIndex={0}
-                onClick={(e) => {
-                  if ((e.target as HTMLElement).closest('[data-annotation-actions-root]')) return;
-                  if (editingAnnotationId === a.id) return;
-                  setSelectedAnnotationId(a.id);
-                }}
+                onClick={() => setSelectedAnnotationId(a.id)}
                 onKeyDown={(e) => {
-                  if (editingAnnotationId === a.id) return;
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
                     setSelectedAnnotationId(a.id);
                   }
                 }}
-                className={`rounded border px-2 py-1 text-[12px] outline-none transition-colors ${
+                className={`cursor-pointer rounded border px-2 py-1.5 text-[12px] outline-none transition-colors hover:border-base-600 ${
                   selectedAnnotationId === a.id
                     ? 'border-amber-500/60 bg-amber-500/10 text-amber-100'
                     : 'border-base-800 text-ink-200'
-                } ${editingAnnotationId === a.id ? '' : 'cursor-pointer hover:border-base-600'}`}
+                }`}
               >
-                <div className="flex items-start justify-between gap-2">
-                  <p className="font-mono text-[10px] text-ink-300">
-                    x={a.x.toFixed(3)} · y={a.y.toFixed(3)}
-                  </p>
-                  {editingAnnotationId !== a.id && (
-                    <div className="relative shrink-0" data-annotation-actions-root>
-                      <button
-                        type="button"
-                        aria-expanded={annotationMenuOpenId === a.id}
-                        aria-haspopup="menu"
-                        aria-label="Annotation actions"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setAnnotationMenuOpenId((id) => (id === a.id ? null : a.id));
-                        }}
-                        className="rounded px-1.5 py-0.5 text-[16px] leading-none text-ink-300 hover:bg-base-800 hover:text-white"
-                      >
-                        ⋮
-                      </button>
-                      {annotationMenuOpenId === a.id && (
-                        <div
-                          role="menu"
-                          className="absolute right-0 top-full z-30 mt-0.5 min-w-[7.5rem] rounded-md border border-base-700 bg-base-950 py-0.5 shadow-lg"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <button
-                            type="button"
-                            role="menuitem"
-                            className="block w-full px-2.5 py-1.5 text-left text-[11px] text-ink-200 hover:bg-base-800"
-                            onClick={() => {
-                              setAnnotationMenuOpenId(null);
-                              startEdit(a);
-                            }}
-                          >
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            role="menuitem"
-                            className="block w-full px-2.5 py-1.5 text-left text-[11px] text-red-200 hover:bg-base-800"
-                            onClick={() => {
-                              setAnnotationMenuOpenId(null);
-                              void removeAnnotation(a.id);
-                            }}
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-                {editingAnnotationId === a.id ? (
-                  <div className="mt-1 space-y-2">
-                    <textarea
-                      value={editingText}
-                      onChange={(e) => setEditingText(e.target.value)}
-                      className="min-h-[72px] w-full rounded border border-base-700 bg-base-900 px-2 py-1.5 text-[12px] text-white outline-none focus:border-amber-500"
-                    />
-                    <div className="flex justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingAnnotationId(null);
-                          setEditingText('');
-                          setEditingPin(null);
-                        }}
-                        className="rounded border border-base-700 px-2 py-1 text-[11px] text-ink-200"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        onClick={saveEdit}
-                        disabled={!editingText.trim() || editingBusy}
-                        className="rounded bg-amber-500 px-2 py-1 text-[11px] font-medium text-base-950 disabled:opacity-50"
-                      >
-                        {editingBusy ? 'Saving...' : 'Save'}
-                      </button>
-                    </div>
-                    {editingPin && (
-                      <p className="font-mono text-[10px] text-ink-300">
-                        Click on the image to move this marker. Current x={editingPin.x.toFixed(3)} · y={editingPin.y.toFixed(3)}
-                      </p>
-                    )}
-                  </div>
-                ) : (
-                  <p className="mt-1">{a.text}</p>
-                )}
+                <p className="font-mono text-[10px] text-ink-300">
+                  x={a.x.toFixed(3)} · y={a.y.toFixed(3)}
+                </p>
+                <p className="mt-1 line-clamp-3">{a.text}</p>
               </div>
             ))}
             {annotations.length === 0 && <p className="text-[12px] text-ink-400">No annotations loaded.</p>}
@@ -502,6 +406,207 @@ export function StaticViewer() {
         viewerKind="static"
         aiDescription={aiDescription}
         state={{ scale, annotationsCount: annotations.length }}
+      />
+
+      {/* Annotation form (new + edit) */}
+      <AnimatePresence>
+        {annotationForm && (
+          <>
+            <motion.div
+              key="form-bd"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              onClick={() => !savingAnnotation && setAnnotationForm(null)}
+              className="fixed inset-0 z-50 bg-base-950/75 backdrop-blur-sm"
+            />
+            <motion.div
+              key="form-md"
+              initial={{ opacity: 0, scale: 0.96, y: 4 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 4 }}
+              transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="annotation-form-title"
+              className="fixed left-1/2 top-1/2 z-50 w-[480px] max-w-[calc(100vw-32px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-base-700 bg-base-900 shadow-2xl shadow-black/60"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="border-b border-base-800 px-5 py-4">
+                <h2 id="annotation-form-title" className="font-display text-[18px] font-semibold text-white">
+                  {annotationForm.mode === 'create' ? 'New annotation' : 'Edit annotation'}
+                </h2>
+                <p className="mt-1 font-mono text-[11px] text-ink-300">
+                  x={annotationForm.pin.x.toFixed(3)} · y={annotationForm.pin.y.toFixed(3)}
+                </p>
+                {annotationForm.mode === 'edit' && (
+                  <p className="mt-2 text-[12px] text-ink-300">Click the image to move this marker.</p>
+                )}
+              </div>
+              <div className="px-5 py-4">
+                <label htmlFor="annotation-form-text" className="sr-only">
+                  Annotation text
+                </label>
+                <textarea
+                  id="annotation-form-text"
+                  value={annotationForm.text}
+                  onChange={(e) =>
+                    setAnnotationForm((prev) => (prev ? { ...prev, text: e.target.value } : null))
+                  }
+                  placeholder="Describe what you observed at this point..."
+                  rows={5}
+                  className="w-full rounded-md border border-base-700 bg-base-950 px-3 py-2 text-[13px] text-white outline-none focus:border-amber-500"
+                />
+              </div>
+              <div className="flex items-center justify-end gap-2 border-t border-base-800 px-5 py-3">
+                <button
+                  type="button"
+                  disabled={savingAnnotation}
+                  onClick={() => setAnnotationForm(null)}
+                  className="rounded-md border border-base-700 px-3.5 py-1.5 text-[13px] font-medium text-white transition-colors hover:border-ink-300 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={!annotationForm.text.trim() || savingAnnotation}
+                  onClick={() => void submitAnnotationForm()}
+                  className="rounded-md bg-amber-500 px-3.5 py-1.5 text-[13px] font-semibold text-base-950 transition-colors hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {savingAnnotation ? 'Saving…' : 'Save'}
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Details */}
+      <AnimatePresence>
+        {detailsAnnotation && (
+          <>
+            <motion.div
+              key="det-bd"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              onClick={() => setDetailsForId(null)}
+              className="fixed inset-0 z-50 bg-base-950/75 backdrop-blur-sm"
+            />
+            <motion.div
+              key="det-md"
+              initial={{ opacity: 0, scale: 0.96, y: 4 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 4 }}
+              transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+              role="dialog"
+              aria-modal="true"
+              className="fixed left-1/2 top-1/2 z-50 w-[480px] max-w-[calc(100vw-32px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-base-700 bg-base-900 shadow-2xl shadow-black/60"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="border-b border-base-800 px-5 py-4">
+                <h2 className="font-display text-[18px] font-semibold text-white">Annotation details</h2>
+                <p className="mt-1 font-mono text-[11px] text-ink-300">
+                  x={detailsAnnotation.x.toFixed(3)} · y={detailsAnnotation.y.toFixed(3)}
+                </p>
+              </div>
+              <div className="max-h-[min(50vh,360px)] overflow-y-auto px-5 py-4 text-[13px] leading-relaxed text-ink-200">
+                {detailsAnnotation.text}
+              </div>
+              <div className="flex justify-end border-t border-base-800 px-5 py-3">
+                <button
+                  type="button"
+                  onClick={() => setDetailsForId(null)}
+                  className="rounded-md border border-base-700 px-3.5 py-1.5 text-[13px] font-medium text-white transition-colors hover:border-ink-300"
+                >
+                  Close
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Marker actions: Details / Edit / Delete */}
+      <AnimatePresence>
+        {markerActionsAnnotation && markerActionsIndex >= 0 && (
+          <>
+            <motion.div
+              key="act-bd"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              onClick={() => setMarkerActionsForId(null)}
+              className="fixed inset-0 z-50 bg-base-950/75 backdrop-blur-sm"
+            />
+            <motion.div
+              key="act-md"
+              initial={{ opacity: 0, scale: 0.96, y: 4 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 4 }}
+              transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="marker-actions-title"
+              className="fixed left-1/2 top-1/2 z-50 w-[400px] max-w-[calc(100vw-32px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-base-700 bg-base-900 shadow-2xl shadow-black/60"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="border-b border-base-800 px-5 py-4">
+                <h2 id="marker-actions-title" className="font-display text-[18px] font-semibold text-white">
+                  Annotation {markerActionsIndex + 1}
+                </h2>
+                <p className="mt-1 line-clamp-2 text-[12px] text-ink-300">{markerActionsAnnotation.text}</p>
+              </div>
+              <div className="flex flex-col gap-1.5 px-5 py-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDetailsForId(markerActionsAnnotation.id);
+                    setMarkerActionsForId(null);
+                  }}
+                  className="w-full rounded-md border border-base-700 px-3 py-2.5 text-left text-[13px] font-medium text-white transition-colors hover:border-ink-300 hover:bg-base-800"
+                >
+                  Details
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openEditForm(markerActionsAnnotation)}
+                  className="w-full rounded-md border border-base-700 px-3 py-2.5 text-left text-[13px] font-medium text-white transition-colors hover:border-ink-300 hover:bg-base-800"
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPendingDeleteAnnotationId(markerActionsAnnotation.id);
+                    setMarkerActionsForId(null);
+                  }}
+                  className="w-full rounded-md border border-red-800/50 px-3 py-2.5 text-left text-[13px] font-medium text-red-200 transition-colors hover:bg-red-950/40"
+                >
+                  Delete
+                </button>
+              </div>
+              <div className="flex justify-end border-t border-base-800 px-5 py-3">
+                <button
+                  type="button"
+                  onClick={() => setMarkerActionsForId(null)}
+                  className="rounded-md border border-base-700 px-3.5 py-1.5 text-[13px] font-medium text-white transition-colors hover:border-ink-300"
+                >
+                  Cancel
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      <AnnotationDeleteConfirm
+        annotation={pendingDeleteAnnotation}
+        onConfirm={performDeleteAnnotation}
+        onCancel={() => setPendingDeleteAnnotationId(null)}
       />
     </div>
   );
