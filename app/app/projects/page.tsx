@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
-import { Plus, Folder, MapPin, X } from 'lucide-react';
+import { Plus, Folder, MapPin, X, Settings } from 'lucide-react';
 import { listProjects, createProject } from '@/services/apiClient';
 import { useAuth } from '@/context/AuthContext';
 import type { ApiProject } from '@/types/api';
@@ -86,36 +86,50 @@ export default function ProjectsDashboardPage() {
       ) : (
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {projects.map((project) => (
-            <Link
+            <div
               key={project.id}
-              href={`/app/projects/${project.slug}`}
-              className="group flex flex-col gap-4 rounded-lg border border-base-800 bg-base-900/40 p-5 transition-colors hover:border-base-700 hover:bg-base-900/70"
+              className="group relative flex flex-col rounded-lg border border-base-800 bg-base-900/40 transition-colors hover:border-base-700 hover:bg-base-900/70"
             >
-              <div className="flex items-start justify-between gap-2">
-                <Folder size={18} className="mt-0.5 shrink-0 text-amber-500" />
-                <span
-                  className={`rounded-sm px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] ${
-                    STATUS_BADGE[project.status] ?? STATUS_BADGE.archived
-                  }`}
-                >
-                  {project.status}
-                </span>
-              </div>
-              <div className="flex-1">
-                <h2 className="text-[16px] font-semibold text-white group-hover:text-amber-400 transition-colors">
-                  {project.name}
-                </h2>
-                {project.description && (
-                  <p className="mt-1 line-clamp-2 text-[13px] text-ink-300">{project.description}</p>
+              <Link
+                href={`/app/projects/${project.slug}`}
+                className="flex flex-1 flex-col gap-4 p-5"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <Folder size={18} className="mt-0.5 shrink-0 text-amber-500" />
+                  <span
+                    className={`rounded-sm px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] ${
+                      STATUS_BADGE[project.status] ?? STATUS_BADGE.archived
+                    }`}
+                  >
+                    {project.status}
+                  </span>
+                </div>
+                <div className="flex-1">
+                  <h2 className="text-[16px] font-semibold text-white transition-colors group-hover:text-amber-400">
+                    {project.name}
+                  </h2>
+                  {project.description && (
+                    <p className="mt-1 line-clamp-2 text-[13px] text-ink-300">{project.description}</p>
+                  )}
+                </div>
+                {project.location && (
+                  <p className="flex items-center gap-1.5 font-mono text-[11px] text-ink-400">
+                    <MapPin size={11} />
+                    {project.location}
+                  </p>
                 )}
-              </div>
-              {project.location && (
-                <p className="flex items-center gap-1.5 font-mono text-[11px] text-ink-400">
-                  <MapPin size={11} />
-                  {project.location}
-                </p>
+              </Link>
+
+              {user?.is_admin && (
+                <Link
+                  href={`/app/projects/${project.slug}/settings`}
+                  aria-label={`Settings for ${project.name}`}
+                  className="absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded text-ink-500 opacity-0 transition-all hover:bg-base-800 hover:text-white group-hover:opacity-100"
+                >
+                  <Settings size={14} />
+                </Link>
               )}
-            </Link>
+            </div>
           ))}
           {projects.length === 0 && (
             <div className="col-span-full rounded-lg border border-dashed border-base-700 bg-base-900/20 px-6 py-12 text-center text-[13px] text-ink-300">
