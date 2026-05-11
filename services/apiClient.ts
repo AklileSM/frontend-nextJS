@@ -502,7 +502,32 @@ export async function uploadSingleFile(params: {
 }
 
 export function listAnnotations(fileId: string): Promise<ApiAnnotation[]> {
-  return getJson<ApiAnnotation[]>(`/annotations/file/${encodeURIComponent(fileId)}`);
+  return getJson<
+    Array<{
+      id: string;
+      file_id: string;
+      annotation_type: string;
+      data: Record<string, unknown>;
+      created_at: string;
+    }>
+  >(`/annotations/file/${encodeURIComponent(fileId)}`).then((items) =>
+    items.map((item) => {
+      const data = item.data || {};
+      const xRaw = data.x;
+      const yRaw = data.y;
+      const textRaw = data.text;
+      const x = typeof xRaw === 'number' ? xRaw : Number(xRaw ?? 0);
+      const y = typeof yRaw === 'number' ? yRaw : Number(yRaw ?? 0);
+      return {
+        id: item.id,
+        file_id: item.file_id,
+        x: Number.isFinite(x) ? x : 0,
+        y: Number.isFinite(y) ? y : 0,
+        text: typeof textRaw === 'string' ? textRaw : '',
+        created_at: item.created_at,
+      };
+    }),
+  );
 }
 
 export function createAnnotation(params: {
@@ -511,15 +536,39 @@ export function createAnnotation(params: {
   y: number;
   text: string;
 }): Promise<ApiAnnotation> {
-  return getJson<ApiAnnotation>('/annotations', {
+  return getJson<{
+    id: string;
+    file_id: string;
+    annotation_type: string;
+    data: Record<string, unknown>;
+    created_at: string;
+  }>('/annotations', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       file_id: params.fileId,
-      x: params.x,
-      y: params.y,
-      text: params.text,
+      annotation_type: 'point-note',
+      data: {
+        x: params.x,
+        y: params.y,
+        text: params.text,
+      },
     }),
+  }).then((item) => {
+    const data = item.data || {};
+    const xRaw = data.x;
+    const yRaw = data.y;
+    const textRaw = data.text;
+    const x = typeof xRaw === 'number' ? xRaw : Number(xRaw ?? 0);
+    const y = typeof yRaw === 'number' ? yRaw : Number(yRaw ?? 0);
+    return {
+      id: item.id,
+      file_id: item.file_id,
+      x: Number.isFinite(x) ? x : params.x,
+      y: Number.isFinite(y) ? y : params.y,
+      text: typeof textRaw === 'string' ? textRaw : params.text,
+      created_at: item.created_at,
+    };
   });
 }
 
