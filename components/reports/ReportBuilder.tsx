@@ -1,8 +1,13 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { jsPDF } from 'jspdf';
+import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
+import { useAuth } from '@/context/AuthContext';
+import {
+  buildFieldObservationPdf,
+  fieldObservationReportReference,
+} from '@/lib/engineeringReportPdf';
+import { flagsFromObservationBooleans } from '@/lib/observationReportFlags';
 import {
   createReportWithPdf,
   createViewerFieldDraft,
@@ -11,73 +16,142 @@ import {
 } from '@/services/apiClient';
 import type { ApiMediaFile } from '@/types/api';
 
+export type ReportBuilderViewerContext = {
+  roomSlug: string;
+  date: string;
+};
+
 type Props = {
   file: ApiMediaFile;
   viewerKind: 'static' | 'panorama' | 'point-cloud';
   aiDescription: string;
   state: Record<string, unknown>;
+  viewerContext?: ReportBuilderViewerContext | null;
 };
 
-export function ReportBuilder({ file, viewerKind, aiDescription, state }: Props) {
+function assessmentSubtitle(viewerKind: Props['viewerKind']): string {
+  switch (viewerKind) {
+    case 'panorama':
+      return 'Panoramic (360°) visual record';
+    case 'point-cloud':
+      return 'Three-dimensional point cloud visual record';
+    default:
+      return 'Planar (2D) construction image record';
+  }
+}
+
+/** Aligns with legacy Vite app values stored in viewer field drafts. */
+function viewerKindForApi(kind: Props['viewerKind']): string {
+  switch (kind) {
+    case 'panorama':
+      return 'interactive_360';
+    case 'point-cloud':
+      return 'static_pcd';
+    default:
+      return 'static_360';
+  }
+}
+
+function locationLabel(ctx: ReportBuilderViewerContext | null | undefined): string {
+  if (!ctx?.roomSlug) return '—';
+  const room = ctx.roomSlug.replace(/-/g, ' ');
+  return `${room} · ${ctx.date || '—'}`;
+}
+
+function captureDateLabel(file: ApiMediaFile): string {
+  const d = file.capture_date?.trim();
+  return d ? d.slice(0, 10) : '—';
+}
+
+function triggerDownload(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export function ReportBuilder({ file, viewerKind, aiDescription, state, viewerContext }: Props) {
+  const { user } = useAuth();
   const [manualObservations, setManualObservations] = useState('');
-  const [flagsInput, setFlagsInput] = useState('');
   const [draftId, setDraftId] = useState<string | null>(null);
   const [savingDraft, setSavingDraft] = useState(false);
   const [publishing, setPublishing] = useState(false);
 
-  const flags = useMemo(
-    () =>
-      flagsInput
-        .split(',')
-        .map((x) => x.trim())
-        .filter(Boolean),
-    [flagsInput],
+  const [includeVisualAssessment, setIncludeVisualAssessment] = useState(true);
+  const [includeEngineerComments, setIncludeEngineerComments] = useState(true);
+  const [safetyConcern, setSafetyConcern] = useState(false);
+  const [qualityConcern, setQualityConcern] = useState(false);
+  const [scheduleDelayed, setScheduleDelayed] = useState(false);
+
+  const projectName = useMemo(
+    () => (typeof process.env.NEXT_PUBLIC_PROJECT_NAME === 'string' && process.env.NEXT_PUBLIC_PROJECT_NAME.trim()
+      ? process.env.NEXT_PUBLIC_PROJECT_NAME.trim()
+      : 'A6 Stern'),
+    [],
   );
 
-  const buildPdfBlob = (): Blob => {
-    const doc = new jsPDF();
-    const lines = [
-      `SiteScope Field Report`,
-      `File: ${file.file_name}`,
-      `Type: ${file.type}`,
-      `Capture date: ${file.capture_date}`,
-      `Viewer: ${viewerKind}`,
-      '',
-      'AI description:',
-      aiDescription || '(none)',
-      '',
-      'Manual observations:',
-      manualObservations || '(none)',
-      '',
-      `Flags: ${flags.join(', ') || '(none)'}`,
-      '',
-      `Generated: ${new Date().toISOString()}`,
-    ];
-    let y = 20;
-    doc.setFontSize(16);
-    doc.text(lines[0], 14, y);
-    y += 10;
-    doc.setFontSize(11);
-    for (const line of lines.slice(1)) {
-      const wrapped = doc.splitTextToSize(line, 180);
-      doc.text(wrapped, 14, y);
-      y += wrapped.length * 6 + 2;
-      if (y > 270) {
-        doc.addPage();
-        y = 20;
-      }
-    }
-    return doc.output('blob');
+  const documentTitle = useMemo(
+    () => `${projectName.replace(/\s+/g, '_')} Project Observation Report`,
+    [projectName],
+  );
+
+  useEffect(() => {
+    setDraftId(null);
+  }, [file.id]);
+
+  const flags = useMemo(
+    () => flagsFromObservationBooleans(safetyConcern, qualityConcern, scheduleDelayed),
+    [safetyConcern, qualityConcern, scheduleDelayed],
+  );
+
+  const buildObservationPdf = () => {
+    const ref = fieldObservationReportReference();
+    const doc = buildFieldObservationPdf({
+      documentTitle,
+      assessmentMethodSubtitle: assessmentSubtitle(viewerKind),
+      projectName,
+      organizationLine: 'SMART Construction Research Group',
+      preparedBy: user?.username?.trim() || 'Not signed in',
+      reportReference: ref,
+      recordFileName: file.file_name,
+      locationOrRoom: locationLabel(viewerContext),
+      imageCaptureDate: captureDateLabel(file),
+      reportIssueDate: new Date(),
+      sections: {
+        includeVisualAssessment,
+        visualAssessmentHeading: 'Visual and AI-assisted description',
+        visualAssessmentBody: aiDescription || '',
+        includeEngineerComments,
+        engineerCommentsHeading: "Author's comments and site notes",
+        engineerCommentsBody: manualObservations || '',
+      },
+      flags: {
+        scheduleDelayed,
+        qualityConcern,
+        safetyConcern,
+      },
+    });
+    return { doc, ref };
   };
 
   const onSaveDraft = async () => {
     if (savingDraft) return;
     setSavingDraft(true);
     try {
+      const mergedState = {
+        ...state,
+        reportIncludeVisual: includeVisualAssessment,
+        reportIncludeComments: includeEngineerComments,
+        reportSafetyConcern: safetyConcern,
+        reportQualityConcern: qualityConcern,
+        reportScheduleDelayed: scheduleDelayed,
+      };
       if (draftId) {
         await updateViewerFieldDraft({
           draftId,
-          state,
+          state: mergedState,
           manualObservations,
           flags,
         });
@@ -85,8 +159,8 @@ export function ReportBuilder({ file, viewerKind, aiDescription, state }: Props)
       } else {
         const d = await createViewerFieldDraft({
           fileId: file.id,
-          viewerKind,
-          state,
+          viewerKind: viewerKindForApi(viewerKind),
+          state: mergedState,
           manualObservations,
           flags,
         });
@@ -102,17 +176,23 @@ export function ReportBuilder({ file, viewerKind, aiDescription, state }: Props)
 
   const onPublish = async () => {
     if (publishing) return;
+    if (!includeVisualAssessment && !includeEngineerComments) {
+      toast.error('Select at least one section to include in the report (visual assessment and/or author comments).');
+      return;
+    }
     setPublishing(true);
     try {
-      const pdfBlob = buildPdfBlob();
+      const { doc, ref } = buildObservationPdf();
+      const pdfBlob = doc.output('blob');
+      const filename = `FieldObservation_${ref}.pdf`;
       if (draftId) {
         await publishViewerFieldDraft({
           draftId,
           pdfBlob,
           fileId: file.id,
-          filename: `${file.file_name.replace(/\.[^.]+$/, '') || 'report'}.pdf`,
-          aiDescription: aiDescription || null,
-          manualObservations: manualObservations || null,
+          filename,
+          aiDescription: includeVisualAssessment ? (aiDescription || null) : null,
+          manualObservations: includeEngineerComments ? (manualObservations || null) : null,
           flags,
         });
         setDraftId(null);
@@ -120,13 +200,14 @@ export function ReportBuilder({ file, viewerKind, aiDescription, state }: Props)
         await createReportWithPdf({
           pdfBlob,
           fileId: file.id,
-          filename: `${file.file_name.replace(/\.[^.]+$/, '') || 'report'}.pdf`,
-          aiDescription: aiDescription || null,
-          manualObservations: manualObservations || null,
+          filename,
+          aiDescription: includeVisualAssessment ? (aiDescription || null) : null,
+          manualObservations: includeEngineerComments ? (manualObservations || null) : null,
           flags,
         });
       }
       toast.success('Report published.');
+      triggerDownload(pdfBlob, filename);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not publish report.');
     } finally {
@@ -134,11 +215,41 @@ export function ReportBuilder({ file, viewerKind, aiDescription, state }: Props)
     }
   };
 
+  const checkboxClass =
+    'flex cursor-pointer items-start gap-2 rounded-md border border-transparent px-1 py-1.5 text-[12px] text-ink-200 transition-colors hover:border-base-600 hover:bg-base-800/50';
+
   return (
     <aside className="space-y-4 rounded-md border border-base-800 bg-base-900/50 p-4">
       <h3 className="font-display text-[18px] text-white">Report Builder</h3>
+      <p className="text-[11px] leading-relaxed text-ink-400">
+        A4 field observation layout: metadata, purpose and scope, references, optional narrative sections,
+        classification, and limitations (same structure as the legacy SiteScope PDF generator).
+      </p>
+
+      <div className="space-y-2">
+        <p className="text-[11px] font-medium uppercase tracking-wide text-ink-400">Include in PDF</p>
+        <label className={checkboxClass}>
+          <input
+            type="checkbox"
+            checked={includeVisualAssessment}
+            onChange={(e) => setIncludeVisualAssessment(e.target.checked)}
+            className="mt-0.5"
+          />
+          <span>Visual / AI-assisted description</span>
+        </label>
+        <label className={checkboxClass}>
+          <input
+            type="checkbox"
+            checked={includeEngineerComments}
+            onChange={(e) => setIncludeEngineerComments(e.target.checked)}
+            className="mt-0.5"
+          />
+          <span>Author comments and site notes</span>
+        </label>
+      </div>
+
       <div className="space-y-1">
-        <label className="text-[12px] text-ink-300">Manual observations</label>
+        <label className="text-[12px] text-ink-300">Author comments and site notes</label>
         <textarea
           value={manualObservations}
           onChange={(e) => setManualObservations(e.target.value)}
@@ -146,15 +257,38 @@ export function ReportBuilder({ file, viewerKind, aiDescription, state }: Props)
           placeholder="Describe what you observed on site..."
         />
       </div>
-      <div className="space-y-1">
-        <label className="text-[12px] text-ink-300">Flags (comma separated)</label>
-        <input
-          value={flagsInput}
-          onChange={(e) => setFlagsInput(e.target.value)}
-          className="w-full rounded-md border border-base-700 bg-base-950/70 px-3 py-2 text-[13px] text-white outline-none focus:border-amber-500/70"
-          placeholder="safety, moisture, crack"
-        />
+
+      <div className="space-y-2">
+        <p className="text-[11px] font-medium uppercase tracking-wide text-ink-400">Classification</p>
+        <label className={checkboxClass}>
+          <input
+            type="checkbox"
+            checked={safetyConcern}
+            onChange={(e) => setSafetyConcern(e.target.checked)}
+            className="mt-0.5"
+          />
+          <span>Safety concern (visual)</span>
+        </label>
+        <label className={checkboxClass}>
+          <input
+            type="checkbox"
+            checked={qualityConcern}
+            onChange={(e) => setQualityConcern(e.target.checked)}
+            className="mt-0.5"
+          />
+          <span>Quality concern</span>
+        </label>
+        <label className={checkboxClass}>
+          <input
+            type="checkbox"
+            checked={scheduleDelayed}
+            onChange={(e) => setScheduleDelayed(e.target.checked)}
+            className="mt-0.5"
+          />
+          <span>Schedule delay indicated</span>
+        </label>
       </div>
+
       <div className="flex gap-2">
         <button
           type="button"

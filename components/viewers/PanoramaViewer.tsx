@@ -197,6 +197,7 @@ export function PanoramaViewer() {
         viewerKind="panorama"
         aiDescription={aiDescription}
         state={{ mode: 'panorama' }}
+        viewerContext={{ roomSlug: ctx.roomSlug, date: ctx.date }}
       />
     </div>
   );

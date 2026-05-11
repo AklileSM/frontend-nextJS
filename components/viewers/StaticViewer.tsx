@@ -394,6 +394,7 @@ export function StaticViewer() {
         viewerKind="static"
         aiDescription={aiDescription}
         state={{ scale, annotationsCount: annotations.length }}
+        viewerContext={{ roomSlug: ctx.roomSlug, date: ctx.date }}
       />
 
       {/* Annotation form (new + edit) */}

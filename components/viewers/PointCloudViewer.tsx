@@ -96,7 +96,13 @@ export function PointCloudViewer() {
           {overlayOpen ? 'Hide Report Overlay' : 'Show Report Overlay'}
         </button>
         {overlayOpen && (
-          <ReportBuilder file={ctx.file} viewerKind="point-cloud" aiDescription="" state={{ mode: 'point-cloud' }} />
+          <ReportBuilder
+            file={ctx.file}
+            viewerKind="point-cloud"
+            aiDescription=""
+            state={{ mode: 'point-cloud' }}
+            viewerContext={{ roomSlug: ctx.roomSlug, date: ctx.date }}
+          />
         )}
       </aside>
     </div>
