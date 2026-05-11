@@ -32,6 +32,7 @@ export const mockProjects: ApiProject[] = [
     location: 'Berlin, Germany',
     status: 'active',
     owner_id: 'mock-admin-1',
+    floorplan_url: null,
     created_at: _now,
     updated_at: _now,
   },
@@ -43,6 +44,7 @@ export const mockProjects: ApiProject[] = [
     location: null,
     status: 'active',
     owner_id: 'mock-admin-1',
+    floorplan_url: null,
     created_at: _now,
     updated_at: _now,
   },
@@ -54,18 +56,19 @@ export const mockProjects: ApiProject[] = [
     location: null,
     status: 'active',
     owner_id: 'mock-admin-1',
+    floorplan_url: null,
     created_at: _now,
     updated_at: _now,
   },
 ];
 
 export const mockRooms: ApiRoom[] = [
-  { id: 'r-1', name: 'Room 1', slug: 'room1', project_id: 'p-a6' },
-  { id: 'r-2', name: 'Room 2', slug: 'room2', project_id: 'p-a6' },
-  { id: 'r-3', name: 'Room 3', slug: 'room3', project_id: 'p-a6' },
-  { id: 'r-4', name: 'Room 4', slug: 'room4', project_id: 'p-a6' },
-  { id: 'r-5', name: 'Room 5', slug: 'room5', project_id: 'p-a6' },
-  { id: 'r-6', name: 'Room 6', slug: 'room6', project_id: 'p-a6' },
+  { id: 'r-1', name: 'Room 1', slug: 'room1', project_id: 'p-a6', sort_order: 0, floor_plan_coordinates: null },
+  { id: 'r-2', name: 'Room 2', slug: 'room2', project_id: 'p-a6', sort_order: 1, floor_plan_coordinates: null },
+  { id: 'r-3', name: 'Room 3', slug: 'room3', project_id: 'p-a6', sort_order: 2, floor_plan_coordinates: null },
+  { id: 'r-4', name: 'Room 4', slug: 'room4', project_id: 'p-a6', sort_order: 3, floor_plan_coordinates: null },
+  { id: 'r-5', name: 'Room 5', slug: 'room5', project_id: 'p-a6', sort_order: 4, floor_plan_coordinates: null },
+  { id: 'r-6', name: 'Room 6', slug: 'room6', project_id: 'p-a6', sort_order: 5, floor_plan_coordinates: null },
 ];
 
 export const mockCaptureDates: string[] = [

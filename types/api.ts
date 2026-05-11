@@ -26,6 +26,7 @@ export interface ApiProject {
   location: string | null;
   status: string;
   owner_id: string | null;
+  floorplan_url: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -47,11 +48,20 @@ export interface AdminUser {
   created_at: string;
 }
 
+export interface FloorPlanCoordinates {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface ApiRoom {
   id: string;
   name: string;
   slug: string;
   project_id: string;
+  sort_order: number;
+  floor_plan_coordinates: FloorPlanCoordinates | null;
 }
 
 export type MediaType = 'image' | 'video' | 'pointcloud' | 'pdf';

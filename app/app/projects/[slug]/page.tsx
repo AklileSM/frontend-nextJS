@@ -4,7 +4,8 @@ import { motion } from 'framer-motion';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Upload, X } from 'lucide-react';
+import { Upload, X, Settings } from 'lucide-react';
+import Link from 'next/link';
 import {
   deleteFileAsset,
   getExplorerByDate,
@@ -12,6 +13,7 @@ import {
   listRooms,
 } from '@/services/apiClient';
 import { useAuth } from '@/context/AuthContext';
+import { useMyProjectRole } from '@/hooks/useMyProjectRole';
 import { RoomFilterMenu } from '@/components/explorer/RoomFilterMenu';
 import { FileGrid } from '@/components/explorer/FileGrid';
 import { MediaTabs, type MediaTab } from '@/components/explorer/MediaTabs';
@@ -46,7 +48,8 @@ export default function FileExplorerPage() {
 
   const date = params.get('date') ?? mockCaptureDates[mockCaptureDates.length - 1];
   const isAdmin = user?.is_admin ?? false;
-  const canUpload = isAdmin;
+  const { canUpload, canDelete: roleCanDelete } = useMyProjectRole(project?.id);
+  const canDelete = isAdmin || roleCanDelete;
 
   // Load project metadata + rooms once
   useEffect(() => {
@@ -184,6 +187,15 @@ export default function FileExplorerPage() {
             selected={effectiveSelected}
             onChange={setRoomFilter}
           />
+          {isAdmin && (
+            <Link
+              href={`/app/projects/${slug}/settings`}
+              className="inline-flex items-center gap-2 rounded-md border border-base-700 px-3 py-1.5 text-[13px] font-medium text-ink-200 transition-colors hover:border-ink-400 hover:text-white"
+            >
+              <Settings size={13} />
+              Settings
+            </Link>
+          )}
           {canUpload && (
             <button
               type="button"
@@ -244,7 +256,7 @@ export default function FileExplorerPage() {
                 date={date}
                 files={files}
                 total={total}
-                isAdmin={isAdmin}
+                isAdmin={canDelete}
                 onDelete={setPendingDelete}
               />
             );

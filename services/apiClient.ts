@@ -917,3 +917,116 @@ export async function apiFetchCurrentUser(): Promise<ApiTokenResponse['user']> {
 export function listProjectMembers(projectId: string): Promise<ApiProjectMember[]> {
   return getJson<ApiProjectMember[]>(`/projects/${projectId}/members`);
 }
+
+export function getProject(projectId: string): Promise<ApiProject> {
+  return getJson<ApiProject>(`/projects/${projectId}`);
+}
+
+export function updateProject(
+  projectId: string,
+  patch: Partial<Pick<ApiProject, 'name' | 'description' | 'location' | 'status'>>,
+): Promise<ApiProject> {
+  return getJson<ApiProject>(`/projects/${projectId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
+}
+
+export async function deleteProject(projectId: string): Promise<void> {
+  const response = await apiFetch(`/projects/${projectId}`, { method: 'DELETE' }, true);
+  if (!response.ok) throw new Error(await parseApiError(response));
+}
+
+export function inviteProjectMember(
+  projectId: string,
+  body: { username: string; role: 'owner' | 'editor' | 'viewer' },
+): Promise<ApiProjectMember> {
+  return getJson<ApiProjectMember>(`/projects/${projectId}/members`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export function updateProjectMember(
+  projectId: string,
+  userId: string,
+  patch: { role: 'owner' | 'editor' | 'viewer' },
+): Promise<ApiProjectMember> {
+  return getJson<ApiProjectMember>(`/projects/${projectId}/members/${userId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
+}
+
+export async function removeProjectMember(projectId: string, userId: string): Promise<void> {
+  const response = await apiFetch(`/projects/${projectId}/members/${userId}`, { method: 'DELETE' }, true);
+  if (!response.ok) throw new Error(await parseApiError(response));
+}
+
+export async function uploadProjectFloorplan(
+  projectId: string,
+  file: File,
+  onProgress?: (percent: number) => void,
+): Promise<ApiProject> {
+  const token = getAccessToken();
+  if (!token) throw new Error('You must be signed in to upload a floorplan.');
+
+  return new Promise<ApiProject>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const form = new FormData();
+    form.append('file', file);
+
+    xhr.open('POST', `${API_BASE}/projects/${projectId}/floorplan`, true);
+    xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    xhr.upload.onprogress = (event) => {
+      if (!event.lengthComputable || !onProgress) return;
+      onProgress(Math.min(99, Math.round((event.loaded / event.total) * 100)));
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        onProgress?.(100);
+        resolve(JSON.parse(xhr.responseText) as ApiProject);
+      } else {
+        try {
+          const j = JSON.parse(xhr.responseText) as { detail?: string };
+          reject(new Error(typeof j.detail === 'string' ? j.detail : `Upload failed (${xhr.status})`));
+        } catch {
+          reject(new Error(`Upload failed (${xhr.status})`));
+        }
+      }
+    };
+    xhr.onerror = () => reject(new Error('Floorplan upload failed (network error)'));
+    xhr.send(form);
+  });
+}
+
+export function createRoom(
+  projectId: string,
+  body: { name: string; slug: string },
+): Promise<ApiRoom> {
+  return getJson<ApiRoom>(`/projects/${projectId}/rooms`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export function updateRoom(
+  projectId: string,
+  roomId: string,
+  patch: Partial<Pick<ApiRoom, 'name' | 'slug' | 'sort_order' | 'floor_plan_coordinates'>>,
+): Promise<ApiRoom> {
+  return getJson<ApiRoom>(`/projects/${projectId}/rooms/${roomId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
+}
+
+export async function deleteRoom(projectId: string, roomId: string): Promise<void> {
+  const response = await apiFetch(`/projects/${projectId}/rooms/${roomId}`, { method: 'DELETE' }, true);
+  if (!response.ok) throw new Error(await parseApiError(response));
+}
