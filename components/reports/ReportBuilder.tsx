@@ -221,10 +221,6 @@ export function ReportBuilder({ file, viewerKind, aiDescription, state, viewerCo
   return (
     <aside className="space-y-4 rounded-md border border-base-800 bg-base-900/50 p-4">
       <h3 className="font-display text-[18px] text-white">Report Builder</h3>
-      <p className="text-[11px] leading-relaxed text-ink-400">
-        A4 field observation layout: metadata, purpose and scope, references, optional narrative sections,
-        classification, and limitations (same structure as the legacy SiteScope PDF generator).
-      </p>
 
       <div className="space-y-2">
         <p className="text-[11px] font-medium uppercase tracking-wide text-ink-400">Include in PDF</p>
