@@ -191,20 +191,6 @@ export function StaticViewer() {
           </Link>
           <button
             type="button"
-            onClick={() => setScale((s) => Math.max(0.5, Number((s - 0.1).toFixed(2))))}
-            className="rounded border border-base-700 px-2 py-1 text-[12px]"
-          >
-            Zoom -
-          </button>
-          <button
-            type="button"
-            onClick={() => setScale((s) => Math.min(3, Number((s + 0.1).toFixed(2))))}
-            className="rounded border border-base-700 px-2 py-1 text-[12px]"
-          >
-            Zoom +
-          </button>
-          <button
-            type="button"
             onClick={runAi}
             disabled={analyzing}
             className="rounded border border-base-700 px-2 py-1 text-[12px] disabled:opacity-50"
@@ -231,10 +217,38 @@ export function StaticViewer() {
           </button>
         </div>
 
-        <div className="overflow-auto rounded-md border border-base-800 bg-black/20 p-3">
+        <div className="relative overflow-auto rounded-md border border-base-800 bg-black/20 p-3">
           {ctx.file.type === 'video' ? (
             <video src={ctx.file.full_src || ctx.file.src} controls className="max-h-[70vh] w-full rounded-md" />
           ) : (
+            <>
+              <div className="pointer-events-none absolute bottom-4 right-4 z-10 flex flex-col items-stretch gap-1 rounded-md border border-base-700 bg-base-950/90 p-1 shadow-lg backdrop-blur-sm">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setScale((s) => Math.min(3, Number((s + 0.1).toFixed(2))));
+                  }}
+                  className="pointer-events-auto rounded border border-base-600 px-2.5 py-1.5 text-[13px] font-medium text-white hover:bg-base-800"
+                  aria-label="Zoom in"
+                >
+                  +
+                </button>
+                <span className="pointer-events-none px-1 py-0.5 text-center font-mono text-[10px] text-ink-300">
+                  {Math.round(scale * 100)}%
+                </span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setScale((s) => Math.max(0.5, Number((s - 0.1).toFixed(2))));
+                  }}
+                  className="pointer-events-auto rounded border border-base-600 px-2.5 py-1.5 text-[13px] font-medium text-white hover:bg-base-800"
+                  aria-label="Zoom out"
+                >
+                  −
+                </button>
+              </div>
             <div className="flex justify-center">
               <div className="origin-top" style={{ transform: `scale(${scale})` }}>
                 <div
@@ -282,6 +296,7 @@ export function StaticViewer() {
                 </div>
               </div>
             </div>
+            </>
           )}
         </div>
 
