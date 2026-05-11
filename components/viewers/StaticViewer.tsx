@@ -29,6 +29,7 @@ export function StaticViewer() {
   const [editingAnnotationId, setEditingAnnotationId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState('');
   const [editingBusy, setEditingBusy] = useState(false);
+  const [editingPin, setEditingPin] = useState<{ x: number; y: number } | null>(null);
 
   const backHref = useMemo(() => {
     if (!ctx) return '/app';
@@ -56,6 +57,7 @@ export function StaticViewer() {
     setPlacingAnnotation(false);
     setEditingAnnotationId(null);
     setEditingText('');
+    setEditingPin(null);
     setShowAnnotations(true);
     void loadAnnotations();
   }, [ctx?.file.id]);
@@ -98,12 +100,18 @@ export function StaticViewer() {
   };
 
   const onImageClickForAnnotation: React.MouseEventHandler<HTMLDivElement> = (e) => {
-    if (!placingAnnotation) return;
+    if (!placingAnnotation && !editingAnnotationId) return;
     const rect = e.currentTarget.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) return;
     const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
     const y = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
-    setDraftPin({ x, y });
+    if (placingAnnotation) {
+      setDraftPin({ x, y });
+      return;
+    }
+    if (editingAnnotationId) {
+      setEditingPin({ x, y });
+    }
   };
 
   const selectedAnnotation = useMemo(
@@ -115,21 +123,24 @@ export function StaticViewer() {
     setSelectedAnnotationId(a.id);
     setEditingAnnotationId(a.id);
     setEditingText(a.text);
+    setEditingPin({ x: a.x, y: a.y });
   };
 
   const saveEdit = async () => {
     if (!selectedAnnotation || !editingAnnotationId || !editingText.trim() || editingBusy) return;
     setEditingBusy(true);
     try {
+      const pin = editingPin ?? { x: selectedAnnotation.x, y: selectedAnnotation.y };
       const updated = await updateAnnotation({
         annotationId: editingAnnotationId,
-        x: selectedAnnotation.x,
-        y: selectedAnnotation.y,
+        x: pin.x,
+        y: pin.y,
         text: editingText.trim(),
       });
       setAnnotations((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
       setEditingAnnotationId(null);
       setEditingText('');
+      setEditingPin(null);
       toast.success('Annotation updated.');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not update annotation.');
@@ -147,6 +158,7 @@ export function StaticViewer() {
       if (editingAnnotationId === id) {
         setEditingAnnotationId(null);
         setEditingText('');
+        setEditingPin(null);
       }
       toast.success('Annotation deleted.');
     } catch (err) {
@@ -226,7 +238,7 @@ export function StaticViewer() {
             <div className="flex justify-center">
               <div className="origin-top" style={{ transform: `scale(${scale})` }}>
                 <div
-                  className={`relative inline-block ${placingAnnotation ? 'cursor-crosshair' : ''}`}
+                  className={`relative inline-block ${placingAnnotation || editingAnnotationId ? 'cursor-crosshair' : ''}`}
                   onClick={onImageClickForAnnotation}
                 >
                   <img
@@ -238,6 +250,8 @@ export function StaticViewer() {
                   {showAnnotations &&
                     annotations.map((a, idx) => {
                     const active = selectedAnnotationId === a.id;
+                    const markerX = editingAnnotationId === a.id && editingPin ? editingPin.x : a.x;
+                    const markerY = editingAnnotationId === a.id && editingPin ? editingPin.y : a.y;
                     return (
                       <button
                         key={a.id}
@@ -252,7 +266,7 @@ export function StaticViewer() {
                             ? 'border-amber-200 bg-amber-500 text-base-950'
                             : 'border-amber-400 bg-base-950 text-amber-300'
                         }`}
-                        style={{ left: `${a.x * 100}%`, top: `${a.y * 100}%` }}
+                        style={{ left: `${markerX * 100}%`, top: `${markerY * 100}%` }}
                       >
                         {idx + 1}
                       </button>
@@ -350,6 +364,7 @@ export function StaticViewer() {
                         onClick={() => {
                           setEditingAnnotationId(null);
                           setEditingText('');
+                          setEditingPin(null);
                         }}
                         className="rounded border border-base-700 px-2 py-1 text-[11px] text-ink-200"
                       >
@@ -364,6 +379,11 @@ export function StaticViewer() {
                         {editingBusy ? 'Saving...' : 'Save'}
                       </button>
                     </div>
+                    {editingPin && (
+                      <p className="font-mono text-[10px] text-ink-300">
+                        Click on the image to move this marker. Current x={editingPin.x.toFixed(3)} · y={editingPin.y.toFixed(3)}
+                      </p>
+                    )}
                   </div>
                 ) : (
                   <>
