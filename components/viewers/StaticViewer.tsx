@@ -30,6 +30,18 @@ export function StaticViewer() {
   const [editingText, setEditingText] = useState('');
   const [editingBusy, setEditingBusy] = useState(false);
   const [editingPin, setEditingPin] = useState<{ x: number; y: number } | null>(null);
+  const [annotationMenuOpenId, setAnnotationMenuOpenId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (annotationMenuOpenId == null) return;
+    const onDocMouseDown = (e: MouseEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (el?.closest('[data-annotation-actions-root]')) return;
+      setAnnotationMenuOpenId(null);
+    };
+    document.addEventListener('mousedown', onDocMouseDown);
+    return () => document.removeEventListener('mousedown', onDocMouseDown);
+  }, [annotationMenuOpenId]);
 
   const backHref = useMemo(() => {
     if (!ctx) return '/app';
@@ -59,6 +71,8 @@ export function StaticViewer() {
     setEditingText('');
     setEditingPin(null);
     setShowAnnotations(true);
+    setAnnotationMenuOpenId(null);
+    setScale((s) => Math.max(1, s));
     void loadAnnotations();
   }, [ctx?.file.id]);
 
@@ -241,7 +255,7 @@ export function StaticViewer() {
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    setScale((s) => Math.max(0.5, Number((s - 0.1).toFixed(2))));
+                    setScale((s) => Math.max(1, Number((s - 0.1).toFixed(2))));
                   }}
                   className="pointer-events-auto rounded border border-base-600 px-2.5 py-1.5 text-[13px] font-medium text-white hover:bg-base-800"
                   aria-label="Zoom out"
@@ -273,12 +287,21 @@ export function StaticViewer() {
                         onClick={(e) => {
                           e.stopPropagation();
                           setSelectedAnnotationId(a.id);
+                          setAnnotationMenuOpenId(null);
+                          setPlacingAnnotation(false);
+                          setDraftPin(null);
+                          setDraftText('');
+                          requestAnimationFrame(() => {
+                            document
+                              .getElementById(`annotation-card-${a.id}`)
+                              ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                          });
                         }}
                         title={a.text}
-                        className={`absolute h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 text-[10px] font-semibold ${
+                        className={`absolute z-10 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 text-[10px] font-semibold transition-[transform,box-shadow] ${
                           active
-                            ? 'border-amber-200 bg-amber-500 text-base-950'
-                            : 'border-amber-400 bg-base-950 text-amber-300'
+                            ? 'z-20 h-7 w-7 border-amber-100 bg-amber-400 text-base-950 shadow-[0_0_0_3px_rgba(251,191,36,0.45)] ring-2 ring-amber-200/90'
+                            : 'h-5 w-5 border-amber-400 bg-base-950 text-amber-300 hover:border-amber-200 hover:bg-base-900'
                         }`}
                         style={{ left: `${markerX * 100}%`, top: `${markerY * 100}%` }}
                       >
@@ -357,15 +380,79 @@ export function StaticViewer() {
             {annotations.map((a) => (
               <div
                 key={a.id}
-                className={`rounded border px-2 py-1 text-[12px] ${
+                id={`annotation-card-${a.id}`}
+                role="button"
+                tabIndex={0}
+                onClick={(e) => {
+                  if ((e.target as HTMLElement).closest('[data-annotation-actions-root]')) return;
+                  if (editingAnnotationId === a.id) return;
+                  setSelectedAnnotationId(a.id);
+                }}
+                onKeyDown={(e) => {
+                  if (editingAnnotationId === a.id) return;
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setSelectedAnnotationId(a.id);
+                  }
+                }}
+                className={`rounded border px-2 py-1 text-[12px] outline-none transition-colors ${
                   selectedAnnotationId === a.id
                     ? 'border-amber-500/60 bg-amber-500/10 text-amber-100'
                     : 'border-base-800 text-ink-200'
-                }`}
+                } ${editingAnnotationId === a.id ? '' : 'cursor-pointer hover:border-base-600'}`}
               >
-                <p className="font-mono text-[10px] text-ink-300">
-                  x={a.x.toFixed(3)} · y={a.y.toFixed(3)}
-                </p>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="font-mono text-[10px] text-ink-300">
+                    x={a.x.toFixed(3)} · y={a.y.toFixed(3)}
+                  </p>
+                  {editingAnnotationId !== a.id && (
+                    <div className="relative shrink-0" data-annotation-actions-root>
+                      <button
+                        type="button"
+                        aria-expanded={annotationMenuOpenId === a.id}
+                        aria-haspopup="menu"
+                        aria-label="Annotation actions"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setAnnotationMenuOpenId((id) => (id === a.id ? null : a.id));
+                        }}
+                        className="rounded px-1.5 py-0.5 text-[16px] leading-none text-ink-300 hover:bg-base-800 hover:text-white"
+                      >
+                        ⋮
+                      </button>
+                      {annotationMenuOpenId === a.id && (
+                        <div
+                          role="menu"
+                          className="absolute right-0 top-full z-30 mt-0.5 min-w-[7.5rem] rounded-md border border-base-700 bg-base-950 py-0.5 shadow-lg"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className="block w-full px-2.5 py-1.5 text-left text-[11px] text-ink-200 hover:bg-base-800"
+                            onClick={() => {
+                              setAnnotationMenuOpenId(null);
+                              startEdit(a);
+                            }}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className="block w-full px-2.5 py-1.5 text-left text-[11px] text-red-200 hover:bg-base-800"
+                            onClick={() => {
+                              setAnnotationMenuOpenId(null);
+                              void removeAnnotation(a.id);
+                            }}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
                 {editingAnnotationId === a.id ? (
                   <div className="mt-1 space-y-2">
                     <textarea
@@ -401,25 +488,7 @@ export function StaticViewer() {
                     )}
                   </div>
                 ) : (
-                  <>
-                    <p>{a.text}</p>
-                    <div className="mt-1.5 flex justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() => startEdit(a)}
-                        className="rounded border border-base-700 px-2 py-1 text-[11px] text-ink-200"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void removeAnnotation(a.id)}
-                        className="rounded border border-red-700/60 px-2 py-1 text-[11px] text-red-200"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </>
+                  <p className="mt-1">{a.text}</p>
                 )}
               </div>
             ))}
