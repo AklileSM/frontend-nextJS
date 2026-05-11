@@ -14,7 +14,6 @@ export function StaticViewer() {
   const [aiDescription, setAiDescription] = useState('');
   const [analyzing, setAnalyzing] = useState(false);
   const [annotations, setAnnotations] = useState<ApiAnnotation[]>([]);
-  const [loadingAnnotations, setLoadingAnnotations] = useState(false);
   const [placingAnnotation, setPlacingAnnotation] = useState(false);
   const [draftPin, setDraftPin] = useState<{ x: number; y: number } | null>(null);
   const [draftText, setDraftText] = useState('');
@@ -30,14 +29,11 @@ export function StaticViewer() {
 
   const loadAnnotations = async () => {
     if (!ctx) return;
-    setLoadingAnnotations(true);
     try {
       const data = await listAnnotations(ctx.file.id);
       setAnnotations(data);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not load annotations.');
-    } finally {
-      setLoadingAnnotations(false);
     }
   };
 
@@ -152,14 +148,6 @@ export function StaticViewer() {
             className="rounded border border-base-700 px-2 py-1 text-[12px]"
           >
             {placingAnnotation ? 'Cancel Annotation' : 'New Annotation'}
-          </button>
-          <button
-            type="button"
-            onClick={loadAnnotations}
-            disabled={loadingAnnotations}
-            className="rounded border border-base-700 px-2 py-1 text-[12px] disabled:opacity-50"
-          >
-            {loadingAnnotations ? 'Loading...' : 'Load Annotations'}
           </button>
         </div>
 
