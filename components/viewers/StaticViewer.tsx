@@ -34,7 +34,6 @@ export function StaticViewer() {
   const [savingAnnotation, setSavingAnnotation] = useState(false);
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
   const [showAnnotations, setShowAnnotations] = useState(true);
-  const [markerActionsForId, setMarkerActionsForId] = useState<string | null>(null);
   const [detailsForId, setDetailsForId] = useState<string | null>(null);
   const [pendingDeleteAnnotationId, setPendingDeleteAnnotationId] = useState<string | null>(null);
 
@@ -62,7 +61,6 @@ export function StaticViewer() {
     setPlacingAnnotation(false);
     setAnnotationForm(null);
     setShowAnnotations(true);
-    setMarkerActionsForId(null);
     setDetailsForId(null);
     setPendingDeleteAnnotationId(null);
     setScale((s) => Math.max(1, s));
@@ -70,18 +68,16 @@ export function StaticViewer() {
   }, [ctx?.file.id]);
 
   useEffect(() => {
-    const blocking =
-      annotationForm !== null || detailsForId !== null || markerActionsForId !== null;
+    const blocking = annotationForm !== null || detailsForId !== null;
     if (!blocking) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       setAnnotationForm(null);
       setDetailsForId(null);
-      setMarkerActionsForId(null);
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [annotationForm, detailsForId, markerActionsForId]);
+  }, [annotationForm, detailsForId]);
 
   const runAi = async () => {
     if (!ctx || analyzing) return;
@@ -149,26 +145,15 @@ export function StaticViewer() {
     }
   };
 
-  const selectedAnnotation = useMemo(
-    () => annotations.find((a) => a.id === selectedAnnotationId) ?? null,
-    [annotations, selectedAnnotationId],
-  );
-
   const detailsAnnotation = useMemo(
     () => (detailsForId ? annotations.find((a) => a.id === detailsForId) ?? null : null),
     [annotations, detailsForId],
   );
 
-  const markerActionsAnnotation = useMemo(
-    () =>
-      markerActionsForId ? annotations.find((a) => a.id === markerActionsForId) ?? null : null,
-    [annotations, markerActionsForId],
-  );
-
-  const markerActionsIndex = useMemo(() => {
-    if (!markerActionsForId) return -1;
-    return annotations.findIndex((a) => a.id === markerActionsForId);
-  }, [annotations, markerActionsForId]);
+  const detailsAnnotationIndex = useMemo(() => {
+    if (!detailsForId) return -1;
+    return annotations.findIndex((a) => a.id === detailsForId);
+  }, [annotations, detailsForId]);
 
   const pendingDeleteAnnotation = useMemo(
     () =>
@@ -186,7 +171,6 @@ export function StaticViewer() {
       setAnnotations((prev) => prev.filter((a) => a.id !== id));
       if (selectedAnnotationId === id) setSelectedAnnotationId(null);
       setPendingDeleteAnnotationId(null);
-      setMarkerActionsForId(null);
       setDetailsForId(null);
       toast.success('Annotation deleted.');
     } catch (err) {
@@ -196,7 +180,7 @@ export function StaticViewer() {
 
   const openEditForm = (a: ApiAnnotation) => {
     setSelectedAnnotationId(a.id);
-    setMarkerActionsForId(null);
+    setDetailsForId(null);
     setAnnotationForm({
       mode: 'edit',
       annotationId: a.id,
@@ -323,7 +307,7 @@ export function StaticViewer() {
                             onClick={(e) => {
                               e.stopPropagation();
                               setSelectedAnnotationId(a.id);
-                              setMarkerActionsForId(a.id);
+                              setDetailsForId(a.id);
                               setPlacingAnnotation(false);
                               setAnnotationForm(null);
                               requestAnimationFrame(() => {
@@ -333,10 +317,10 @@ export function StaticViewer() {
                               });
                             }}
                             title={a.text}
-                            className={`absolute z-10 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 text-[10px] font-semibold transition-[transform,box-shadow] ${
+                            className={`absolute z-10 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 text-[10px] font-semibold transition-all duration-150 ${
                               active
-                                ? 'z-20 h-7 w-7 border-amber-100 bg-amber-400 text-base-950 shadow-[0_0_0_3px_rgba(251,191,36,0.45)] ring-2 ring-amber-200/90'
-                                : 'h-5 w-5 border-amber-400 bg-base-950 text-amber-300 hover:border-amber-200 hover:bg-base-900'
+                                ? 'z-20 h-7 w-7 border-amber-100 bg-amber-400 text-base-950 shadow-[0_0_0_3px_rgba(251,191,36,0.45)] ring-2 ring-amber-200/90 hover:scale-110 hover:shadow-[0_0_16px_rgba(251,191,36,0.55)]'
+                                : 'h-5 w-5 border-amber-400 bg-base-950 text-amber-300 hover:z-30 hover:scale-125 hover:border-amber-200 hover:bg-amber-500/25 hover:text-amber-50 hover:shadow-[0_0_14px_rgba(251,191,36,0.4)]'
                             }`}
                             style={{ left: `${markerX * 100}%`, top: `${markerY * 100}%` }}
                           >
@@ -377,14 +361,18 @@ export function StaticViewer() {
                 id={`annotation-card-${a.id}`}
                 role="button"
                 tabIndex={0}
-                onClick={() => setSelectedAnnotationId(a.id)}
+                onClick={() => {
+                  setSelectedAnnotationId(a.id);
+                  setDetailsForId(a.id);
+                }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
                     setSelectedAnnotationId(a.id);
+                    setDetailsForId(a.id);
                   }
                 }}
-                className={`cursor-pointer rounded border px-2 py-1.5 text-[12px] outline-none transition-colors hover:border-base-600 ${
+                className={`cursor-pointer rounded border px-2 py-1.5 text-[12px] outline-none transition-colors hover:border-amber-500/40 hover:bg-base-800/60 ${
                   selectedAnnotationId === a.id
                     ? 'border-amber-500/60 bg-amber-500/10 text-amber-100'
                     : 'border-base-800 text-ink-200'
@@ -411,7 +399,14 @@ export function StaticViewer() {
       {/* Annotation form (new + edit) */}
       <AnimatePresence>
         {annotationForm && (
-          <>
+          <motion.div
+            key="form-shell"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+          >
             <motion.div
               key="form-bd"
               initial={{ opacity: 0 }}
@@ -419,7 +414,7 @@ export function StaticViewer() {
               exit={{ opacity: 0 }}
               transition={{ duration: 0.15 }}
               onClick={() => !savingAnnotation && setAnnotationForm(null)}
-              className="fixed inset-0 z-50 bg-base-950/75 backdrop-blur-sm"
+              className="absolute inset-0 bg-base-950/75 backdrop-blur-sm"
             />
             <motion.div
               key="form-md"
@@ -430,7 +425,7 @@ export function StaticViewer() {
               role="dialog"
               aria-modal="true"
               aria-labelledby="annotation-form-title"
-              className="fixed left-1/2 top-1/2 z-50 w-[480px] max-w-[calc(100vw-32px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-base-700 bg-base-900 shadow-2xl shadow-black/60"
+              className="relative z-10 w-full max-w-[480px] rounded-lg border border-base-700 bg-base-900 shadow-2xl shadow-black/60"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="border-b border-base-800 px-5 py-4">
@@ -464,7 +459,7 @@ export function StaticViewer() {
                   type="button"
                   disabled={savingAnnotation}
                   onClick={() => setAnnotationForm(null)}
-                  className="rounded-md border border-base-700 px-3.5 py-1.5 text-[13px] font-medium text-white transition-colors hover:border-ink-300 disabled:opacity-50"
+                  className="rounded-md border border-base-700 px-3.5 py-1.5 text-[13px] font-medium text-white transition-colors hover:border-ink-300 hover:bg-base-800 disabled:opacity-50"
                 >
                   Cancel
                 </button>
@@ -478,14 +473,21 @@ export function StaticViewer() {
                 </button>
               </div>
             </motion.div>
-          </>
+          </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Details */}
+      {/* Details + actions (Edit / Delete) */}
       <AnimatePresence>
-        {detailsAnnotation && (
-          <>
+        {detailsAnnotation && detailsAnnotationIndex >= 0 && (
+          <motion.div
+            key="det-shell"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+          >
             <motion.div
               key="det-bd"
               initial={{ opacity: 0 }}
@@ -493,7 +495,7 @@ export function StaticViewer() {
               exit={{ opacity: 0 }}
               transition={{ duration: 0.15 }}
               onClick={() => setDetailsForId(null)}
-              className="fixed inset-0 z-50 bg-base-950/75 backdrop-blur-sm"
+              className="absolute inset-0 bg-base-950/75 backdrop-blur-sm"
             />
             <motion.div
               key="det-md"
@@ -503,11 +505,14 @@ export function StaticViewer() {
               transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
               role="dialog"
               aria-modal="true"
-              className="fixed left-1/2 top-1/2 z-50 w-[480px] max-w-[calc(100vw-32px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-base-700 bg-base-900 shadow-2xl shadow-black/60"
+              aria-labelledby="annotation-details-title"
+              className="relative z-10 w-full max-w-[480px] rounded-lg border border-base-700 bg-base-900 shadow-2xl shadow-black/60"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="border-b border-base-800 px-5 py-4">
-                <h2 className="font-display text-[18px] font-semibold text-white">Annotation details</h2>
+                <h2 id="annotation-details-title" className="font-display text-[18px] font-semibold text-white">
+                  Annotation {detailsAnnotationIndex + 1}
+                </h2>
                 <p className="mt-1 font-mono text-[11px] text-ink-300">
                   x={detailsAnnotation.x.toFixed(3)} · y={detailsAnnotation.y.toFixed(3)}
                 </p>
@@ -515,91 +520,34 @@ export function StaticViewer() {
               <div className="max-h-[min(50vh,360px)] overflow-y-auto px-5 py-4 text-[13px] leading-relaxed text-ink-200">
                 {detailsAnnotation.text}
               </div>
-              <div className="flex justify-end border-t border-base-800 px-5 py-3">
+              <div className="flex flex-wrap items-center justify-end gap-2 border-t border-base-800 px-5 py-3">
                 <button
                   type="button"
                   onClick={() => setDetailsForId(null)}
-                  className="rounded-md border border-base-700 px-3.5 py-1.5 text-[13px] font-medium text-white transition-colors hover:border-ink-300"
+                  className="rounded-md border border-base-700 px-3.5 py-1.5 text-[13px] font-medium text-white transition-colors hover:border-ink-300 hover:bg-base-800"
                 >
                   Close
                 </button>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-
-      {/* Marker actions: Details / Edit / Delete */}
-      <AnimatePresence>
-        {markerActionsAnnotation && markerActionsIndex >= 0 && (
-          <>
-            <motion.div
-              key="act-bd"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              onClick={() => setMarkerActionsForId(null)}
-              className="fixed inset-0 z-50 bg-base-950/75 backdrop-blur-sm"
-            />
-            <motion.div
-              key="act-md"
-              initial={{ opacity: 0, scale: 0.96, y: 4 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: 4 }}
-              transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="marker-actions-title"
-              className="fixed left-1/2 top-1/2 z-50 w-[400px] max-w-[calc(100vw-32px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-base-700 bg-base-900 shadow-2xl shadow-black/60"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="border-b border-base-800 px-5 py-4">
-                <h2 id="marker-actions-title" className="font-display text-[18px] font-semibold text-white">
-                  Annotation {markerActionsIndex + 1}
-                </h2>
-                <p className="mt-1 line-clamp-2 text-[12px] text-ink-300">{markerActionsAnnotation.text}</p>
-              </div>
-              <div className="flex flex-col gap-1.5 px-5 py-4">
                 <button
                   type="button"
-                  onClick={() => {
-                    setDetailsForId(markerActionsAnnotation.id);
-                    setMarkerActionsForId(null);
-                  }}
-                  className="w-full rounded-md border border-base-700 px-3 py-2.5 text-left text-[13px] font-medium text-white transition-colors hover:border-ink-300 hover:bg-base-800"
-                >
-                  Details
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openEditForm(markerActionsAnnotation)}
-                  className="w-full rounded-md border border-base-700 px-3 py-2.5 text-left text-[13px] font-medium text-white transition-colors hover:border-ink-300 hover:bg-base-800"
+                  onClick={() => openEditForm(detailsAnnotation)}
+                  className="rounded-md border border-base-700 px-3.5 py-1.5 text-[13px] font-medium text-white transition-colors hover:border-ink-300 hover:bg-base-800"
                 >
                   Edit
                 </button>
                 <button
                   type="button"
                   onClick={() => {
-                    setPendingDeleteAnnotationId(markerActionsAnnotation.id);
-                    setMarkerActionsForId(null);
+                    setPendingDeleteAnnotationId(detailsAnnotation.id);
+                    setDetailsForId(null);
                   }}
-                  className="w-full rounded-md border border-red-800/50 px-3 py-2.5 text-left text-[13px] font-medium text-red-200 transition-colors hover:bg-red-950/40"
+                  className="rounded-md border border-red-800/50 px-3.5 py-1.5 text-[13px] font-medium text-red-200 transition-colors hover:border-red-600/60 hover:bg-red-950/50"
                 >
                   Delete
                 </button>
               </div>
-              <div className="flex justify-end border-t border-base-800 px-5 py-3">
-                <button
-                  type="button"
-                  onClick={() => setMarkerActionsForId(null)}
-                  className="rounded-md border border-base-700 px-3.5 py-1.5 text-[13px] font-medium text-white transition-colors hover:border-ink-300"
-                >
-                  Cancel
-                </button>
-              </div>
             </motion.div>
-          </>
+          </motion.div>
         )}
       </AnimatePresence>
 
