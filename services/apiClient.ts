@@ -50,7 +50,12 @@ async function apiFetch(path: string, init?: RequestInit, withAuth = true): Prom
     if (token) headers.set('Authorization', `Bearer ${token}`);
   }
   const response = await fetch(`${API_BASE}${path}`, { ...init, headers });
-  if (response.status === 401 && typeof window !== 'undefined') {
+  if (
+    response.status === 401 &&
+    typeof window !== 'undefined' &&
+    !window.location.pathname.startsWith('/login') &&
+    !window.location.pathname.startsWith('/register')
+  ) {
     clearAccessToken();
     window.location.replace('/login');
   }
