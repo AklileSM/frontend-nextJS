@@ -24,13 +24,19 @@ export type RecentEntry = {
   openedAt: number;
 };
 
-const KEY = 'a6.viewerContext';
+const LEGACY_KEY = 'a6.viewerContext';
+const LATEST_KEY = 'a6.viewerContext.latest';
 const RECENT_KEY = 'a6.recentFiles';
 const RECENT_MAX = 12;
 
+function projectKey(projectSlug: string) {
+  return `a6.viewerContext.${projectSlug}`;
+}
+
 export function setViewerContext(ctx: ViewerContext): void {
   try {
-    localStorage.setItem(KEY, JSON.stringify(ctx));
+    localStorage.setItem(projectKey(ctx.projectSlug), JSON.stringify(ctx));
+    localStorage.setItem(LATEST_KEY, ctx.projectSlug);
     pushRecentFile(ctx);
   } catch {
     /* ignore */
@@ -73,7 +79,13 @@ export function getRecentFiles(projectSlug: string): RecentEntry[] {
 
 export function getViewerContext(): ViewerContext | null {
   try {
-    const raw = localStorage.getItem(KEY);
+    const slug = localStorage.getItem(LATEST_KEY);
+    if (slug) {
+      const raw = localStorage.getItem(projectKey(slug));
+      if (raw) return JSON.parse(raw) as ViewerContext;
+    }
+    // Fallback: read legacy key for sessions created before namespacing.
+    const raw = localStorage.getItem(LEGACY_KEY);
     if (!raw) return null;
     return JSON.parse(raw) as ViewerContext;
   } catch {
@@ -83,7 +95,10 @@ export function getViewerContext(): ViewerContext | null {
 
 export function clearViewerContext(): void {
   try {
-    localStorage.removeItem(KEY);
+    const slug = localStorage.getItem(LATEST_KEY);
+    if (slug) localStorage.removeItem(projectKey(slug));
+    localStorage.removeItem(LATEST_KEY);
+    localStorage.removeItem(LEGACY_KEY);
   } catch {
     /* ignore */
   }

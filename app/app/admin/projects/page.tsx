@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { Trash2 } from 'lucide-react';
@@ -10,22 +10,32 @@ import type { ApiProject } from '@/types/api';
 
 export const dynamic = 'force-dynamic';
 
+const PAGE_SIZE = 25;
+
 export default function AdminProjectsPage() {
   const [projects, setProjects] = useState<ApiProject[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const data = await listAdminProjects();
       setProjects(data);
+      setPage(1);
     } catch {
       toast.error('Failed to load projects');
     } finally {
       setLoading(false);
     }
   }, []);
+
+  const pageCount = Math.ceil(projects.length / PAGE_SIZE);
+  const visibleProjects = useMemo(
+    () => projects.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [projects, page],
+  );
 
   useEffect(() => { load(); }, [load]);
 
@@ -98,7 +108,7 @@ export default function AdminProjectsPage() {
               </tr>
             </thead>
             <tbody>
-              {projects.map((project, i) => (
+              {visibleProjects.map((project, i) => (
                 <tr
                   key={project.id}
                   className={`border-b border-base-800/60 ${
@@ -138,6 +148,31 @@ export default function AdminProjectsPage() {
               )}
             </tbody>
           </table>
+        )}
+        {!loading && pageCount > 1 && (
+          <div className="flex items-center justify-between border-t border-base-800 px-4 py-3">
+            <span className="font-mono text-[11px] text-ink-400">
+              {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, projects.length)} of {projects.length}
+            </span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={page === 1}
+                onClick={() => setPage((p) => p - 1)}
+                className="rounded border border-base-700 px-3 py-1 text-[12px] text-white disabled:opacity-40 hover:border-ink-400"
+              >
+                Prev
+              </button>
+              <button
+                type="button"
+                disabled={page === pageCount}
+                onClick={() => setPage((p) => p + 1)}
+                className="rounded border border-base-700 px-3 py-1 text-[12px] text-white disabled:opacity-40 hover:border-ink-400"
+              >
+                Next
+              </button>
+            </div>
+          </div>
         )}
       </div>
     </div>

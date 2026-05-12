@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { Shield, ShieldOff, UserCheck, UserX } from 'lucide-react';
@@ -10,21 +10,31 @@ import type { AdminUser } from '@/types/api';
 
 export const dynamic = 'force-dynamic';
 
+const PAGE_SIZE = 25;
+
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const data = await listAdminUsers();
       setUsers(data);
+      setPage(1);
     } catch {
       toast.error('Failed to load users');
     } finally {
       setLoading(false);
     }
   }, []);
+
+  const pageCount = Math.ceil(users.length / PAGE_SIZE);
+  const visibleUsers = useMemo(
+    () => users.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [users, page],
+  );
 
   useEffect(() => { load(); }, [load]);
 
@@ -93,7 +103,7 @@ export default function AdminUsersPage() {
               </tr>
             </thead>
             <tbody>
-              {users.map((user, i) => (
+              {visibleUsers.map((user, i) => (
                 <tr
                   key={user.id}
                   className={`border-b border-base-800/60 ${
@@ -137,6 +147,31 @@ export default function AdminUsersPage() {
               ))}
             </tbody>
           </table>
+        )}
+        {!loading && pageCount > 1 && (
+          <div className="flex items-center justify-between border-t border-base-800 px-4 py-3">
+            <span className="font-mono text-[11px] text-ink-400">
+              {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, users.length)} of {users.length}
+            </span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={page === 1}
+                onClick={() => setPage((p) => p - 1)}
+                className="rounded border border-base-700 px-3 py-1 text-[12px] text-white disabled:opacity-40 hover:border-ink-400"
+              >
+                Prev
+              </button>
+              <button
+                type="button"
+                disabled={page === pageCount}
+                onClick={() => setPage((p) => p + 1)}
+                className="rounded border border-base-700 px-3 py-1 text-[12px] text-white disabled:opacity-40 hover:border-ink-400"
+              >
+                Next
+              </button>
+            </div>
+          </div>
         )}
       </div>
     </div>

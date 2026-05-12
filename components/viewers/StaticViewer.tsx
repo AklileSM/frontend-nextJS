@@ -2,7 +2,8 @@
 
 import { AnimatePresence, motion } from 'framer-motion';
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Maximize2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   analyzeImage,
@@ -37,6 +38,7 @@ export function StaticViewer() {
   const [showAnnotations, setShowAnnotations] = useState(true);
   const [detailsForId, setDetailsForId] = useState<string | null>(null);
   const [pendingDeleteAnnotationId, setPendingDeleteAnnotationId] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   const backHref = useMemo(() => (ctx ? backHrefFor(ctx) : fallbackHref), [ctx, fallbackHref]);
 
@@ -246,7 +248,22 @@ export function StaticViewer() {
 
         <div className="relative overflow-auto rounded-md border border-base-800 bg-black/20 p-3">
           {ctx.file.type === 'video' ? (
-            <video src={ctx.file.full_src || ctx.file.src} controls className="max-h-[70vh] w-full rounded-md" />
+            <div className="relative">
+              <video
+                ref={videoRef}
+                src={ctx.file.full_src || ctx.file.src}
+                controls
+                className="max-h-[70vh] w-full rounded-md"
+              />
+              <button
+                type="button"
+                onClick={() => videoRef.current?.requestFullscreen()}
+                aria-label="Fullscreen"
+                className="absolute bottom-3 right-3 flex h-8 w-8 items-center justify-center rounded-md border border-base-700 bg-base-950/80 text-white backdrop-blur-sm transition-colors hover:bg-base-800"
+              >
+                <Maximize2 size={14} />
+              </button>
+            </div>
           ) : (
             <>
               <div className="pointer-events-none absolute bottom-4 right-4 z-10 flex flex-col items-stretch gap-1 rounded-md border border-base-700 bg-base-950/90 p-1 shadow-lg backdrop-blur-sm">
