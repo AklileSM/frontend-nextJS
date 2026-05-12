@@ -1,7 +1,6 @@
 'use client';
 
 import {
-  addMonths,
   endOfMonth,
   format,
   getDay,
@@ -11,7 +10,7 @@ import {
   startOfMonth,
   startOfWeek,
 } from 'date-fns';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
@@ -20,9 +19,28 @@ import { useSelectedDate } from '@/context/SelectedDateContext';
 
 const SCOPE = 'home';
 const WEEKDAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'] as const;
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'] as const;
 const PERSIST_KEY = 'sidebar.lastProjectSlug';
 
+type View = 'days' | 'months';
 type DateCounts = Record<string, { total: number }>;
+
+// Months that have at least one capture, for highlighting in the month picker.
+function activateMonths(counts: DateCounts): Set<string> {
+  const set = new Set<string>();
+  for (const iso of Object.keys(counts)) {
+    set.add(iso.slice(0, 7)); // "yyyy-MM"
+  }
+  return set;
+}
+
+const slideVariants = {
+  enterForward:  { x: 24, opacity: 0 },
+  enterBackward: { x: -24, opacity: 0 },
+  center:        { x: 0,  opacity: 1 },
+  exitForward:   { x: -24, opacity: 0 },
+  exitBackward:  { x: 24,  opacity: 0 },
+};
 
 export function MiniCalendar({ projectId }: { projectId?: string }) {
   const { getDateForScope, setDateForScope } = useSelectedDate();
@@ -32,8 +50,6 @@ export function MiniCalendar({ projectId }: { projectId?: string }) {
   const selectedISO = getDateForScope(SCOPE);
   const selected = selectedISO ? parseISO(selectedISO) : null;
 
-  // Derive the project slug to use for navigation: URL path wins, then
-  // the persisted sidebar slug (covers viewer pages, /app home, etc.).
   const projectSlug = useMemo(() => {
     const fromPath = pathname.match(/\/app\/projects\/([^/]+)/)?.[1];
     if (fromPath) return fromPath;
@@ -48,11 +64,12 @@ export function MiniCalendar({ projectId }: { projectId?: string }) {
   };
 
   const [cursor, setCursor] = useState(() => {
-    // Start at the current month; demo data in October 2024 will still be
-    // reachable via the prev-month button.
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
+  const [view, setView] = useState<View>('days');
+  // Track direction for slide animation: 1 = forward (later), -1 = backward (earlier)
+  const [direction, setDirection] = useState(1);
   const [counts, setCounts] = useState<DateCounts>({});
   const [loading, setLoading] = useState(true);
 
@@ -70,93 +87,177 @@ export function MiniCalendar({ projectId }: { projectId?: string }) {
           next[date] = { total: c.images + c.videos + c.pointclouds + c.pdfs };
         }
         setCounts(next);
-        // Jump to the most recent month that has data, so the user sees dots
-        // immediately rather than an empty grid.
         const dates = Object.keys(next).sort();
         if (dates.length) {
           const latest = parseISO(dates[dates.length - 1]);
           setCursor(new Date(latest.getFullYear(), latest.getMonth(), 1));
         }
       })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+      .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [projectId]);
 
   const cells = useMemo(() => buildMonthCells(cursor), [cursor]);
+  const activeMonths = useMemo(() => activateMonths(counts), [counts]);
+
+  const goMonth = (delta: number) => {
+    setDirection(delta);
+    setCursor((c) => new Date(c.getFullYear(), c.getMonth() + delta, 1));
+  };
+
+  const goYear = (delta: number) => {
+    setDirection(delta);
+    setCursor((c) => new Date(c.getFullYear() + delta, c.getMonth(), 1));
+  };
+
+  const pickMonth = (monthIndex: number) => {
+    const next = new Date(cursor.getFullYear(), monthIndex, 1);
+    setDirection(next > cursor ? 1 : -1);
+    setCursor(next);
+    setView('days');
+  };
 
   return (
     <div className="px-3 py-3">
+      {/* ── Header ── */}
       <div className="flex items-center justify-between px-1">
         <button
           type="button"
-          onClick={() => setCursor((c) => addMonths(c, -1))}
-          aria-label="Previous month"
+          onClick={() => view === 'days' ? goMonth(-1) : goYear(-1)}
+          aria-label={view === 'days' ? 'Previous month' : 'Previous year'}
           className="inline-flex h-6 w-6 items-center justify-center rounded text-ink-300 transition-colors hover:bg-base-800 hover:text-white"
         >
           <ChevronLeft size={14} />
         </button>
-        <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-ink-200">
-          {format(cursor, 'MMM yyyy')}
-        </span>
+
         <button
           type="button"
-          onClick={() => setCursor((c) => addMonths(c, 1))}
-          aria-label="Next month"
+          onClick={() => setView((v) => v === 'days' ? 'months' : 'days')}
+          aria-label={view === 'days' ? 'Pick month and year' : 'Back to day view'}
+          className="group flex items-center gap-1 rounded px-1.5 py-0.5 font-mono text-[11px] uppercase tracking-[0.18em] text-ink-200 transition-colors hover:bg-base-800 hover:text-white"
+        >
+          {view === 'days'
+            ? format(cursor, 'MMM yyyy')
+            : cursor.getFullYear()}
+          <ChevronRight
+            size={10}
+            className={`text-ink-500 transition-transform duration-150 ${view === 'months' ? 'rotate-90' : '-rotate-90'}`}
+          />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => view === 'days' ? goMonth(1) : goYear(1)}
+          aria-label={view === 'days' ? 'Next month' : 'Next year'}
           className="inline-flex h-6 w-6 items-center justify-center rounded text-ink-300 transition-colors hover:bg-base-800 hover:text-white"
         >
           <ChevronRight size={14} />
         </button>
       </div>
 
-      <div className="mt-3 grid grid-cols-7 gap-y-1 px-0.5">
-        {WEEKDAYS.map((d, i) => (
-          <span
-            key={`${d}-${i}`}
-            className="text-center font-mono text-[9px] uppercase tracking-[0.14em] text-ink-400"
-          >
-            {d}
-          </span>
-        ))}
-      </div>
-
-      <div className="mt-1 grid grid-cols-7 gap-y-0.5 px-0.5">
-        {cells.map((day, i) => {
-          const iso = format(day, 'yyyy-MM-dd');
-          const inMonth = isSameMonth(day, cursor);
-          const has = counts[iso]?.total ?? 0;
-          const isSelected = selected ? isSameDay(day, selected) : false;
-          return (
-            <button
-              key={`${iso}-${i}`}
-              type="button"
-              onClick={() => onPick(iso)}
-              disabled={!inMonth}
-              aria-label={iso}
-              aria-pressed={isSelected}
-              className={`group relative flex h-7 w-full items-center justify-center rounded text-[11px] transition-colors ${
-                isSelected
-                  ? 'bg-amber-500 font-semibold text-base-950'
-                  : inMonth
-                  ? has > 0
-                    ? 'text-white hover:bg-base-800'
-                    : 'text-ink-400 hover:bg-base-800/60'
-                  : 'cursor-default text-base-700'
-              }`}
+      {/* ── Animated view area ── */}
+      <div className="relative mt-3 overflow-hidden">
+        <AnimatePresence mode="wait" initial={false} custom={direction}>
+          {view === 'days' ? (
+            <motion.div
+              key={`days-${format(cursor, 'yyyy-MM')}`}
+              custom={direction}
+              variants={slideVariants}
+              initial={direction > 0 ? 'enterForward' : 'enterBackward'}
+              animate="center"
+              exit={direction > 0 ? 'exitForward' : 'exitBackward'}
+              transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
             >
-              {format(day, 'd')}
-              {!isSelected && has > 0 && inMonth && (
-                <motion.span
-                  layoutId={`dot-${iso}`}
-                  className="absolute bottom-0.5 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-amber-500"
-                />
-              )}
-            </button>
-          );
-        })}
+              {/* Weekday headers */}
+              <div className="grid grid-cols-7 gap-y-1 px-0.5">
+                {WEEKDAYS.map((d, i) => (
+                  <span
+                    key={`${d}-${i}`}
+                    className="text-center font-mono text-[9px] uppercase tracking-[0.14em] text-ink-400"
+                  >
+                    {d}
+                  </span>
+                ))}
+              </div>
+
+              {/* Day cells */}
+              <div className="mt-1 grid grid-cols-7 gap-y-0.5 px-0.5">
+                {cells.map((day, i) => {
+                  const iso = format(day, 'yyyy-MM-dd');
+                  const inMonth = isSameMonth(day, cursor);
+                  const has = counts[iso]?.total ?? 0;
+                  const isSelected = selected ? isSameDay(day, selected) : false;
+                  return (
+                    <button
+                      key={`${iso}-${i}`}
+                      type="button"
+                      onClick={() => onPick(iso)}
+                      disabled={!inMonth}
+                      aria-label={iso}
+                      aria-pressed={isSelected}
+                      className={`group relative flex h-7 w-full items-center justify-center rounded text-[11px] transition-colors ${
+                        isSelected
+                          ? 'bg-amber-500 font-semibold text-base-950'
+                          : inMonth
+                          ? has > 0
+                            ? 'text-white hover:bg-base-800'
+                            : 'text-ink-400 hover:bg-base-800/60'
+                          : 'cursor-default text-base-700'
+                      }`}
+                    >
+                      {format(day, 'd')}
+                      {!isSelected && has > 0 && inMonth && (
+                        <motion.span
+                          layoutId={`dot-${iso}`}
+                          className="absolute bottom-0.5 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-amber-500"
+                        />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div
+              key={`months-${cursor.getFullYear()}`}
+              custom={direction}
+              variants={slideVariants}
+              initial={direction > 0 ? 'enterForward' : 'enterBackward'}
+              animate="center"
+              exit={direction > 0 ? 'exitForward' : 'exitBackward'}
+              transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+              className="grid grid-cols-3 gap-1 px-0.5 py-1"
+            >
+              {MONTHS.map((name, idx) => {
+                const key = `${cursor.getFullYear()}-${String(idx + 1).padStart(2, '0')}`;
+                const hasData = activeMonths.has(key);
+                const isCurrent = cursor.getMonth() === idx;
+                return (
+                  <button
+                    key={name}
+                    type="button"
+                    onClick={() => pickMonth(idx)}
+                    className={`relative flex flex-col items-center justify-center rounded py-2.5 text-[11px] font-medium transition-colors ${
+                      isCurrent
+                        ? 'bg-amber-500 text-base-950'
+                        : hasData
+                        ? 'text-white hover:bg-base-800'
+                        : 'text-ink-400 hover:bg-base-800/60'
+                    }`}
+                  >
+                    {name}
+                    {hasData && !isCurrent && (
+                      <span className="absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-amber-500" />
+                    )}
+                  </button>
+                );
+              })}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
+      {/* ── Footer ── */}
       <div className="mt-3 flex items-center justify-between px-1 font-mono text-[10px] text-ink-400">
         <span>
           {loading
