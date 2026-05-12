@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState, Suspense } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { ArrowLeft, Loader2, LogOut } from 'lucide-react';
@@ -117,13 +116,14 @@ function Inner() {
           >
             {/* Back + heading */}
             <div className="mb-10">
-              <Link
-                href={`/app/projects/${slug}`}
+              <button
+                type="button"
+                onClick={() => { router.refresh(); router.push(`/app/projects/${slug}`); }}
                 className="inline-flex items-center gap-1.5 font-mono text-[12px] text-ink-400 transition-colors hover:text-white"
               >
                 <ArrowLeft size={12} />
                 Back to {project.name}
-              </Link>
+              </button>
               <div className="mt-5 flex items-baseline gap-3">
                 <h1 className="font-display text-[32px] font-semibold leading-tight tracking-[-0.015em] text-white sm:text-[38px]">
                   {project.name}
