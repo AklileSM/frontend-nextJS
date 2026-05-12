@@ -1005,7 +1005,7 @@ export async function uploadProjectFloorplan(
 
 export function createRoom(
   projectId: string,
-  body: { name: string; slug: string },
+  body: { name: string; slug: string; sort_order?: number },
 ): Promise<ApiRoom> {
   return getJson<ApiRoom>(`/projects/${projectId}/rooms`, {
     method: 'POST',

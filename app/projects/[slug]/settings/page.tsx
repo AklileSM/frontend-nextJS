@@ -11,16 +11,18 @@ import { useAuth } from '@/context/AuthContext';
 import { Logo } from '@/components/landing/Logo';
 import { ProjectEditTab } from '@/components/settings/ProjectEditTab';
 import { ProjectMembersTab } from '@/components/settings/ProjectMembersTab';
+import { ProjectRoomsTab } from '@/components/settings/ProjectRoomsTab';
 import { ProjectSetupTab } from '@/components/settings/ProjectSetupTab';
 import { ProjectDangerTab } from '@/components/settings/ProjectDangerTab';
 import type { ApiProject, ApiProjectMember } from '@/types/api';
 
 export const dynamic = 'force-dynamic';
 
-type Tab = 'edit' | 'members' | 'setup' | 'danger';
+type Tab = 'edit' | 'rooms' | 'members' | 'setup' | 'danger';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'edit', label: 'Edit' },
+  { id: 'rooms', label: 'Rooms' },
   { id: 'members', label: 'Members' },
   { id: 'setup', label: 'Setup' },
   { id: 'danger', label: 'Danger zone' },
@@ -161,6 +163,9 @@ function Inner() {
             {/* Tab content */}
             {activeTab === 'edit' && (
               <ProjectEditTab project={project} onUpdated={setProject} />
+            )}
+            {activeTab === 'rooms' && (
+              <ProjectRoomsTab projectId={project.id} />
             )}
             {activeTab === 'members' && (
               <ProjectMembersTab projectId={project.id} canManage={canManage} />
