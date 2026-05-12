@@ -95,7 +95,7 @@ export default function ProjectHomePage() {
           </Link>
           {showSettings && (
             <Link
-              href={`/app/projects/${slug}/settings`}
+              href={`/projects/${slug}/settings`}
               className="inline-flex items-center gap-2 rounded-md border border-base-700 px-3 py-1.5 text-[13px] font-medium text-ink-200 transition-colors hover:border-ink-400 hover:text-white"
             >
               <Settings size={13} />
@@ -196,7 +196,7 @@ function NoFloorplanCTA({ slug, showSettings }: { slug: string; showSettings: bo
       </p>
       {showSettings && (
         <Link
-          href={`/app/projects/${slug}/settings?tab=setup`}
+          href={`/projects/${slug}/settings?tab=setup`}
           className="mt-5 inline-flex items-center gap-2 rounded-md bg-amber-500 px-4 py-2 text-[13px] font-semibold text-base-950 transition-colors hover:bg-amber-400"
         >
           <Settings size={13} />

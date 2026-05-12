@@ -231,7 +231,7 @@ function ProjectCard({ project, isAdmin }: { project: ApiProject; isAdmin: boole
       {/* Settings gear — admins only */}
       {isAdmin && (
         <Link
-          href={`/app/projects/${project.slug}/settings`}
+          href={`/projects/${project.slug}/settings`}
           aria-label={`Settings for ${project.name}`}
           onClick={(e) => e.stopPropagation()}
           className="absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-md text-ink-600 opacity-0 transition-all hover:bg-base-800 hover:text-white group-hover:opacity-100"
