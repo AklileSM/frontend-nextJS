@@ -48,11 +48,22 @@ export interface AdminUser {
   created_at: string;
 }
 
-export interface FloorPlanCoordinates {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
+export type Point = { x: number; y: number };
+
+export type PolygonCoordinates = { type: 'polygon'; points: Point[] };
+export type PinCoordinates    = { type: 'pin'; x: number; y: number };
+export type RectCoordinates   = { x: number; y: number; width: number; height: number };
+
+export type FloorPlanCoordinates = PolygonCoordinates | PinCoordinates | RectCoordinates;
+
+export function isPolygonCoords(c: FloorPlanCoordinates): c is PolygonCoordinates {
+  return 'type' in c && (c as PolygonCoordinates).type === 'polygon';
+}
+export function isPinCoords(c: FloorPlanCoordinates): c is PinCoordinates {
+  return 'type' in c && (c as PinCoordinates).type === 'pin';
+}
+export function isRectCoords(c: FloorPlanCoordinates): c is RectCoordinates {
+  return !('type' in c);
 }
 
 export interface ApiRoom {

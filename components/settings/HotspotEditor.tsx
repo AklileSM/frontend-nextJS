@@ -1,110 +1,60 @@
 'use client';
 
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type PointerEvent as ReactPointerEvent,
-} from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { X, Check, Pencil } from 'lucide-react';
+import { Check, MapPin, PenLine, Pencil, X } from 'lucide-react';
 import { updateRoom } from '@/services/apiClient';
-import type { ApiRoom, FloorPlanCoordinates } from '@/types/api';
+import {
+  isPolygonCoords,
+  isPinCoords,
+  isRectCoords,
+  type ApiRoom,
+  type FloorPlanCoordinates,
+  type Point,
+  type PolygonCoordinates,
+  type PinCoordinates,
+  type RectCoordinates,
+} from '@/types/api';
 
-type Draft = {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-};
-
-type Anchor = { x: number; y: number };
-
-function pct(px: number, total: number) {
-  return (px / total) * 100;
-}
+type Mode = 'polygon' | 'pin';
 
 function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v));
 }
 
-function rectFromAnchors(start: Anchor, end: Anchor): Draft {
-  const x = Math.min(start.x, end.x);
-  const y = Math.min(start.y, end.y);
-  const width = Math.abs(end.x - start.x);
-  const height = Math.abs(end.y - start.y);
-  return { x, y, width, height };
+function pct(px: number, total: number) {
+  return (px / total) * 100;
 }
 
-// Zone overlay: shows a placed hotspot with room name, edit (redraw), and delete buttons.
-function Zone({
-  room,
-  coords,
-  canEdit,
-  onClear,
-  onRedraw,
-}: {
-  room: ApiRoom;
-  coords: FloorPlanCoordinates;
-  canEdit: boolean;
-  onClear: () => void;
-  onRedraw: () => void;
-}) {
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        left: `${coords.x}%`,
-        top: `${coords.y}%`,
-        width: `${coords.width}%`,
-        height: `${coords.height}%`,
-      }}
-      className="group pointer-events-auto"
-    >
-      <div className="relative h-full w-full rounded border-2 border-amber-500/70 bg-amber-500/10 transition-colors group-hover:bg-amber-500/20">
-        <span className="absolute left-1 top-1 max-w-[calc(100%-4px)] truncate rounded bg-base-950/80 px-1.5 py-0.5 font-mono text-[10px] font-medium text-amber-300">
-          {room.name}
-        </span>
-        {canEdit && (
-          <div className="absolute right-1 top-1 flex items-center gap-0.5">
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); onRedraw(); }}
-              aria-label={`Redraw hotspot for ${room.name}`}
-              title="Redraw"
-              className="flex h-5 w-5 items-center justify-center rounded bg-base-950/70 text-ink-400 transition-colors hover:bg-base-950 hover:text-amber-400"
-            >
-              <Pencil size={9} />
-            </button>
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); onClear(); }}
-              aria-label={`Remove hotspot for ${room.name}`}
-              title="Delete"
-              className="flex h-5 w-5 items-center justify-center rounded bg-base-950/70 text-ink-400 transition-colors hover:bg-base-950 hover:text-red-400"
-            >
-              <X size={9} />
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
+function toSvgPoints(points: Point[]): string {
+  return points.map((p) => `${p.x},${p.y}`).join(' ');
 }
 
-// Room picker popover shown after drawing a rect.
+function centroid(points: Point[]): Point {
+  return {
+    x: points.reduce((s, p) => s + p.x, 0) / points.length,
+    y: points.reduce((s, p) => s + p.y, 0) / points.length,
+  };
+}
+
+function controlsAnchor(c: FloorPlanCoordinates): Point {
+  if (isPolygonCoords(c)) return centroid(c.points);
+  if (isPinCoords(c))     return { x: c.x, y: c.y - 8 };
+  return { x: c.x + c.width / 2, y: c.y + c.height / 2 };
+}
+
+// ── RoomPicker ────────────────────────────────────────────────────────────────
+
 function RoomPicker({
   rooms,
   defaultRoomId,
-  draft,
+  anchor,
   onAssign,
   onDiscard,
 }: {
   rooms: ApiRoom[];
   defaultRoomId?: string;
-  draft: Draft;
+  anchor: Point;
   onAssign: (roomId: string) => void;
   onDiscard: () => void;
 }) {
@@ -114,8 +64,8 @@ function RoomPicker({
     <div
       style={{
         position: 'absolute',
-        left: `${clamp(draft.x + draft.width / 2, 5, 75)}%`,
-        top: `${clamp(draft.y + draft.height + 1, 2, 85)}%`,
+        left: `${clamp(anchor.x, 5, 72)}%`,
+        top: `${clamp(anchor.y + 3, 2, 82)}%`,
         zIndex: 20,
       }}
       className="w-52 rounded-lg border border-base-700 bg-base-900 p-3 shadow-xl"
@@ -157,6 +107,90 @@ function RoomPicker({
   );
 }
 
+// ── Zone controls popup (click-to-select) ─────────────────────────────────────
+
+function ZoneControls({
+  room,
+  anchor,
+  onRedraw,
+  onClear,
+  onClose,
+}: {
+  room: ApiRoom;
+  anchor: Point;
+  onRedraw: () => void;
+  onClear: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: `${clamp(anchor.x, 5, 78)}%`,
+        top: `${clamp(anchor.y, 5, 88)}%`,
+        transform: 'translate(-50%, -50%)',
+        zIndex: 15,
+      }}
+      className="flex items-center gap-1 rounded-md border border-base-700 bg-base-900 px-2 py-1.5 shadow-lg"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <span className="mr-1 font-mono text-[11px] text-amber-300">{room.name}</span>
+      <button
+        type="button"
+        onClick={() => { onClose(); onRedraw(); }}
+        aria-label="Redraw"
+        title="Redraw"
+        className="flex h-6 w-6 items-center justify-center rounded text-ink-400 transition-colors hover:bg-base-800 hover:text-amber-400"
+      >
+        <Pencil size={11} />
+      </button>
+      <button
+        type="button"
+        onClick={() => { onClose(); onClear(); }}
+        aria-label="Delete"
+        title="Delete"
+        className="flex h-6 w-6 items-center justify-center rounded text-ink-400 transition-colors hover:bg-base-800 hover:text-red-400"
+      >
+        <X size={11} />
+      </button>
+    </div>
+  );
+}
+
+// ── Rect zone overlay (legacy) ────────────────────────────────────────────────
+
+function RectZone({
+  room,
+  coords,
+  onSelect,
+}: {
+  room: ApiRoom;
+  coords: RectCoordinates;
+  onSelect: () => void;
+}) {
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: `${coords.x}%`,
+        top: `${coords.y}%`,
+        width: `${coords.width}%`,
+        height: `${coords.height}%`,
+      }}
+      className="cursor-pointer"
+      onClick={(e) => { e.stopPropagation(); onSelect(); }}
+    >
+      <div className="relative h-full w-full rounded border-2 border-amber-500/70 bg-amber-500/10 hover:bg-amber-500/20 transition-colors">
+        <span className="absolute left-1 top-1 max-w-[calc(100%-4px)] truncate rounded bg-base-950/80 px-1.5 py-0.5 font-mono text-[10px] font-medium text-amber-300">
+          {room.name}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ── Main component ─────────────────────────────────────────────────────────────
+
 export function HotspotEditor({
   projectId,
   floorplanUrl,
@@ -169,18 +203,30 @@ export function HotspotEditor({
   onRoomUpdated: (room: ApiRoom) => void;
 }) {
   const overlayRef = useRef<HTMLDivElement>(null);
-  const [drawing, setDrawing] = useState(false);
-  const [anchor, setAnchor] = useState<Anchor | null>(null);
-  const [draft, setDraft] = useState<Draft | null>(null);
-  const [pendingDraft, setPendingDraft] = useState<Draft | null>(null);
+
+  const [mode, setMode] = useState<Mode>('polygon');
+  const [polyPoints, setPolyPoints] = useState<Point[]>([]);
+  const [mousePos, setMousePos] = useState<Point | null>(null);
+  const [pendingCoords, setPendingCoords] = useState<FloorPlanCoordinates | null>(null);
+  const [pendingAnchor, setPendingAnchor] = useState<Point | null>(null);
+  const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
   const [redrawingRoomId, setRedrawingRoomId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // Rooms without a hotspot yet (or the one currently being redrawn).
   const unassigned = rooms.filter((r) => !r.floor_plan_coordinates || r.id === redrawingRoomId);
-  const assigned = rooms.filter((r) => r.floor_plan_coordinates && r.id !== redrawingRoomId);
+  const assigned   = rooms.filter((r) => r.floor_plan_coordinates && r.id !== redrawingRoomId);
 
-  const getRelativePos = useCallback((e: { clientX: number; clientY: number }): Anchor | null => {
+  const nearFirstVertex = useMemo(() => {
+    if (polyPoints.length < 3 || !mousePos) return false;
+    const first = polyPoints[0];
+    return Math.hypot(mousePos.x - first.x, mousePos.y - first.y) < 3;
+  }, [polyPoints, mousePos]);
+
+  const isInteracting = polyPoints.length > 0 || !!pendingCoords;
+
+  // ── Helpers ─────────────────────────────────────────────────────────────────
+
+  const getRelativePos = useCallback((e: { clientX: number; clientY: number }): Point | null => {
     const el = overlayRef.current;
     if (!el) return null;
     const rect = el.getBoundingClientRect();
@@ -190,57 +236,94 @@ export function HotspotEditor({
     };
   }, []);
 
-  const onPointerDown = useCallback(
-    (e: ReactPointerEvent<HTMLDivElement>) => {
-      if (pendingDraft) return;
-      if ((e.target as HTMLElement).closest('button, select')) return;
-      e.currentTarget.setPointerCapture(e.pointerId);
+  const switchMode = (newMode: Mode) => {
+    setMode(newMode);
+    setPolyPoints([]);
+    setMousePos(null);
+    setPendingCoords(null);
+    setPendingAnchor(null);
+    setSelectedZoneId(null);
+  };
+
+  const closePolygon = useCallback((pts: Point[]) => {
+    if (pts.length < 3) return;
+    const coords: PolygonCoordinates = { type: 'polygon', points: pts };
+    setPendingCoords(coords);
+    setPendingAnchor(centroid(pts));
+    setPolyPoints([]);
+    setMousePos(null);
+  }, []);
+
+  const discard = useCallback(() => {
+    setPolyPoints([]);
+    setMousePos(null);
+    setPendingCoords(null);
+    setPendingAnchor(null);
+    setRedrawingRoomId(null);
+    setSelectedZoneId(null);
+  }, []);
+
+  // ── Keyboard ─────────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') discard();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [discard]);
+
+  // ── Overlay interactions ──────────────────────────────────────────────────────
+
+  const handleOverlayClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (pendingCoords) return;
+      if ((e.target as HTMLElement).closest('button, select, [data-nopropagate]')) return;
+      setSelectedZoneId(null);
+
       const pos = getRelativePos(e);
       if (!pos) return;
-      setAnchor(pos);
-      setDraft({ x: pos.x, y: pos.y, width: 0, height: 0 });
-      setDrawing(true);
-    },
-    [pendingDraft, getRelativePos],
-  );
 
-  const onPointerMove = useCallback(
-    (e: ReactPointerEvent<HTMLDivElement>) => {
-      if (!drawing || !anchor) return;
-      const pos = getRelativePos(e);
-      if (!pos) return;
-      setDraft(rectFromAnchors(anchor, pos));
-    },
-    [drawing, anchor, getRelativePos],
-  );
-
-  const onPointerUp = useCallback(
-    (e: ReactPointerEvent<HTMLDivElement>) => {
-      if (!drawing || !draft) return;
-      setDrawing(false);
-      setAnchor(null);
-      // Discard tiny accidental clicks (less than 3% in either dimension).
-      if (draft.width < 3 || draft.height < 3) {
-        setDraft(null);
+      if (mode === 'pin') {
+        const coords: PinCoordinates = { type: 'pin', x: pos.x, y: pos.y };
+        setPendingCoords(coords);
+        setPendingAnchor({ x: pos.x, y: pos.y + 5 });
         return;
       }
-      setPendingDraft(draft);
-      setDraft(null);
+
+      // Polygon mode
+      if (nearFirstVertex) {
+        closePolygon(polyPoints);
+        return;
+      }
+      setPolyPoints((prev) => [...prev, pos]);
     },
-    [drawing, draft],
+    [mode, pendingCoords, polyPoints, nearFirstVertex, getRelativePos, closePolygon],
   );
 
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (pendingCoords || mode === 'pin') return;
+      const pos = getRelativePos(e);
+      if (pos) setMousePos(pos);
+    },
+    [pendingCoords, mode, getRelativePos],
+  );
+
+  const handleMouseLeave = useCallback(() => setMousePos(null), []);
+
+  // ── API calls ────────────────────────────────────────────────────────────────
+
   const handleAssign = async (roomId: string) => {
-    if (!pendingDraft) return;
+    if (!pendingCoords) return;
     const room = rooms.find((r) => r.id === roomId);
     if (!room) return;
     setSaving(true);
     try {
-      const updated = await updateRoom(projectId, roomId, {
-        floor_plan_coordinates: pendingDraft,
-      });
+      const updated = await updateRoom(projectId, roomId, { floor_plan_coordinates: pendingCoords });
       onRoomUpdated(updated);
-      setPendingDraft(null);
+      setPendingCoords(null);
+      setPendingAnchor(null);
       setRedrawingRoomId(null);
       toast.success(`Hotspot set for "${room.name}"`);
     } catch (err) {
@@ -250,16 +333,9 @@ export function HotspotEditor({
     }
   };
 
-  const handleDiscard = () => {
-    setPendingDraft(null);
-    setRedrawingRoomId(null);
-  };
-
   const handleClear = async (room: ApiRoom) => {
     try {
-      const updated = await updateRoom(projectId, room.id, {
-        floor_plan_coordinates: null,
-      });
+      const updated = await updateRoom(projectId, room.id, { floor_plan_coordinates: null });
       onRoomUpdated(updated);
       toast.success(`Hotspot removed for "${room.name}"`);
     } catch (err) {
@@ -268,116 +344,281 @@ export function HotspotEditor({
   };
 
   const handleRedraw = (room: ApiRoom) => {
-    // Optimistically remove the zone so the user can draw a new one.
-    // The actual API clear happens only if they confirm (Assign).
     setRedrawingRoomId(room.id);
+    setSelectedZoneId(null);
   };
 
-  const hasPendingOrDrawing = drawing || !!pendingDraft;
+  // ── Cursor ────────────────────────────────────────────────────────────────────
+
+  const cursor =
+    pendingCoords ? 'cursor-default'
+    : mode === 'pin' ? 'cursor-crosshair'
+    : polyPoints.length === 0 ? 'cursor-crosshair'
+    : nearFirstVertex ? 'cursor-pointer'
+    : 'cursor-crosshair';
+
+  // ── Hint text ─────────────────────────────────────────────────────────────────
+
+  const hint = redrawingRoomId
+    ? `Redrawing ${rooms.find((r) => r.id === redrawingRoomId)?.name ?? ''} — `
+    : '';
+
+  const modeHint =
+    mode === 'pin'
+      ? 'Click to drop a pin.'
+      : polyPoints.length === 0
+      ? 'Click to start a polygon.'
+      : polyPoints.length < 3
+      ? `${polyPoints.length} point${polyPoints.length > 1 ? 's' : ''} placed — keep clicking.`
+      : nearFirstVertex
+      ? 'Click to close the polygon.'
+      : 'Click the first point to close, or keep adding vertices.';
+
+  // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-3">
-      {redrawingRoomId ? (
-        <p className="text-[13px] text-amber-400">
-          Draw a new rectangle for{' '}
-          <span className="font-semibold">
-            {rooms.find((r) => r.id === redrawingRoomId)?.name}
-          </span>
-          {' '}— or{' '}
+      {/* Mode toggle + hint */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex gap-0.5 rounded-md border border-base-700 bg-base-950 p-0.5">
           <button
             type="button"
-            onClick={() => setRedrawingRoomId(null)}
-            className="underline hover:text-white"
+            onClick={() => switchMode('polygon')}
+            className={`flex items-center gap-1.5 rounded px-3 py-1.5 text-[12px] font-medium transition-colors ${
+              mode === 'polygon' ? 'bg-amber-500 text-base-950' : 'text-ink-300 hover:text-white'
+            }`}
           >
-            cancel
+            <PenLine size={13} />
+            Zone
           </button>
+          <button
+            type="button"
+            onClick={() => switchMode('pin')}
+            className={`flex items-center gap-1.5 rounded px-3 py-1.5 text-[12px] font-medium transition-colors ${
+              mode === 'pin' ? 'bg-amber-500 text-base-950' : 'text-ink-300 hover:text-white'
+            }`}
+          >
+            <MapPin size={13} />
+            Pin
+          </button>
+        </div>
+
+        <p className="text-[12px] text-ink-400">
+          {hint}
+          {pendingCoords ? 'Assign a room to this hotspot.' : modeHint}
+          {polyPoints.length > 0 && !pendingCoords && (
+            <button
+              type="button"
+              onClick={discard}
+              className="ml-2 text-ink-500 underline hover:text-white"
+            >
+              cancel
+            </button>
+          )}
+          {redrawingRoomId && !pendingCoords && polyPoints.length === 0 && (
+            <button
+              type="button"
+              onClick={discard}
+              className="ml-2 text-ink-500 underline hover:text-white"
+            >
+              cancel
+            </button>
+          )}
         </p>
-      ) : (
-        <p className="text-[13px] text-ink-300">
-          Draw a rectangle on the floorplan to place a hotspot, then assign it to a room.
-          Hover an existing zone to edit or delete it.
-        </p>
-      )}
+      </div>
 
       {!redrawingRoomId && unassigned.length > 0 && (
         <p className="font-mono text-[11px] text-ink-400">
-          Rooms without a hotspot:{' '}
-          {unassigned.map((r) => r.name).join(', ')}
+          Without a hotspot: {unassigned.map((r) => r.name).join(', ')}
         </p>
       )}
 
-      {/* Outer wrapper is relative but NOT overflow-hidden so the RoomPicker
-          popover can escape the image bounds. The image itself gets its own
-          rounded clip via the inner div. */}
+      {/* Outer wrapper — relative but NOT overflow-hidden so popovers can escape */}
       <div className="relative select-none">
         <div className="overflow-hidden rounded-lg border border-base-800 bg-base-950">
-          <img
-            src={floorplanUrl}
-            alt="Floorplan"
-            draggable={false}
-            className="block h-auto w-full"
-          />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={floorplanUrl} alt="Floorplan" draggable={false} className="block h-auto w-full" />
         </div>
 
-        {/* Interaction overlay — covers the image exactly, but no overflow-hidden
-            so the RoomPicker popover can render outside the image boundary. */}
+        {/* Interaction overlay */}
         <div
           ref={overlayRef}
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          className={`absolute inset-0 ${hasPendingOrDrawing ? 'cursor-default' : 'cursor-crosshair'}`}
+          onClick={handleOverlayClick}
+          onMouseMove={handleMouseMove}
+          onMouseLeave={handleMouseLeave}
+          className={`absolute inset-0 ${cursor}`}
           style={{ touchAction: 'none' }}
         >
-          {/* Placed zones */}
-          {assigned.map((room) => (
-            <Zone
-              key={room.id}
-              room={room}
-              coords={room.floor_plan_coordinates!}
-              canEdit={!hasPendingOrDrawing}
-              onClear={() => handleClear(room)}
-              onRedraw={() => handleRedraw(room)}
-            />
-          ))}
+          {/* ── SVG layer: polygon zones + in-progress drawing ── */}
+          <svg
+            className="absolute inset-0 h-full w-full"
+            viewBox="0 0 100 100"
+            preserveAspectRatio="none"
+            style={{ pointerEvents: 'none' }}
+          >
+            {/* Existing polygon zones */}
+            {assigned.map((room) => {
+              const c = room.floor_plan_coordinates!;
+              if (!isPolygonCoords(c)) return null;
+              const isSelected = selectedZoneId === room.id;
+              return (
+                <polygon
+                  key={room.id}
+                  points={toSvgPoints(c.points)}
+                  fill={isSelected ? 'rgba(245,158,11,0.22)' : 'rgba(245,158,11,0.1)'}
+                  stroke={isSelected ? '#F59E0B' : 'rgba(245,158,11,0.6)'}
+                  strokeWidth="2"
+                  vectorEffect="non-scaling-stroke"
+                  strokeDasharray={isSelected ? undefined : '6 3'}
+                  style={{ pointerEvents: 'all', cursor: 'pointer' }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedZoneId(isSelected ? null : room.id);
+                  }}
+                />
+              );
+            })}
 
-          {/* Active drawing rect */}
-          {draft && draft.width > 0 && draft.height > 0 && (
+            {/* In-progress polygon: completed segments */}
+            {polyPoints.length >= 2 && (
+              <polyline
+                points={toSvgPoints(polyPoints)}
+                fill="none"
+                stroke="#F59E0B"
+                strokeWidth="2"
+                vectorEffect="non-scaling-stroke"
+                strokeDasharray="6 3"
+                style={{ pointerEvents: 'none' }}
+              />
+            )}
+
+            {/* Preview line from last vertex to cursor */}
+            {polyPoints.length >= 1 && mousePos && (
+              <line
+                x1={polyPoints[polyPoints.length - 1].x}
+                y1={polyPoints[polyPoints.length - 1].y}
+                x2={nearFirstVertex ? polyPoints[0].x : mousePos.x}
+                y2={nearFirstVertex ? polyPoints[0].y : mousePos.y}
+                stroke="#F59E0B"
+                strokeWidth="1.5"
+                strokeOpacity="0.5"
+                vectorEffect="non-scaling-stroke"
+                strokeDasharray="4 4"
+                style={{ pointerEvents: 'none' }}
+              />
+            )}
+
+            {/* Vertex dots */}
+            {polyPoints.map((p, i) => {
+              const isFirst = i === 0;
+              const snap = isFirst && nearFirstVertex;
+              return (
+                <circle
+                  key={i}
+                  cx={p.x}
+                  cy={p.y}
+                  r={snap ? 2 : 1.2}
+                  fill={snap ? '#F59E0B' : '#FBBF24'}
+                  stroke="#0D1117"
+                  strokeWidth="0.8"
+                  vectorEffect="non-scaling-stroke"
+                  style={{ pointerEvents: 'none' }}
+                />
+              );
+            })}
+
+            {/* Pending polygon preview (after closed, before assigned) */}
+            {pendingCoords && isPolygonCoords(pendingCoords) && (
+              <polygon
+                points={toSvgPoints(pendingCoords.points)}
+                fill="rgba(245,158,11,0.15)"
+                stroke="#F59E0B"
+                strokeWidth="2"
+                vectorEffect="non-scaling-stroke"
+                style={{ pointerEvents: 'none' }}
+              />
+            )}
+          </svg>
+
+          {/* ── Pin zones (HTML) ── */}
+          {assigned.map((room) => {
+            const c = room.floor_plan_coordinates!;
+            if (!isPinCoords(c)) return null;
+            const isSelected = selectedZoneId === room.id;
+            return (
+              <button
+                key={room.id}
+                type="button"
+                style={{ position: 'absolute', left: `${c.x}%`, top: `${c.y}%` }}
+                className="-translate-x-1/2 -translate-y-full cursor-pointer"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedZoneId(isSelected ? null : room.id);
+                }}
+              >
+                <MapPin
+                  size={24}
+                  className={`drop-shadow-md transition-colors ${isSelected ? 'text-amber-400' : 'text-amber-600 hover:text-amber-400'}`}
+                  fill="currentColor"
+                />
+                {!isSelected && (
+                  <span className="pointer-events-none absolute left-1/2 top-1 -translate-x-1/2 whitespace-nowrap rounded bg-base-950/80 px-1.5 py-0.5 font-mono text-[10px] text-amber-300">
+                    {room.name}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+
+          {/* Pending pin preview */}
+          {pendingCoords && isPinCoords(pendingCoords) && (
             <div
-              style={{
-                position: 'absolute',
-                left: `${draft.x}%`,
-                top: `${draft.y}%`,
-                width: `${draft.width}%`,
-                height: `${draft.height}%`,
-                pointerEvents: 'none',
-              }}
-              className="rounded border-2 border-dashed border-amber-400 bg-amber-400/10"
-            />
+              style={{ position: 'absolute', left: `${pendingCoords.x}%`, top: `${pendingCoords.y}%` }}
+              className="pointer-events-none -translate-x-1/2 -translate-y-full"
+            >
+              <MapPin size={24} className="text-amber-400 drop-shadow-md" fill="currentColor" />
+            </div>
           )}
 
-          {/* Pending rect + RoomPicker popover */}
-          {pendingDraft && (
-            <>
-              <div
-                style={{
-                  position: 'absolute',
-                  left: `${pendingDraft.x}%`,
-                  top: `${pendingDraft.y}%`,
-                  width: `${pendingDraft.width}%`,
-                  height: `${pendingDraft.height}%`,
-                  pointerEvents: 'none',
-                }}
-                className="rounded border-2 border-amber-500 bg-amber-500/15"
+          {/* ── Rect zones (legacy HTML) ── */}
+          {assigned.map((room) => {
+            const c = room.floor_plan_coordinates!;
+            if (!isRectCoords(c)) return null;
+            return (
+              <RectZone
+                key={room.id}
+                room={room}
+                coords={c}
+                onSelect={() => setSelectedZoneId(selectedZoneId === room.id ? null : room.id)}
               />
-              <RoomPicker
-                rooms={unassigned.length > 0 ? unassigned : rooms}
-                defaultRoomId={redrawingRoomId ?? undefined}
-                draft={pendingDraft}
-                onAssign={handleAssign}
-                onDiscard={handleDiscard}
+            );
+          })}
+
+          {/* ── Selected zone controls popover ── */}
+          {selectedZoneId && !isInteracting && (() => {
+            const room = assigned.find((r) => r.id === selectedZoneId);
+            if (!room || !room.floor_plan_coordinates) return null;
+            const anchor = controlsAnchor(room.floor_plan_coordinates);
+            return (
+              <ZoneControls
+                room={room}
+                anchor={anchor}
+                onRedraw={() => handleRedraw(room)}
+                onClear={() => handleClear(room)}
+                onClose={() => setSelectedZoneId(null)}
               />
-            </>
+            );
+          })()}
+
+          {/* ── Room picker popover (after drawing) ── */}
+          {pendingCoords && pendingAnchor && (
+            <RoomPicker
+              rooms={unassigned.length > 0 ? unassigned : rooms}
+              defaultRoomId={redrawingRoomId ?? undefined}
+              anchor={pendingAnchor}
+              onAssign={handleAssign}
+              onDiscard={discard}
+            />
           )}
 
           {saving && (
