@@ -7,6 +7,17 @@ import { ChartAll } from '@/components/home/ChartAll';
 import { ChartLocation } from '@/components/home/ChartLocation';
 import { MiniCalendar } from '@/components/layout/MiniCalendar';
 import { useAuth } from '@/context/AuthContext';
+import type { ApiRoom } from '@/types/api';
+
+// Hardcoded A6-Stern rooms with known floorplan positions.
+const A6_ROOMS: ApiRoom[] = [
+  { id: 'r-1', name: 'Room 1', slug: 'room1', project_id: 'p-a6', sort_order: 0, floor_plan_coordinates: { x: 6.5,  y: 15, width: 13,   height: 30 } },
+  { id: 'r-2', name: 'Room 2', slug: 'room2', project_id: 'p-a6', sort_order: 1, floor_plan_coordinates: { x: 20.5, y: 15, width: 10,   height: 30 } },
+  { id: 'r-3', name: 'Room 3', slug: 'room3', project_id: 'p-a6', sort_order: 2, floor_plan_coordinates: { x: 31,   y: 15, width: 10.5, height: 30 } },
+  { id: 'r-4', name: 'Room 4', slug: 'room4', project_id: 'p-a6', sort_order: 3, floor_plan_coordinates: { x: 42.5, y: 15, width: 9.5,  height: 30 } },
+  { id: 'r-5', name: 'Room 5', slug: 'room5', project_id: 'p-a6', sort_order: 4, floor_plan_coordinates: { x: 52.6, y: 15, width: 9,    height: 30 } },
+  { id: 'r-6', name: 'Room 6', slug: 'room6', project_id: 'p-a6', sort_order: 5, floor_plan_coordinates: { x: 70,   y: 35, width: 13,   height: 38 } },
+];
 
 export const dynamic = 'force-dynamic';
 
@@ -50,7 +61,13 @@ export default function AppHome() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.55, delay: 0.05, ease: [0.22, 1, 0.36, 1] }}
         >
-          <Floorplan hoveredRoom={hoveredRoom} onHoverChange={setHoveredRoom} />
+          <Floorplan
+            floorplanUrl="/Images/floorplan.jpg"
+            projectSlug="a6-stern"
+            rooms={A6_ROOMS}
+            hoveredRoom={hoveredRoom}
+            onHoverChange={setHoveredRoom}
+          />
         </motion.div>
 
         <motion.div

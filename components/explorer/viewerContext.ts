@@ -8,6 +8,7 @@ import type { ApiMediaFile } from '@/types/api';
 export type ViewerContext = {
   file: ApiMediaFile;
   roomSlug: string;
+  projectSlug: string;
   date: string;
   origin: 'project' | 'room';
 };
@@ -38,6 +39,13 @@ export function clearViewerContext(): void {
   } catch {
     /* ignore */
   }
+}
+
+export function backHrefFor(ctx: ViewerContext): string {
+  if (ctx.origin === 'project') {
+    return `/app/projects/${ctx.projectSlug}/files?date=${encodeURIComponent(ctx.date)}`;
+  }
+  return `/app/room-explorer?room=${encodeURIComponent(ctx.roomSlug)}`;
 }
 
 export function viewerHrefFor(file: ApiMediaFile): string {

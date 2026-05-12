@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { ArrowLeft } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { getViewerContext, type ViewerContext } from './viewerContext';
+import { getViewerContext, backHrefFor, type ViewerContext } from './viewerContext';
 
 // Shared shell for the not-yet-built viewer routes. Reads the file context the
 // explorer stashed in sessionStorage and shows a tight summary so navigation
@@ -51,11 +51,7 @@ export function ViewerStub({ kind, phase, description }: Props) {
         <div className="mt-6 flex flex-wrap items-center gap-2">
           {ctx && (
             <Link
-              href={
-                ctx.origin === 'project'
-                  ? `/app/projects/a6-stern?date=${ctx.date}`
-                  : `/app/room-explorer?room=${ctx.roomSlug}`
-              }
+              href={backHrefFor(ctx)}
               className="inline-flex items-center gap-1.5 rounded-md border border-base-700 bg-base-900/40 px-3 py-1.5 text-[13px] font-medium text-white transition-colors hover:border-ink-300"
             >
               <ArrowLeft size={14} />

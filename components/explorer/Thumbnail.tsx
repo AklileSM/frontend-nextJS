@@ -12,6 +12,7 @@ import type { ApiMediaFile } from '@/types/api';
 type Props = {
   file: ApiMediaFile;
   roomSlug: string;
+  projectSlug?: string;
   date: string;
   origin: 'project' | 'room';
   isAdmin: boolean;
@@ -28,7 +29,7 @@ const TYPE_META: Record<
   pdf: { label: 'PDF', gradient: 'from-base-700/60 via-base-800 to-base-900', tint: 'text-ink-200', Icon: FileText },
 };
 
-export function Thumbnail({ file, roomSlug, date, origin, isAdmin, onDelete }: Props) {
+export function Thumbnail({ file, roomSlug, projectSlug = '', date, origin, isAdmin, onDelete }: Props) {
   const router = useRouter();
   const meta = TYPE_META[file.type];
   const canDelete = isAdmin;
@@ -53,7 +54,7 @@ export function Thumbnail({ file, roomSlug, date, origin, isAdmin, onDelete }: P
       // Video opens in a new tab in the live app. For the mock we still hand
       // the file to the static viewer so deletion / draft flows can be tested.
     }
-    setViewerContext({ file, roomSlug, date, origin });
+    setViewerContext({ file, roomSlug, projectSlug, date, origin });
     router.push(viewerHrefFor(file));
   };
 

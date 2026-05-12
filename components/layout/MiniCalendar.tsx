@@ -13,7 +13,7 @@ import {
 } from 'date-fns';
 import { motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { getExplorerDatesSummary } from '@/services/apiClient';
 import { useSelectedDate } from '@/context/SelectedDateContext';
@@ -26,18 +26,21 @@ type DateCounts = Record<string, { total: number }>;
 export function MiniCalendar() {
   const { getDateForScope, setDateForScope } = useSelectedDate();
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const selectedISO = getDateForScope(SCOPE);
   const selected = selectedISO ? parseISO(selectedISO) : null;
 
-  // Clicking a date sets the shared scope state AND routes to the file explorer
-  // for that date. From there Phase 5's grid will read the ?date= query param.
-  // Default project is `a6-stern` since it is the only one with capture data.
+  // Derive the active project slug from the current URL so the calendar routes
+  // to the correct project's file explorer. Falls back to a6-stern when on /app.
+  const projectSlug =
+    pathname.match(/\/app\/projects\/([^/]+)/)?.[1] ?? 'a6-stern';
+
   const onPick = (iso: string) => {
     setDateForScope(SCOPE, iso);
     const next = new URLSearchParams(searchParams.toString());
     next.set('date', iso);
-    router.push(`/app/projects/a6-stern?${next.toString()}`);
+    router.push(`/app/projects/${projectSlug}/files?${next.toString()}`);
   };
 
   // Default to October 2024 (the month that has demo data) so first paint shows

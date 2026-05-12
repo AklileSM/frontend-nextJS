@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { analyzeImage } from '@/services/apiClient';
 import { ReportBuilder } from '@/components/reports/ReportBuilder';
 import { useViewerContext } from './useViewerContext';
+import { backHrefFor } from '@/components/explorer/viewerContext';
 import { BackSide, SRGBColorSpace, TextureLoader } from 'three';
 
 function PanoramaSphere({ src }: { src: string }) {
@@ -34,12 +35,7 @@ export function PanoramaViewer() {
 
   const imageSrc = ctx?.file.full_src || ctx?.file.src || '';
 
-  const backHref = useMemo(() => {
-    if (!ctx) return '/app';
-    return ctx.origin === 'project'
-      ? `/app/projects/a6-stern?date=${encodeURIComponent(ctx.date)}`
-      : `/app/room-explorer?room=${encodeURIComponent(ctx.roomSlug)}`;
-  }, [ctx]);
+  const backHref = useMemo(() => (ctx ? backHrefFor(ctx) : '/app'), [ctx]);
 
   const runAi = async () => {
     if (!ctx || analyzing) return;

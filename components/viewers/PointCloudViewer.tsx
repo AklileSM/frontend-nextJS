@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ReportBuilder } from '@/components/reports/ReportBuilder';
 import { useViewerContext } from './useViewerContext';
+import { backHrefFor } from '@/components/explorer/viewerContext';
 
 export function PointCloudViewer() {
   const { ctx, loading } = useViewerContext();
@@ -11,12 +12,7 @@ export function PointCloudViewer() {
   const [overlayOpen, setOverlayOpen] = useState(true);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  const backHref = useMemo(() => {
-    if (!ctx) return '/app';
-    return ctx.origin === 'project'
-      ? `/app/projects/a6-stern?date=${encodeURIComponent(ctx.date)}`
-      : `/app/room-explorer?room=${encodeURIComponent(ctx.roomSlug)}`;
-  }, [ctx]);
+  const backHref = useMemo(() => (ctx ? backHrefFor(ctx) : '/app'), [ctx]);
 
   const potreeUrl = useMemo(() => {
     if (!ctx) return '';

@@ -15,6 +15,7 @@ import { ReportBuilder } from '@/components/reports/ReportBuilder';
 import { AnnotationDeleteConfirm } from '@/components/viewers/AnnotationDeleteConfirm';
 import type { ApiAnnotation } from '@/types/api';
 import { useViewerContext } from './useViewerContext';
+import { backHrefFor } from '@/components/explorer/viewerContext';
 
 type AnnotationFormState = {
   mode: 'create' | 'edit';
@@ -37,12 +38,7 @@ export function StaticViewer() {
   const [detailsForId, setDetailsForId] = useState<string | null>(null);
   const [pendingDeleteAnnotationId, setPendingDeleteAnnotationId] = useState<string | null>(null);
 
-  const backHref = useMemo(() => {
-    if (!ctx) return '/app';
-    return ctx.origin === 'project'
-      ? `/app/projects/a6-stern?date=${encodeURIComponent(ctx.date)}`
-      : `/app/room-explorer?room=${encodeURIComponent(ctx.roomSlug)}`;
-  }, [ctx]);
+  const backHref = useMemo(() => (ctx ? backHrefFor(ctx) : '/app'), [ctx]);
 
   const loadAnnotations = async () => {
     if (!ctx) return;

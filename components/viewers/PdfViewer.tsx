@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { getAccessToken } from '@/auth/authSession';
 import { useViewerContext } from './useViewerContext';
+import { backHrefFor } from '@/components/explorer/viewerContext';
 
 export function PdfViewer() {
   const { ctx, loading } = useViewerContext();
@@ -19,9 +20,7 @@ export function PdfViewer() {
 
   const backHref = useMemo(() => {
     if (!ctx || !ctx.roomSlug || !ctx.date) return '/app/profile';
-    return ctx.origin === 'project'
-      ? `/app/projects/a6-stern?date=${encodeURIComponent(ctx.date)}`
-      : `/app/room-explorer?room=${encodeURIComponent(ctx.roomSlug)}`;
+    return backHrefFor(ctx);
   }, [ctx]);
 
   useEffect(() => {
