@@ -18,7 +18,7 @@ export function RegisterForm() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (isAuthenticated) router.replace('/app');
+    if (isAuthenticated) router.replace('/projects');
   }, [isAuthenticated, router]);
 
   const onSubmit = async (e: FormEvent<HTMLFormElement>) => {
@@ -38,7 +38,7 @@ export function RegisterForm() {
     try {
       await register({ username: username.trim(), password, email: email.trim() || undefined });
       toast.success('Account created.');
-      router.replace('/app');
+      router.replace('/projects');
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Could not create account.';
       toast.error(msg);

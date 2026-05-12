@@ -100,7 +100,7 @@ export function Sidebar() {
         <nav className="flex-1 overflow-y-auto px-3 py-4">
           <NavLink href="/app" icon={<Home size={14} />} label="Home" expanded={open} />
           <NavLink
-            href="/app/projects"
+            href="/projects"
             icon={<FolderOpen size={14} />}
             label="Projects"
             expanded={open}

@@ -61,7 +61,7 @@ function Inner() {
         Promise.resolve([] as ApiProjectMember[]),
       ]);
       const p = projects.find((x) => x.slug === slug);
-      if (!p) { router.replace('/app/projects'); return; }
+      if (!p) { router.replace('/projects'); return; }
       setProject(p);
 
       // Resolve current user's role.

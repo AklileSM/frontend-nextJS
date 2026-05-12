@@ -7,7 +7,7 @@ import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { Field } from '@/components/auth/Field';
 
-export function LoginForm({ next = '/app' }: { next?: string }) {
+export function LoginForm({ next = '/projects' }: { next?: string }) {
   const router = useRouter();
   const { login, isAuthenticated } = useAuth();
 

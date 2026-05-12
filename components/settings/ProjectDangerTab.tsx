@@ -113,7 +113,7 @@ export function ProjectDangerTab({
     try {
       await deleteProject(project.id);
       toast.success(`Project "${project.name}" deleted`);
-      router.push('/app/projects');
+      router.push('/projects');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Delete failed');
       setBusy(false);
