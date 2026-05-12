@@ -11,7 +11,7 @@ import {
   YAxis,
 } from 'recharts';
 import { useEffect, useState } from 'react';
-import { getExplorerByRoom, listProjects, listRooms } from '@/services/apiClient';
+import { getExplorerByRoom, listRooms } from '@/services/apiClient';
 
 type Row = { date: string; images: number; videos: number; pointclouds: number; pdfs: number };
 
@@ -22,16 +22,15 @@ const SERIES: Array<{ key: keyof Omit<Row, 'date'>; label: string; fill: string 
   { key: 'pdfs', label: 'PDFs', fill: '#9BA3AE' },
 ];
 
-export function ChartAll() {
+export function ChartAll({ projectId }: { projectId: string }) {
   const [data, setData] = useState<Row[] | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [projects, rooms] = await Promise.all([listProjects(), listRooms()]);
-        const a6ProjectId = projects.find((p) => p.slug === 'a6-stern')?.id;
-        const targetRooms = a6ProjectId ? rooms.filter((r) => r.project_id === a6ProjectId) : rooms;
+        const rooms = await listRooms();
+        const targetRooms = rooms.filter((r) => r.project_id === projectId);
         const acc = new Map<string, Row>();
         await Promise.all(
           targetRooms.map(async (room) => {
@@ -56,7 +55,7 @@ export function ChartAll() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [projectId]);
 
   return (
     <div className="rounded-lg border border-base-800 bg-base-900/30 p-5">

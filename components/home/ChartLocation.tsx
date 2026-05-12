@@ -11,20 +11,19 @@ import {
   YAxis,
 } from 'recharts';
 import { useEffect, useState } from 'react';
-import { getExplorerByRoom, listProjects, listRooms } from '@/services/apiClient';
+import { getExplorerByRoom, listRooms } from '@/services/apiClient';
 
 type Row = { room: string; slug: string; total: number };
 
-export function ChartLocation({ hoveredRoom }: { hoveredRoom: string | null }) {
+export function ChartLocation({ projectId, hoveredRoom }: { projectId: string; hoveredRoom: string | null }) {
   const [data, setData] = useState<Row[] | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [projects, rooms] = await Promise.all([listProjects(), listRooms()]);
-        const a6ProjectId = projects.find((p) => p.slug === 'a6-stern')?.id;
-        const targetRooms = a6ProjectId ? rooms.filter((r) => r.project_id === a6ProjectId) : rooms;
+        const rooms = await listRooms();
+        const targetRooms = rooms.filter((r) => r.project_id === projectId);
         const result: Row[] = await Promise.all(
           targetRooms.map(async (r) => {
             const res = await getExplorerByRoom(r.slug);
@@ -49,7 +48,7 @@ export function ChartLocation({ hoveredRoom }: { hoveredRoom: string | null }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [projectId]);
 
   if (!data) {
     return <div className="h-[260px] animate-pulse rounded bg-base-800/50" />;

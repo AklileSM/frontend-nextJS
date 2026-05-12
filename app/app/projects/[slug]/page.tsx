@@ -130,7 +130,7 @@ export default function ProjectHomePage() {
           transition={{ duration: 0.55, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
           className="space-y-5"
         >
-          <ChartAll />
+          <ChartAll projectId={project.id} />
 
           <div className="rounded-lg border border-base-800 bg-base-900/30">
             <div role="tablist" className="flex items-stretch border-b border-base-800 px-2">
@@ -169,7 +169,7 @@ export default function ProjectHomePage() {
                   transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
                 >
                   {tab === 'rooms' ? (
-                    <ChartLocation hoveredRoom={hoveredRoom} />
+                    <ChartLocation projectId={project.id} hoveredRoom={hoveredRoom} />
                   ) : (
                     <div className="-mx-2">
                       <MiniCalendar />
