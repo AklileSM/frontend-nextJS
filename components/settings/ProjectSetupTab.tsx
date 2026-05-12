@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Check, ImageIcon, LayoutGrid, MousePointerSquare } from 'lucide-react';
+import { Check, ImageIcon, LayoutGrid, MousePointerSquareDashed } from 'lucide-react';
 import { FloorplanUploader } from './FloorplanUploader';
 import { ProjectRoomsTab } from './ProjectRoomsTab';
 import { HotspotEditor } from './HotspotEditor';
@@ -12,7 +12,7 @@ type Section = 'floorplan' | 'rooms' | 'hotspots';
 const SECTIONS: { id: Section; label: string; icon: React.ReactNode }[] = [
   { id: 'floorplan', label: 'Floorplan', icon: <ImageIcon size={14} /> },
   { id: 'rooms',     label: 'Rooms',     icon: <LayoutGrid size={14} /> },
-  { id: 'hotspots',  label: 'Hotspots',  icon: <MousePointerSquare size={14} /> },
+  { id: 'hotspots',  label: 'Hotspots',  icon: <MousePointerSquareDashed size={14} /> },
 ];
 
 function statusFor(id: Section, project: ApiProject, rooms: ApiRoom[]): 'done' | 'empty' {
