@@ -19,7 +19,9 @@ import { FileGrid } from '@/components/explorer/FileGrid';
 import { MediaTabs, type MediaTab } from '@/components/explorer/MediaTabs';
 import { UploadZone } from '@/components/explorer/UploadZone';
 import { DeleteConfirm } from '@/components/explorer/DeleteConfirm';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { mockCaptureDates } from '@/services/mockData';
+import { Calendar, Filter } from 'lucide-react';
 import type {
   ApiMediaFile,
   ApiProject,
@@ -211,11 +213,9 @@ export default function FileExplorerPage() {
       <div className="mt-6 space-y-10">
         {!response && <Skeleton />}
         {response && visibleRooms.length === 0 && (
-          <div className="rounded-md border border-dashed border-base-700 bg-base-900/30 px-4 py-10 text-center text-[13px] text-ink-300">
-            {roomsWithFiles.length === 0
-              ? 'No captures filed for this date.'
-              : 'No rooms selected — open the filter to choose which rooms to show.'}
-          </div>
+          roomsWithFiles.length === 0
+            ? <EmptyState icon={Calendar} title="No captures for this date" body="Try a different date from the sidebar calendar." />
+            : <EmptyState icon={Filter} title="No rooms selected" body="Open the room filter to choose which rooms to show." />
         )}
         {response &&
           visibleRooms.map((room) => {

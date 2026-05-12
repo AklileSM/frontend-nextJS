@@ -5,10 +5,10 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
-import { Plus, MapPin, Settings, LogOut, FolderOpen, ChevronRight } from 'lucide-react';
+import { Plus, MapPin, Settings, FolderOpen, ChevronRight } from 'lucide-react';
 import { listProjects } from '@/services/apiClient';
 import { useAuth } from '@/context/AuthContext';
-import { Logo } from '@/components/landing/Logo';
+import { StandaloneShell } from '@/components/layout/StandaloneShell';
 import { CreateProjectWizard } from '@/components/projects/CreateProjectWizard';
 import type { ApiProject } from '@/types/api';
 
@@ -37,7 +37,7 @@ function timeGreeting() {
 
 export default function ProjectsHubPage() {
   const router = useRouter();
-  const { user, isAuthenticated, isLoading, logout } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
   const [projects, setProjects] = useState<ApiProject[]>([]);
   const [fetching, setFetching] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -68,29 +68,7 @@ export default function ProjectsHubPage() {
   const active = projects.filter((p) => p.status === 'active').length;
 
   return (
-    <div className="relative min-h-screen bg-base-950 text-white">
-      <BackgroundGrid />
-
-      {/* ── Top bar ── */}
-      <header className="relative z-10 flex h-14 items-center justify-between border-b border-base-800/60 px-6 sm:px-10">
-        <Logo />
-        <div className="flex items-center gap-4">
-          <span className="hidden font-mono text-[12px] text-ink-400 sm:block">
-            {user?.username}
-          </span>
-          <button
-            type="button"
-            onClick={() => { logout(); router.replace('/login'); }}
-            className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 font-mono text-[12px] text-ink-400 transition-colors hover:bg-base-800 hover:text-white"
-          >
-            <LogOut size={13} />
-            Sign out
-          </button>
-        </div>
-      </header>
-
-      {/* ── Main ── */}
-      <main className="relative z-10 mx-auto max-w-[1280px] px-6 py-14 sm:px-10 lg:py-20">
+    <StandaloneShell maxWidth="1280px">
 
         {/* Hero row */}
         <motion.div
@@ -163,7 +141,6 @@ export default function ProjectsHubPage() {
             </motion.div>
           )}
         </div>
-      </main>
 
       <AnimatePresence>
         {showCreate && (
@@ -172,7 +149,7 @@ export default function ProjectsHubPage() {
           />
         )}
       </AnimatePresence>
-    </div>
+    </StandaloneShell>
   );
 }
 
@@ -272,29 +249,3 @@ function EmptyState({ isAdmin, onNew }: { isAdmin: boolean; onNew: () => void })
   );
 }
 
-function BackgroundGrid() {
-  return (
-    <svg
-      aria-hidden
-      className="pointer-events-none absolute inset-0 z-0 h-full w-full opacity-[0.35]"
-      preserveAspectRatio="xMidYMid slice"
-    >
-      <defs>
-        <pattern id="proj-grid" width="56" height="56" patternUnits="userSpaceOnUse">
-          <path d="M 56 0 L 0 0 0 56" fill="none" stroke="rgba(255,255,255,0.035)" strokeWidth="1" />
-        </pattern>
-        <radialGradient id="proj-glow-top" cx="80%" cy="0%" r="55%">
-          <stop offset="0%" stopColor="rgba(245,158,11,0.08)" />
-          <stop offset="100%" stopColor="rgba(245,158,11,0)" />
-        </radialGradient>
-        <radialGradient id="proj-glow-bottom" cx="10%" cy="100%" r="45%">
-          <stop offset="0%" stopColor="rgba(245,158,11,0.05)" />
-          <stop offset="100%" stopColor="rgba(245,158,11,0)" />
-        </radialGradient>
-      </defs>
-      <rect width="100%" height="100%" fill="url(#proj-grid)" />
-      <rect width="100%" height="100%" fill="url(#proj-glow-top)" />
-      <rect width="100%" height="100%" fill="url(#proj-glow-bottom)" />
-    </svg>
-  );
-}

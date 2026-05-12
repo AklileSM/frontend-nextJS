@@ -7,6 +7,9 @@ import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { getAccessToken } from '@/auth/authSession';
+import { formatTimestamp } from '@/lib/formatDate';
+import { Tabs } from '@/components/ui/Tabs';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import {
   deleteReport,
   listComparisonDrafts,
@@ -26,6 +29,7 @@ export default function ProfilePage() {
   const [comparisonDrafts, setComparisonDrafts] = useState<ApiComparisonDraft[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -79,13 +83,14 @@ export default function ProfilePage() {
     [viewerDrafts, comparisonDrafts],
   );
 
-  const onDeleteReport = async (reportId: string) => {
-    if (deletingId) return;
-    if (!window.confirm('Delete this report? This cannot be undone.')) return;
-    setDeletingId(reportId);
+  const onDeleteReport = async () => {
+    if (!pendingDeleteId || deletingId) return;
+    const id = pendingDeleteId;
+    setPendingDeleteId(null);
+    setDeletingId(id);
     try {
-      await deleteReport(reportId);
-      setReports((prev) => prev.filter((r) => r.id !== reportId));
+      await deleteReport(id);
+      setReports((prev) => prev.filter((r) => r.id !== id));
       toast.success('Report deleted.');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not delete report.');
@@ -147,21 +152,16 @@ export default function ProfilePage() {
           {user?.email ?? 'no email on file'} · <span className="text-white">{user?.is_admin ? 'admin' : 'member'}</span>
         </p>
 
-        <div className="mt-8 flex gap-2">
-          <button
-            type="button"
-            onClick={() => setTab('reports')}
-            className={`rounded-md px-3 py-1.5 text-[13px] ${tab === 'reports' ? 'bg-amber-500 text-base-950' : 'border border-base-700 text-white'}`}
-          >
-            Reports ({reports.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab('drafts')}
-            className={`rounded-md px-3 py-1.5 text-[13px] ${tab === 'drafts' ? 'bg-amber-500 text-base-950' : 'border border-base-700 text-white'}`}
-          >
-            Drafts ({allDrafts.length})
-          </button>
+        <div className="mt-8">
+          <Tabs<'reports' | 'drafts'>
+            tabs={[
+              { id: 'reports', label: `Reports (${reports.length})` },
+              { id: 'drafts',  label: `Drafts (${allDrafts.length})` },
+            ]}
+            active={tab}
+            onChange={setTab}
+            railId="profile-tab"
+          />
         </div>
 
         {loading ? (
@@ -175,7 +175,7 @@ export default function ProfilePage() {
                     Report thumbnail
                   </div>
                 </div>
-                <p className="text-[13px] font-medium text-white">{new Date(r.created_at).toLocaleString()}</p>
+                <p className="text-[13px] font-medium text-white">{formatTimestamp(r.created_at)}</p>
                 <p className="mt-1 text-[12px] text-ink-300">Flags: {r.flags.join(', ') || '(none)'}</p>
                 <div className="mt-3 flex gap-2">
                   <button
@@ -194,11 +194,11 @@ export default function ProfilePage() {
                   </button>
                   <button
                     type="button"
-                    disabled={deletingId === r.id}
-                    onClick={() => void onDeleteReport(r.id)}
+                    disabled={!!deletingId}
+                    onClick={() => setPendingDeleteId(r.id)}
                     className="rounded border border-red-700/60 px-2.5 py-1 text-[12px] text-red-200 disabled:opacity-50"
                   >
-                    {deletingId === r.id ? 'Deleting...' : 'Delete'}
+                    {deletingId === r.id ? 'Deleting…' : 'Delete'}
                   </button>
                 </div>
               </article>
@@ -214,7 +214,7 @@ export default function ProfilePage() {
                     {d.kind === 'comparison' ? 'Comparison draft' : `${d.viewerKind} draft`}
                   </p>
                   <p className="mt-0.5 text-[12px] text-ink-300">
-                    {new Date(d.createdAt).toLocaleString()} · flags: {d.flags.join(', ') || '(none)'}
+                    {formatTimestamp(d.createdAt)} · flags: {d.flags.join(', ') || '(none)'}
                   </p>
                 </div>
                 <Link href={d.href} className="rounded-md bg-amber-500 px-3 py-1.5 text-[12px] font-medium text-base-950">
@@ -226,6 +226,16 @@ export default function ProfilePage() {
           </div>
         )}
       </motion.section>
+
+      <ConfirmDialog
+        open={!!pendingDeleteId}
+        title="Delete this report?"
+        body="This report will be permanently removed. Any published PDFs already shared remain available."
+        confirmLabel="Delete report"
+        danger
+        onConfirm={onDeleteReport}
+        onCancel={() => setPendingDeleteId(null)}
+      />
     </div>
   );
 }

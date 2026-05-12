@@ -1,7 +1,9 @@
 'use client';
 
 import { motion } from 'framer-motion';
+import { ImageOff } from 'lucide-react';
 import { Thumbnail } from './Thumbnail';
+import { EmptyState } from '@/components/ui/EmptyState';
 import type { ApiMediaFile } from '@/types/api';
 
 type Props = {
@@ -16,11 +18,7 @@ type Props = {
 
 export function FileGrid({ files, roomSlug, projectSlug = '', date, origin, isAdmin, onDelete }: Props) {
   if (files.length === 0) {
-    return (
-      <div className="rounded-md border border-dashed border-base-700 bg-base-900/30 px-4 py-8 text-center text-[13px] text-ink-300">
-        No files of this type for this view.
-      </div>
-    );
+    return <EmptyState icon={ImageOff} title="No files" body="No files of this type for this view." />;
   }
 
   return (

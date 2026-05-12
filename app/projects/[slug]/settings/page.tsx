@@ -4,10 +4,11 @@ import { useCallback, useEffect, useState, Suspense } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
-import { ArrowLeft, Loader2, LogOut } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import { listProjects, listProjectMembers } from '@/services/apiClient';
 import { useAuth } from '@/context/AuthContext';
-import { Logo } from '@/components/landing/Logo';
+import { StandaloneShell } from '@/components/layout/StandaloneShell';
+import { Tabs } from '@/components/ui/Tabs';
 import { ProjectEditTab } from '@/components/settings/ProjectEditTab';
 import { ProjectMembersTab } from '@/components/settings/ProjectMembersTab';
 import { ProjectSetupTab } from '@/components/settings/ProjectSetupTab';
@@ -37,7 +38,7 @@ function Inner() {
   const { slug } = useParams<{ slug: string }>();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { user, isAuthenticated, isLoading, logout } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
 
   const [project, setProject] = useState<ApiProject | null>(null);
   const [myRole, setMyRole] = useState<ApiProjectMember['role'] | null>(null);
@@ -80,29 +81,7 @@ function Inner() {
   if (isLoading || !isAuthenticated) return null;
 
   return (
-    <div className="relative min-h-screen bg-base-950 text-white">
-      <BackgroundGrid />
-
-      {/* ── Top bar ── */}
-      <header className="relative z-10 flex h-14 items-center justify-between border-b border-base-800/60 px-6 sm:px-10">
-        <Logo />
-        <div className="flex items-center gap-4">
-          <span className="hidden font-mono text-[12px] text-ink-400 sm:block">
-            {user?.username}
-          </span>
-          <button
-            type="button"
-            onClick={() => { logout(); router.replace('/login'); }}
-            className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 font-mono text-[12px] text-ink-400 transition-colors hover:bg-base-800 hover:text-white"
-          >
-            <LogOut size={13} />
-            Sign out
-          </button>
-        </div>
-      </header>
-
-      {/* ── Content ── */}
-      <main className="relative z-10 mx-auto max-w-[900px] px-6 py-14 sm:px-10">
+    <StandaloneShell maxWidth="900px">
         {loading || !project ? (
           <div className="flex items-center gap-2 text-[13px] text-ink-400">
             <Loader2 size={14} className="animate-spin" />
@@ -133,24 +112,8 @@ function Inner() {
             </div>
 
             {/* Tab rail */}
-            <div className="mb-10 flex gap-1 border-b border-base-800">
-              {TABS.map((tab) => {
-                const active = tab.id === activeTab;
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setTab(tab.id)}
-                    className={`px-4 py-2.5 text-[13px] font-medium transition-colors border-b-2 -mb-px ${
-                      active
-                        ? 'border-amber-500 text-white'
-                        : 'border-transparent text-ink-400 hover:text-white'
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                );
-              })}
+            <div className="mb-10">
+              <Tabs<Tab> tabs={TABS} active={activeTab} onChange={setTab} railId="settings-tab" />
             </div>
 
             {/* Tab content */}
@@ -173,8 +136,7 @@ function Inner() {
             )}
           </motion.div>
         )}
-      </main>
-    </div>
+    </StandaloneShell>
   );
 }
 
@@ -183,27 +145,5 @@ function LoadingScreen() {
     <div className="flex min-h-screen items-center justify-center bg-base-950">
       <Loader2 size={18} className="animate-spin text-ink-500" />
     </div>
-  );
-}
-
-function BackgroundGrid() {
-  return (
-    <svg
-      aria-hidden
-      className="pointer-events-none absolute inset-0 z-0 h-full w-full opacity-[0.3]"
-      preserveAspectRatio="xMidYMid slice"
-    >
-      <defs>
-        <pattern id="settings-grid" width="56" height="56" patternUnits="userSpaceOnUse">
-          <path d="M 56 0 L 0 0 0 56" fill="none" stroke="rgba(255,255,255,0.035)" strokeWidth="1" />
-        </pattern>
-        <radialGradient id="settings-glow" cx="100%" cy="0%" r="60%">
-          <stop offset="0%" stopColor="rgba(245,158,11,0.07)" />
-          <stop offset="100%" stopColor="rgba(245,158,11,0)" />
-        </radialGradient>
-      </defs>
-      <rect width="100%" height="100%" fill="url(#settings-grid)" />
-      <rect width="100%" height="100%" fill="url(#settings-glow)" />
-    </svg>
   );
 }

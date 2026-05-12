@@ -11,6 +11,8 @@ import { FileGrid } from '@/components/explorer/FileGrid';
 import { MediaTabs, type MediaTab } from '@/components/explorer/MediaTabs';
 import { DateFilterMenu } from '@/components/explorer/DateFilterMenu';
 import { DeleteConfirm } from '@/components/explorer/DeleteConfirm';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { Calendar, Filter } from 'lucide-react';
 import type {
   ApiMediaFile,
   ApiProject,
@@ -235,11 +237,9 @@ function Inner() {
             );
           })}
         {response && datesEntries.length === 0 && (
-          <div className="rounded-md border border-dashed border-base-700 bg-base-900/30 px-4 py-10 text-center text-[13px] text-ink-300">
-            {allDates.length === 0
-              ? 'No captures filed for this room.'
-              : 'No dates selected — open the filter to choose which dates to show.'}
-          </div>
+          allDates.length === 0
+            ? <EmptyState icon={Calendar} title="No captures yet" body="This room has no files filed yet." />
+            : <EmptyState icon={Filter} title="No dates selected" body="Open the date filter to choose which captures to show." />
         )}
       </div>
 

@@ -15,6 +15,14 @@ export function Header() {
   const pathname = usePathname();
   const onCompare = pathname?.startsWith('/app/compare');
 
+  const [projects, setProjects] = useState<ApiProject[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    listProjects().then((p) => { if (!cancelled) setProjects(p); });
+    return () => { cancelled = true; };
+  }, []);
+
   return (
     <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-base-800 bg-base-950/85 px-4 backdrop-blur sm:px-6 lg:px-8">
       <button
@@ -26,10 +34,10 @@ export function Header() {
         {open ? <X size={16} /> : <Menu size={16} />}
       </button>
 
-      <Breadcrumb />
+      <Breadcrumb projects={projects} />
 
       <div className="ml-auto flex items-center gap-2">
-        <ProjectSwitcher />
+        <ProjectSwitcher projects={projects} />
         <CompareToggle onCompare={!!onCompare} />
         <ProfileMenu />
       </div>
@@ -39,19 +47,27 @@ export function Header() {
 
 // --- Breadcrumb -------------------------------------------------------------
 
-function Breadcrumb() {
+function Breadcrumb({ projects }: { projects: ApiProject[] | null }) {
   const pathname = usePathname() ?? '/app';
   const params = useSearchParams();
 
-  const crumbs: Array<{ label: string; href?: string }> = [{ label: 'App', href: '/app' }];
+  const crumbs: Array<{ label: string; href?: string }> = [];
   const parts = pathname.split('/').filter(Boolean);
 
   if (parts[1] === 'projects' && parts[2]) {
-    crumbs.push({ label: 'Projects' });
-    crumbs.push({ label: humanize(parts[2]) });
+    const slug = parts[2];
+    const projectName = projects?.find((p) => p.slug === slug)?.name ?? humanize(slug);
+
+    if (parts[3] === 'files') {
+      const date = params.get('date');
+      crumbs.push({ label: projectName, href: `/app/projects/${slug}` });
+      crumbs.push({ label: date ? `Files · ${date}` : 'Files' });
+    } else {
+      crumbs.push({ label: projectName });
+    }
   } else if (parts[1] === 'room-explorer') {
-    crumbs.push({ label: 'Rooms' });
     const room = params.get('room');
+    crumbs.push({ label: 'Room explorer' });
     if (room) crumbs.push({ label: humanize(room) });
   } else if (parts[1] === 'compare') {
     crumbs.push({ label: 'Compare' });
@@ -62,7 +78,11 @@ function Breadcrumb() {
     crumbs.push({ label: humanize(parts[2]) });
   } else if (parts[1] === 'pdf-viewer') {
     crumbs.push({ label: 'PDF viewer' });
+  } else if (parts[1] === 'admin') {
+    crumbs.push({ label: 'Admin' });
   }
+
+  if (crumbs.length === 0) return null;
 
   return (
     <nav aria-label="Breadcrumb" className="hidden min-w-0 items-center gap-1.5 text-[13px] sm:flex">
@@ -91,22 +111,11 @@ function humanize(slug: string): string {
 
 // --- Project switcher -------------------------------------------------------
 
-function ProjectSwitcher() {
+function ProjectSwitcher({ projects }: { projects: ApiProject[] | null }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [projects, setProjects] = useState<ApiProject[] | null>(null);
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    listProjects().then((p) => {
-      if (!cancelled) setProjects(p);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   useEffect(() => {
     if (!open) return;
