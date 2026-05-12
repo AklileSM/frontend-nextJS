@@ -202,7 +202,7 @@ function Inner() {
     return () => clearInterval(id);
   }, [response, datesEntries]);
 
-  const handleDeleteConfirm = useCallback(() => {
+  const handleDeleteConfirm = useCallback(async () => {
     if (!pendingDelete) return;
     const file = pendingDelete;
     setPendingDelete(null);

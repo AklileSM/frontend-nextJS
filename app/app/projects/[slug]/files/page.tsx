@@ -133,7 +133,7 @@ export default function FileExplorerPage() {
     return () => clearInterval(id);
   }, [response, visibleRooms]);
 
-  const handleDeleteConfirm = useCallback(() => {
+  const handleDeleteConfirm = useCallback(async () => {
     if (!pendingDelete) return;
     const file = pendingDelete;
     setPendingDelete(null);
