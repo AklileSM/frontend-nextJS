@@ -2,7 +2,7 @@
 
 import { motion } from 'framer-motion';
 import { useParams, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Upload, X, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
@@ -45,6 +45,8 @@ export default function FileExplorerPage() {
   const [showUploader, setShowUploader] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
   const [roomFilter, setRoomFilter] = useState<Set<string> | null>(null);
+  const [visibleCount, setVisibleCount] = useState(10);
+  const knownPendingRef = useRef<Set<string>>(new Set());
 
   const date = params.get('date') ?? mockCaptureDates[mockCaptureDates.length - 1];
   const isAdmin = user?.is_admin ?? false;
@@ -70,7 +72,7 @@ export default function FileExplorerPage() {
     return () => { cancelled = true; };
   }, [date, project, reloadToken]);
 
-  useEffect(() => { setRoomFilter(null); }, [date]);
+  useEffect(() => { setRoomFilter(null); setVisibleCount(10); }, [date]);
 
   const roomsWithFiles = useMemo(() => {
     if (!response) return [] as ApiRoom[];
@@ -107,13 +109,23 @@ export default function FileExplorerPage() {
 
   useEffect(() => {
     if (!response) return;
-    const hasPending = visibleRooms.some((room) => {
-      const group = pickGroup(response.rooms, room);
-      if (!group) return false;
-      return group.pointclouds.some(
-        (f) => f.conversion_status === 'pending' || f.conversion_status === 'processing',
-      );
-    });
+    const allClouds = visibleRooms.flatMap((room) => pickGroup(response.rooms, room)?.pointclouds ?? []);
+    // Toast newly-completed conversions
+    for (const f of allClouds) {
+      if (knownPendingRef.current.has(f.id) && f.conversion_status === 'done') {
+        toast.success(`${f.file_name} is ready to view`);
+        knownPendingRef.current.delete(f.id);
+      }
+    }
+    // Track pending ones for next poll
+    for (const f of allClouds) {
+      if (f.conversion_status === 'pending' || f.conversion_status === 'processing') {
+        knownPendingRef.current.add(f.id);
+      }
+    }
+    const hasPending = allClouds.some(
+      (f) => f.conversion_status === 'pending' || f.conversion_status === 'processing',
+    );
     if (!hasPending) return;
     const id = setInterval(() => setReloadToken((t) => t + 1), 5000);
     return () => clearInterval(id);
@@ -218,7 +230,7 @@ export default function FileExplorerPage() {
             : <EmptyState icon={Filter} title="No rooms selected" body="Open the room filter to choose which rooms to show." />
         )}
         {response &&
-          visibleRooms.map((room) => {
+          visibleRooms.slice(0, visibleCount).map((room) => {
             const group = pickGroup(response.rooms, room) ?? emptyGroup();
             const files = filesForTab(group, tab);
             const total = group.images.length + group.videos.length + group.pointclouds.length + group.pdfs.length;
@@ -236,6 +248,20 @@ export default function FileExplorerPage() {
               />
             );
           })}
+        {response && visibleRooms.length > visibleCount && (
+          <div className="flex justify-center pt-2">
+            <button
+              type="button"
+              onClick={() => setVisibleCount((n) => n + 10)}
+              className="rounded-md border border-base-700 px-5 py-2 text-[13px] text-ink-300 transition-colors hover:border-ink-400 hover:text-white"
+            >
+              Load {Math.min(10, visibleRooms.length - visibleCount)} more rooms
+              <span className="ml-1.5 font-mono text-[11px] text-ink-500">
+                ({visibleCount} of {visibleRooms.length})
+              </span>
+            </button>
+          </div>
+        )}
       </div>
 
       <DeleteConfirm
@@ -305,29 +331,69 @@ function RoomSection({
 
 function Uploader({ rooms, captureDate, onUploaded }: { rooms: ApiRoom[]; captureDate: string; onUploaded: () => void }) {
   const [roomId, setRoomId] = useState(rooms[0]?.id ?? '');
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+  const [uploadDate, setUploadDate] = useState(captureDate);
+
   useEffect(() => {
     if (!roomId && rooms.length) setRoomId(rooms[0].id);
   }, [roomId, rooms]);
 
+  useEffect(() => { setUploadDate(captureDate); }, [captureDate]);
+
   const selectedRoom = rooms.find((r) => r.id === roomId);
+  const filtered = query
+    ? rooms.filter((r) => r.name.toLowerCase().includes(query.toLowerCase()))
+    : rooms;
 
   if (!rooms.length || !roomId || !selectedRoom) return null;
 
   return (
     <div className="rounded-lg border border-base-800 bg-base-900/30 p-5">
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-300">Target room</span>
-        <select
-          value={roomId}
-          onChange={(e) => setRoomId(e.target.value)}
-          className="rounded-md border border-base-700 bg-base-950 px-2.5 py-1.5 text-[13px] text-white outline-none focus:border-amber-500"
-        >
-          {rooms.map((r) => (
-            <option key={r.id} value={r.id}>{r.name}</option>
-          ))}
-        </select>
+      <div className="mb-4 flex flex-wrap items-center gap-4">
+        {/* Room combobox */}
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-300">Room</span>
+          <div className="relative">
+            <input
+              type="text"
+              value={open ? query : selectedRoom.name}
+              onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
+              onFocus={() => { setQuery(''); setOpen(true); }}
+              onBlur={() => setTimeout(() => setOpen(false), 150)}
+              placeholder="Search rooms…"
+              className="w-44 rounded-md border border-base-700 bg-base-950 px-2.5 py-1.5 text-[13px] text-white outline-none focus:border-amber-500"
+            />
+            {open && filtered.length > 0 && (
+              <ul className="absolute left-0 top-full z-20 mt-1 max-h-52 w-44 overflow-y-auto rounded-md border border-base-700 bg-base-900 py-1 shadow-xl">
+                {filtered.map((r) => (
+                  <li key={r.id}>
+                    <button
+                      type="button"
+                      onMouseDown={() => { setRoomId(r.id); setQuery(''); setOpen(false); }}
+                      className={`w-full px-3 py-1.5 text-left text-[13px] transition-colors hover:bg-base-800 ${r.id === roomId ? 'text-amber-400' : 'text-white'}`}
+                    >
+                      {r.name}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+
+        {/* Capture date override */}
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-300">Date</span>
+          <input
+            type="date"
+            value={uploadDate}
+            onChange={(e) => setUploadDate(e.target.value)}
+            className="rounded-md border border-base-700 bg-base-950 px-2.5 py-1.5 text-[13px] text-white outline-none focus:border-amber-500"
+          />
+        </div>
       </div>
-      <UploadZone roomId={roomId} roomSlug={selectedRoom.slug} captureDate={captureDate} onUploaded={onUploaded} />
+      <UploadZone roomId={roomId} roomSlug={selectedRoom.slug} captureDate={uploadDate} onUploaded={onUploaded} />
     </div>
   );
 }

@@ -12,13 +12,62 @@ export type ViewerContext = {
   origin: 'project' | 'room';
 };
 
+export type RecentEntry = {
+  fileId: string;
+  fileName: string;
+  fileType: ApiMediaFile['type'];
+  file: ApiMediaFile;
+  roomSlug: string;
+  date: string;
+  projectSlug: string;
+  viewerHref: string;
+  openedAt: number;
+};
+
 const KEY = 'a6.viewerContext';
+const RECENT_KEY = 'a6.recentFiles';
+const RECENT_MAX = 12;
 
 export function setViewerContext(ctx: ViewerContext): void {
   try {
     localStorage.setItem(KEY, JSON.stringify(ctx));
+    pushRecentFile(ctx);
   } catch {
     /* ignore */
+  }
+}
+
+function pushRecentFile(ctx: ViewerContext): void {
+  try {
+    const entry: RecentEntry = {
+      fileId: ctx.file.id,
+      fileName: ctx.file.file_name,
+      fileType: ctx.file.type,
+      file: ctx.file,
+      roomSlug: ctx.roomSlug,
+      date: ctx.date,
+      projectSlug: ctx.projectSlug,
+      viewerHref: viewerHrefFor(ctx.file),
+      openedAt: Date.now(),
+    };
+    const raw = localStorage.getItem(RECENT_KEY);
+    const list: RecentEntry[] = raw ? (JSON.parse(raw) as RecentEntry[]) : [];
+    const deduped = list.filter((e) => e.fileId !== entry.fileId);
+    deduped.unshift(entry);
+    localStorage.setItem(RECENT_KEY, JSON.stringify(deduped.slice(0, RECENT_MAX)));
+  } catch {
+    /* ignore */
+  }
+}
+
+export function getRecentFiles(projectSlug: string): RecentEntry[] {
+  try {
+    const raw = localStorage.getItem(RECENT_KEY);
+    if (!raw) return [];
+    const list = JSON.parse(raw) as RecentEntry[];
+    return list.filter((e) => e.projectSlug === projectSlug);
+  } catch {
+    return [];
   }
 }
 

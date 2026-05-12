@@ -12,6 +12,7 @@ import { Floorplan } from '@/components/home/Floorplan';
 import { ChartAll } from '@/components/home/ChartAll';
 import { ChartLocation } from '@/components/home/ChartLocation';
 import { MiniCalendar } from '@/components/layout/MiniCalendar';
+import { RecentFiles } from '@/components/home/RecentFiles';
 import type { ApiProject, ApiRoom } from '@/types/api';
 
 export const dynamic = 'force-dynamic';
@@ -104,6 +105,8 @@ export default function ProjectHomePage() {
           )}
         </div>
       </motion.section>
+
+      <RecentFiles projectSlug={slug} />
 
       <div className="mt-10 grid grid-cols-1 gap-6 lg:grid-cols-[2fr_1fr] lg:gap-8">
         <motion.div

@@ -52,6 +52,11 @@ function Inner() {
   // null = "default" — treat as all dates checked. Once the user touches the
   // filter we store the explicit selection so empty (none-selected) is honored.
   const [dateFilter, setDateFilter] = useState<Set<string> | null>(null);
+  const knownPendingRef = useRef<Set<string>>(new Set());
+  const savedFilterRef = useRef<Set<string> | null>(null);
+  const dateFilterRef = useRef<Set<string> | null>(null);
+  // Keep dateFilterRef current so room-change effect always captures the latest value.
+  dateFilterRef.current = dateFilter;
 
   const queryRoom = params.get('room');
   // ?date= is honored as a deeplink seed for the filter (e.g. from the sidebar
@@ -110,9 +115,10 @@ function Inner() {
     };
   }, [activeSlug, reloadToken]);
 
-  // Reset the date filter whenever the active room changes — the set of
-  // available dates is different for each room.
+  // When the room changes, stash the current filter (to restore applicable dates
+  // after the new room loads) and reset to "show all" until data arrives.
   useEffect(() => {
+    savedFilterRef.current = dateFilterRef.current;
     setDateFilter(null);
   }, [activeSlug]);
 
@@ -133,6 +139,14 @@ function Inner() {
     setDateFilter(new Set([seedDate]));
     seededRef.current = true;
   }, [response, seedDate, allDates]);
+
+  // After a room switch, restore whichever saved dates still exist in the new room.
+  useEffect(() => {
+    if (!savedFilterRef.current || !allDates.length) return;
+    const applicable = new Set([...savedFilterRef.current].filter((d) => allDates.includes(d)));
+    savedFilterRef.current = null;
+    if (applicable.size > 0) setDateFilter(applicable);
+  }, [allDates]);
 
   const effectiveSelected = useMemo(
     () => dateFilter ?? new Set<string>(allDates),
@@ -163,13 +177,23 @@ function Inner() {
     return result;
   }, [datesEntries]);
 
-  // Auto-refresh while any point cloud in view is pending/processing conversion.
+  // Auto-refresh while any point cloud in view is pending/processing; toast on completion.
   useEffect(() => {
     if (!response) return;
-    const hasPendingConversion = datesEntries.some(([, group]) =>
-      group.pointclouds.some(
-        (f) => f.conversion_status === 'pending' || f.conversion_status === 'processing',
-      ),
+    const allClouds = datesEntries.flatMap(([, group]) => group.pointclouds);
+    for (const f of allClouds) {
+      if (knownPendingRef.current.has(f.id) && f.conversion_status === 'done') {
+        toast.success(`${f.file_name} is ready to view`);
+        knownPendingRef.current.delete(f.id);
+      }
+    }
+    for (const f of allClouds) {
+      if (f.conversion_status === 'pending' || f.conversion_status === 'processing') {
+        knownPendingRef.current.add(f.id);
+      }
+    }
+    const hasPendingConversion = allClouds.some(
+      (f) => f.conversion_status === 'pending' || f.conversion_status === 'processing',
     );
     if (!hasPendingConversion) return;
     const id = setInterval(() => setReloadToken((t) => t + 1), 5000);
