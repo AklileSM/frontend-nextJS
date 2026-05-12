@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Check, ImageIcon, LayoutGrid, MousePointerSquareDashed } from 'lucide-react';
+import { listRooms } from '@/services/apiClient';
 import { FloorplanUploader } from './FloorplanUploader';
 import { ProjectRoomsTab } from './ProjectRoomsTab';
 import { HotspotEditor } from './HotspotEditor';
@@ -31,6 +32,12 @@ export function ProjectSetupTab({
 }) {
   const [active, setActive] = useState<Section>('floorplan');
   const [rooms, setRooms] = useState<ApiRoom[]>([]);
+
+  useEffect(() => {
+    listRooms().then((all) =>
+      setRooms(all.filter((r) => r.project_id === project.id).sort((a, b) => a.sort_order - b.sort_order))
+    );
+  }, [project.id]);
 
   const handleRoomUpdated = (updated: ApiRoom) => {
     setRooms((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
