@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Plus, Trash2, Loader2 } from 'lucide-react';
 import { listRooms, createRoom, deleteRoom } from '@/services/apiClient';
@@ -29,19 +29,25 @@ export function RoomManager({
   const [adding, setAdding] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
 
+  // Keep a stable ref to the callback so load() doesn't re-create on every
+  // parent render (which would loop: callback → parent re-render → new ref →
+  // new load → effect fires → callback again…)
+  const onRoomsChangedRef = useRef(onRoomsChanged);
+  useEffect(() => { onRoomsChangedRef.current = onRoomsChanged; });
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const all = await listRooms();
       const filtered = all.filter((r) => r.project_id === projectId);
       setRooms(filtered);
-      onRoomsChanged?.(filtered);
+      onRoomsChangedRef.current?.(filtered);
     } catch {
       toast.error('Failed to load rooms');
     } finally {
       setLoading(false);
     }
-  }, [projectId, onRoomsChanged]);
+  }, [projectId]);
 
   useEffect(() => { load(); }, [load]);
 
