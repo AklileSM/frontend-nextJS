@@ -6,11 +6,10 @@ import {
   useLayoutEffect,
   useRef,
   useState,
-  type MouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { toast } from 'sonner';
-import { X, Check } from 'lucide-react';
+import { X, Check, Pencil } from 'lucide-react';
 import { updateRoom } from '@/services/apiClient';
 import type { ApiRoom, FloorPlanCoordinates } from '@/types/api';
 
@@ -39,17 +38,19 @@ function rectFromAnchors(start: Anchor, end: Anchor): Draft {
   return { x, y, width, height };
 }
 
-// Zone overlay: shows a placed hotspot with room name and a clear button.
+// Zone overlay: shows a placed hotspot with room name, edit (redraw), and delete buttons.
 function Zone({
   room,
   coords,
   canEdit,
   onClear,
+  onRedraw,
 }: {
   room: ApiRoom;
   coords: FloorPlanCoordinates;
   canEdit: boolean;
   onClear: () => void;
+  onRedraw: () => void;
 }) {
   return (
     <div
@@ -63,18 +64,30 @@ function Zone({
       className="group pointer-events-auto"
     >
       <div className="relative h-full w-full rounded border-2 border-amber-500/70 bg-amber-500/10 transition-colors group-hover:bg-amber-500/20">
-        <span className="absolute left-1 top-1 max-w-full truncate rounded bg-base-950/80 px-1.5 py-0.5 font-mono text-[10px] font-medium text-amber-300">
+        <span className="absolute left-1 top-1 max-w-[calc(100%-4px)] truncate rounded bg-base-950/80 px-1.5 py-0.5 font-mono text-[10px] font-medium text-amber-300">
           {room.name}
         </span>
         {canEdit && (
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onClear(); }}
-            aria-label={`Remove hotspot for ${room.name}`}
-            className="absolute right-1 top-1 hidden h-5 w-5 items-center justify-center rounded bg-base-950/80 text-ink-300 hover:text-red-400 group-hover:flex"
-          >
-            <X size={10} />
-          </button>
+          <div className="absolute right-1 top-1 flex items-center gap-0.5">
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onRedraw(); }}
+              aria-label={`Redraw hotspot for ${room.name}`}
+              title="Redraw"
+              className="flex h-5 w-5 items-center justify-center rounded bg-base-950/70 text-ink-400 transition-colors hover:bg-base-950 hover:text-amber-400"
+            >
+              <Pencil size={9} />
+            </button>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onClear(); }}
+              aria-label={`Remove hotspot for ${room.name}`}
+              title="Delete"
+              className="flex h-5 w-5 items-center justify-center rounded bg-base-950/70 text-ink-400 transition-colors hover:bg-base-950 hover:text-red-400"
+            >
+              <X size={9} />
+            </button>
+          </div>
         )}
       </div>
     </div>
@@ -84,16 +97,18 @@ function Zone({
 // Room picker popover shown after drawing a rect.
 function RoomPicker({
   rooms,
+  defaultRoomId,
   draft,
   onAssign,
   onDiscard,
 }: {
   rooms: ApiRoom[];
+  defaultRoomId?: string;
   draft: Draft;
   onAssign: (roomId: string) => void;
   onDiscard: () => void;
 }) {
-  const [selected, setSelected] = useState(rooms[0]?.id ?? '');
+  const [selected, setSelected] = useState(defaultRoomId ?? rooms[0]?.id ?? '');
 
   return (
     <div
@@ -158,11 +173,12 @@ export function HotspotEditor({
   const [anchor, setAnchor] = useState<Anchor | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [pendingDraft, setPendingDraft] = useState<Draft | null>(null);
+  const [redrawingRoomId, setRedrawingRoomId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // Rooms without a hotspot yet.
-  const unassigned = rooms.filter((r) => !r.floor_plan_coordinates);
-  const assigned = rooms.filter((r) => r.floor_plan_coordinates);
+  // Rooms without a hotspot yet (or the one currently being redrawn).
+  const unassigned = rooms.filter((r) => !r.floor_plan_coordinates || r.id === redrawingRoomId);
+  const assigned = rooms.filter((r) => r.floor_plan_coordinates && r.id !== redrawingRoomId);
 
   const getRelativePos = useCallback((e: { clientX: number; clientY: number }): Anchor | null => {
     const el = overlayRef.current;
@@ -225,12 +241,18 @@ export function HotspotEditor({
       });
       onRoomUpdated(updated);
       setPendingDraft(null);
+      setRedrawingRoomId(null);
       toast.success(`Hotspot set for "${room.name}"`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to save hotspot');
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleDiscard = () => {
+    setPendingDraft(null);
+    setRedrawingRoomId(null);
   };
 
   const handleClear = async (room: ApiRoom) => {
@@ -245,30 +267,60 @@ export function HotspotEditor({
     }
   };
 
+  const handleRedraw = (room: ApiRoom) => {
+    // Optimistically remove the zone so the user can draw a new one.
+    // The actual API clear happens only if they confirm (Assign).
+    setRedrawingRoomId(room.id);
+  };
+
   const hasPendingOrDrawing = drawing || !!pendingDraft;
 
   return (
     <div className="space-y-3">
-      <p className="text-[13px] text-ink-300">
-        Draw a rectangle on the floorplan to place a hotspot, then assign it to a room.
-      </p>
+      {redrawingRoomId ? (
+        <p className="text-[13px] text-amber-400">
+          Draw a new rectangle for{' '}
+          <span className="font-semibold">
+            {rooms.find((r) => r.id === redrawingRoomId)?.name}
+          </span>
+          {' '}— or{' '}
+          <button
+            type="button"
+            onClick={() => setRedrawingRoomId(null)}
+            className="underline hover:text-white"
+          >
+            cancel
+          </button>
+        </p>
+      ) : (
+        <p className="text-[13px] text-ink-300">
+          Draw a rectangle on the floorplan to place a hotspot, then assign it to a room.
+          Hover an existing zone to edit or delete it.
+        </p>
+      )}
 
-      {unassigned.length > 0 && (
+      {!redrawingRoomId && unassigned.length > 0 && (
         <p className="font-mono text-[11px] text-ink-400">
           Rooms without a hotspot:{' '}
           {unassigned.map((r) => r.name).join(', ')}
         </p>
       )}
 
-      <div className="relative select-none overflow-hidden rounded-lg border border-base-800 bg-base-950">
-        <img
-          src={floorplanUrl}
-          alt="Floorplan"
-          draggable={false}
-          className="block h-auto w-full"
-        />
+      {/* Outer wrapper is relative but NOT overflow-hidden so the RoomPicker
+          popover can escape the image bounds. The image itself gets its own
+          rounded clip via the inner div. */}
+      <div className="relative select-none">
+        <div className="overflow-hidden rounded-lg border border-base-800 bg-base-950">
+          <img
+            src={floorplanUrl}
+            alt="Floorplan"
+            draggable={false}
+            className="block h-auto w-full"
+          />
+        </div>
 
-        {/* Interaction overlay */}
+        {/* Interaction overlay — covers the image exactly, but no overflow-hidden
+            so the RoomPicker popover can render outside the image boundary. */}
         <div
           ref={overlayRef}
           onPointerDown={onPointerDown}
@@ -285,6 +337,7 @@ export function HotspotEditor({
               coords={room.floor_plan_coordinates!}
               canEdit={!hasPendingOrDrawing}
               onClear={() => handleClear(room)}
+              onRedraw={() => handleRedraw(room)}
             />
           ))}
 
@@ -303,7 +356,7 @@ export function HotspotEditor({
             />
           )}
 
-          {/* Pending rect waiting for room assignment */}
+          {/* Pending rect + RoomPicker popover */}
           {pendingDraft && (
             <>
               <div
@@ -319,9 +372,10 @@ export function HotspotEditor({
               />
               <RoomPicker
                 rooms={unassigned.length > 0 ? unassigned : rooms}
+                defaultRoomId={redrawingRoomId ?? undefined}
                 draft={pendingDraft}
                 onAssign={handleAssign}
-                onDiscard={() => setPendingDraft(null)}
+                onDiscard={handleDiscard}
               />
             </>
           )}
