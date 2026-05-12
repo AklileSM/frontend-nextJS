@@ -65,6 +65,7 @@ export default function ProjectsHubPage() {
   if (isLoading || !isAuthenticated) return null;
 
   const isAdmin = user?.is_admin ?? false;
+  const userId = user?.id ?? '';
   const active = projects.filter((p) => p.status === 'active').length;
 
   return (
@@ -95,16 +96,14 @@ export default function ProjectsHubPage() {
             )}
           </div>
 
-          {isAdmin && (
-            <button
-              type="button"
-              onClick={() => setShowCreate(true)}
-              className="inline-flex items-center gap-2 rounded-md bg-amber-500 px-5 py-2.5 text-[13px] font-semibold text-base-950 shadow-[0_8px_24px_-10px_rgba(245,158,11,0.5)] transition-all hover:bg-amber-400 hover:shadow-[0_8px_32px_-8px_rgba(245,158,11,0.65)]"
-            >
-              <Plus size={15} strokeWidth={2.5} />
-              New project
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => setShowCreate(true)}
+            className="inline-flex items-center gap-2 rounded-md bg-amber-500 px-5 py-2.5 text-[13px] font-semibold text-base-950 shadow-[0_8px_24px_-10px_rgba(245,158,11,0.5)] transition-all hover:bg-amber-400 hover:shadow-[0_8px_32px_-8px_rgba(245,158,11,0.65)]"
+          >
+            <Plus size={15} strokeWidth={2.5} />
+            New project
+          </button>
         </motion.div>
 
         {/* Divider */}
@@ -123,7 +122,7 @@ export default function ProjectsHubPage() {
               ))}
             </div>
           ) : projects.length === 0 ? (
-            <EmptyState isAdmin={isAdmin} onNew={() => setShowCreate(true)} />
+            <EmptyState onNew={() => setShowCreate(true)} />
           ) : (
             <motion.div
               initial="hidden"
@@ -136,6 +135,7 @@ export default function ProjectsHubPage() {
                   key={project.id}
                   project={project}
                   isAdmin={isAdmin}
+                  userId={userId}
                 />
               ))}
             </motion.div>
@@ -153,7 +153,8 @@ export default function ProjectsHubPage() {
   );
 }
 
-function ProjectCard({ project, isAdmin }: { project: ApiProject; isAdmin: boolean }) {
+function ProjectCard({ project, isAdmin, userId }: { project: ApiProject; isAdmin: boolean; userId: string }) {
+  const canManage = isAdmin || project.owner_id === userId;
   return (
     <motion.div
       variants={{
@@ -205,8 +206,8 @@ function ProjectCard({ project, isAdmin }: { project: ApiProject; isAdmin: boole
         </div>
       </Link>
 
-      {/* Settings gear — admins only */}
-      {isAdmin && (
+      {/* Settings gear — admins and project owners */}
+      {canManage && (
         <Link
           href={`/projects/${project.slug}/settings`}
           aria-label={`Settings for ${project.name}`}
@@ -226,7 +227,7 @@ const FEATURES = [
   { icon: FileText, label: 'Field reports', body: 'Annotate captures and publish PDF reports in one click.' },
 ];
 
-function EmptyState({ isAdmin, onNew }: { isAdmin: boolean; onNew: () => void }) {
+function EmptyState({ onNew }: { onNew: () => void }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
@@ -253,34 +254,24 @@ function EmptyState({ isAdmin, onNew }: { isAdmin: boolean; onNew: () => void })
 
         {/* Heading */}
         <h2 className="mt-6 font-display text-[28px] font-semibold leading-tight tracking-[-0.018em] text-white sm:text-[34px]">
-          {isAdmin ? 'Create your first project' : 'No projects yet'}
+          Create your first project
         </h2>
         <p className="mx-auto mt-3 max-w-[42ch] text-[14px] leading-[1.7] text-ink-300">
-          {isAdmin
-            ? 'A project groups all the rooms, captures, and reports for one construction site. Set one up to get started.'
-            : 'You haven\'t been added to any projects yet. Ask your site admin to invite you.'}
+          A project groups all the rooms, captures, and reports for one construction site. Set one up to get started.
         </p>
 
-        {/* CTA */}
-        {isAdmin ? (
-          <button
-            type="button"
-            onClick={onNew}
-            className="mt-8 inline-flex items-center gap-2 rounded-lg bg-amber-500 px-6 py-3 text-[14px] font-semibold text-base-950 shadow-[0_8px_24px_-10px_rgba(245,158,11,0.55)] transition-all hover:bg-amber-400 hover:shadow-[0_8px_32px_-8px_rgba(245,158,11,0.7)]"
-          >
-            <Plus size={15} strokeWidth={2.5} />
-            New project
-            <ArrowRight size={14} className="ml-0.5 opacity-70" />
-          </button>
-        ) : (
-          <div className="mt-8 inline-flex items-center gap-2 rounded-lg border border-base-700 bg-base-800/50 px-5 py-2.5 font-mono text-[12px] uppercase tracking-[0.14em] text-ink-400">
-            Waiting for project access
-          </div>
-        )}
+        <button
+          type="button"
+          onClick={onNew}
+          className="mt-8 inline-flex items-center gap-2 rounded-lg bg-amber-500 px-6 py-3 text-[14px] font-semibold text-base-950 shadow-[0_8px_24px_-10px_rgba(245,158,11,0.55)] transition-all hover:bg-amber-400 hover:shadow-[0_8px_32px_-8px_rgba(245,158,11,0.7)]"
+        >
+          <Plus size={15} strokeWidth={2.5} />
+          New project
+          <ArrowRight size={14} className="ml-0.5 opacity-70" />
+        </button>
 
-        {/* Feature strip — admins only */}
-        {isAdmin && (
-          <div className="mx-auto mt-14 grid max-w-2xl gap-px overflow-hidden rounded-xl border border-base-800 sm:grid-cols-3">
+        {/* Feature strip */}
+        <div className="mx-auto mt-14 grid max-w-2xl gap-px overflow-hidden rounded-xl border border-base-800 sm:grid-cols-3">
             {FEATURES.map(({ icon: Icon, label, body }) => (
               <div key={label} className="flex flex-col items-start gap-2 bg-base-900/60 px-5 py-5 text-left">
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-base-700 bg-base-800">
@@ -291,7 +282,6 @@ function EmptyState({ isAdmin, onNew }: { isAdmin: boolean; onNew: () => void })
               </div>
             ))}
           </div>
-        )}
       </div>
     </motion.div>
   );
