@@ -1,27 +1,36 @@
+/* App design tokens — must match tailwind.config.ts */
 :root {
-  --pc-bg: #0b1220;
-  --pc-bg-panel: #0f172a;
-  --pc-bg-card: #18253b;
-  --pc-border: #2c3c57;
-  --pc-text: #e2e8f0;
-  --pc-muted: #93a3ba;
-  --pc-accent: #3c50e0;
+  --pc-bg:        #0B0E12;  /* base-950 */
+  --pc-bg-panel:  #13171D;  /* base-900 */
+  --pc-bg-card:   #1B2027;  /* base-800 */
+  --pc-border:    #262C35;  /* base-700 */
+  --pc-border-hi: #3A424E;  /* base-600 */
+  --pc-text:      #B8BFC9;  /* base-300 */
+  --pc-muted:     #5C6573;  /* base-500 */
+  --pc-accent:    #F59E0B;  /* amber-500 */
+  --pc-accent-hi: #FBBF24;  /* amber-400 */
+  --pc-on-accent: #0B0E12;  /* text on amber button */
 }
 
-html,
-body {
+html, body {
   background: var(--pc-bg);
+  color: var(--pc-text);
+  font-family: Inter, "Segoe UI", Arial, sans-serif;
 }
 
+/* ── Hide Potree's built-in sidebar ── */
 #potree_sidebar_container {
   display: none !important;
 }
 
+/* ── Push render area above the dock ── */
 #potree_render_area {
-  inset: 0 0 96px 0 !important;
+  inset: 0 0 auto 0 !important;
+  bottom: 0 !important;
   position: absolute !important;
 }
 
+/* ── Bottom control dock ── */
 #pc_bottom_dock {
   position: absolute;
   left: 0;
@@ -31,57 +40,92 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 10px 12px;
+  padding: 10px 14px 12px;
   border-top: 1px solid var(--pc-border);
-  background: linear-gradient(180deg, rgba(12, 20, 36, 0.94), rgba(11, 18, 32, 0.98));
-  backdrop-filter: blur(5px);
+  background: rgba(11, 14, 18, 0.96);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
+/* ── Dock header ── */
 .pc-dock-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   color: var(--pc-text);
-  font: 700 12px/1.2 Inter, "Segoe UI", Arial, sans-serif;
-  letter-spacing: 0.03em;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.pc-dock-header span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--pc-muted);
+}
+
+/* small amber rule before the label */
+.pc-dock-header span::before {
+  content: '';
+  display: inline-block;
+  width: 20px;
+  height: 1px;
+  background: color-mix(in srgb, var(--pc-accent) 55%, transparent);
 }
 
 .pc-dock-header button {
-  width: 32px;
-  height: 28px;
-  border-radius: 8px;
+  width: 28px;
+  height: 26px;
+  border-radius: 6px;
   border: 1px solid var(--pc-border);
-  background: #0f1930;
+  background: var(--pc-bg-card);
   color: var(--pc-text);
+  font-size: 13px;
   cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
 }
 
+.pc-dock-header button:hover {
+  background: var(--pc-border);
+  border-color: var(--pc-border-hi);
+}
+
+/* ── Four-column control grid ── */
 .pc-dock-content {
   display: grid;
   grid-template-columns: 1.2fr 1.2fr 1fr 1.2fr;
-  gap: 10px;
+  gap: 8px;
 }
 
 #pc_bottom_dock.pc-collapsed .pc-dock-content {
   display: none;
 }
 
+/* ── Individual control group card ── */
 .pc-group {
-  background: rgba(24, 37, 59, 0.7);
+  background: var(--pc-bg-card);
   border: 1px solid var(--pc-border);
   border-radius: 10px;
   padding: 8px 10px;
   color: var(--pc-text);
-  font: 12px/1.4 Inter, "Segoe UI", Arial, sans-serif;
+  font-size: 12px;
+  line-height: 1.4;
+  transition: border-color 0.15s;
+}
+
+.pc-group:hover {
+  border-color: var(--pc-border-hi);
 }
 
 .pc-title {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.18em;
   color: var(--pc-muted);
-  margin-bottom: 6px;
+  margin-bottom: 7px;
 }
 
 .pc-group label {
@@ -90,58 +134,101 @@ body {
   align-items: center;
   margin: 5px 0 2px;
   color: var(--pc-text);
+  font-size: 11px;
 }
 
+.pc-group label span {
+  color: var(--pc-accent);
+  font-size: 10px;
+  font-weight: 600;
+  min-width: 28px;
+  text-align: right;
+}
+
+/* ── Range sliders ── */
 .pc-group input[type="range"] {
   width: 100%;
-  margin: 0 0 6px;
+  margin: 0 0 5px;
   accent-color: var(--pc-accent);
+  cursor: pointer;
 }
 
+/* ── Checkboxes ── */
+.pc-group input[type="checkbox"] {
+  accent-color: var(--pc-accent);
+  width: 13px;
+  height: 13px;
+  cursor: pointer;
+}
+
+/* ── Selects ── */
+.pc-group select {
+  flex: 1;
+  background: var(--pc-bg-panel);
+  color: var(--pc-text);
+  border: 1px solid var(--pc-border);
+  border-radius: 6px;
+  height: 28px;
+  padding: 0 6px;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.pc-group select:hover,
+.pc-group select:focus {
+  border-color: var(--pc-border-hi);
+  outline: none;
+}
+
+/* ── Inline group (flex column layout) ── */
 .pc-inline {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 6px;
 }
 
 .pc-row {
   display: flex;
   align-items: center;
   gap: 8px;
+  font-size: 11px;
 }
 
 .pc-row select {
   flex: 1;
 }
 
-.pc-group input[type="checkbox"] {
-  accent-color: var(--pc-accent);
-}
-
-.pc-group select,
-.pc-group button {
-  background: #0c1528;
-  color: var(--pc-text);
-  border: 1px solid var(--pc-border);
-  border-radius: 8px;
-  height: 30px;
-  padding: 0 8px;
-  font: inherit;
-}
-
+/* ── Action buttons (Fit, Reset, Distance, Area…) ── */
 .pc-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  gap: 6px;
+  margin-top: 4px;
 }
 
 .pc-group button {
-  background: linear-gradient(180deg, #4258eb, #3548cd);
-  border-color: #5568ec;
-  color: #fff;
+  background: color-mix(in srgb, var(--pc-accent) 12%, var(--pc-bg-panel));
+  color: var(--pc-accent-hi);
+  border: 1px solid color-mix(in srgb, var(--pc-accent) 30%, transparent);
+  border-radius: 6px;
+  height: 28px;
+  padding: 0 8px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
   cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  white-space: nowrap;
 }
 
 .pc-group button:hover {
-  filter: brightness(1.08);
+  background: color-mix(in srgb, var(--pc-accent) 22%, var(--pc-bg-panel));
+  border-color: color-mix(in srgb, var(--pc-accent) 55%, transparent);
+  color: #fff;
+}
+
+.pc-group button:active {
+  background: color-mix(in srgb, var(--pc-accent) 30%, var(--pc-bg-panel));
 }
