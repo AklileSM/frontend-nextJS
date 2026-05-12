@@ -8,11 +8,11 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Folder,
-  FolderOpen,
   Home,
   Image as ImageIcon,
   FileText,
   Box,
+  LayoutGrid,
   ShieldCheck,
   Video,
   type LucideIcon,
@@ -28,6 +28,8 @@ import type { ApiProject, ApiRoom, ApiRoomMediaGroup } from '@/types/api';
 export function Sidebar() {
   const { open, close, toggle } = useSidebar();
   const { user } = useAuth();
+  const pathname = usePathname();
+
   const [projects, setProjects] = useState<ApiProject[] | null>(null);
 
   useEffect(() => {
@@ -35,10 +37,13 @@ export function Sidebar() {
     listProjects().then((p) => {
       if (!cancelled) setProjects(p);
     });
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
+
+  // Derive current project from URL path.
+  const slugMatch = pathname.match(/\/app\/projects\/([^/]+)/);
+  const currentSlug = slugMatch?.[1] ?? null;
+  const currentProject = currentSlug ? (projects?.find((p) => p.slug === currentSlug) ?? null) : null;
 
   return (
     <>
@@ -65,24 +70,21 @@ export function Sidebar() {
           ${open ? 'lg:w-[260px]' : 'lg:w-[68px]'}
         `}
       >
+        {/* Header */}
         <div
           className={`flex items-center justify-between gap-2 border-b border-base-800 px-4 py-4 ${
             open ? '' : 'lg:flex-col lg:items-center lg:gap-3 lg:px-2'
           }`}
         >
           <Link
-            href="/app"
-            aria-label="App home"
+            href="/projects"
+            aria-label="All projects"
             className={`flex items-center gap-2.5 ${open ? '' : 'lg:gap-0'}`}
           >
             <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[5px] bg-amber-500 font-display text-[11px] font-bold text-base-950">
               SS
             </span>
-            <span
-              className={`font-display text-[15px] font-semibold tracking-tight text-white ${
-                open ? 'inline' : 'lg:hidden'
-              }`}
-            >
+            <span className={`font-display text-[15px] font-semibold tracking-tight text-white ${open ? 'inline' : 'lg:hidden'}`}>
               SiteScope
             </span>
           </Link>
@@ -98,24 +100,40 @@ export function Sidebar() {
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 py-4">
-          <NavLink href="/app" icon={<Home size={14} />} label="Home" expanded={open} />
+          {/* Home — current project's home page */}
+          {currentSlug && (
+            <NavLink
+              href={`/app/projects/${currentSlug}`}
+              icon={<Home size={14} />}
+              label="Home"
+              expanded={open}
+              isActive={pathname === `/app/projects/${currentSlug}`}
+            />
+          )}
+
+          {/* All projects hub */}
           <NavLink
             href="/projects"
-            icon={<FolderOpen size={14} />}
-            label="Projects"
+            icon={<LayoutGrid size={14} />}
+            label="All projects"
             expanded={open}
             isActive={false}
           />
 
-          <SectionLabel expanded={open}>Projects</SectionLabel>
-          <ul className="space-y-0.5">
-            {projects?.map((p) => (
-              <li key={p.id}>
-                <ProjectAccordion project={p} expanded={open} />
-              </li>
-            ))}
-            {!projects && <li className="px-3 py-2 font-mono text-[11px] text-ink-400">Loading…</li>}
-          </ul>
+          {/* Current project accordion */}
+          <div className="mt-4">
+            {currentProject ? (
+              <ul className="space-y-0.5">
+                <li>
+                  <ProjectAccordion project={currentProject} expanded={open} />
+                </li>
+              </ul>
+            ) : currentSlug && !projects ? (
+              open ? (
+                <p className="px-3 py-2 font-mono text-[11px] text-ink-400">Loading…</p>
+              ) : null
+            ) : null}
+          </div>
 
           {user?.is_admin && (
             <>
@@ -137,7 +155,11 @@ export function Sidebar() {
           <MiniCalendar />
         </div>
 
-        <UserFooter expanded={open} username={user?.username ?? '—'} role={user?.is_admin ? 'admin' : 'member'} />
+        <UserFooter
+          expanded={open}
+          username={user?.username ?? '—'}
+          role={user?.is_admin ? 'admin' : 'member'}
+        />
       </aside>
     </>
   );
@@ -154,9 +176,7 @@ function SectionLabel({
 }) {
   if (!expanded) return null;
   return (
-    <p
-      className={`mt-5 mb-2 px-3 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-400 ${className}`}
-    >
+    <p className={`mb-2 mt-5 px-3 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-400 ${className}`}>
       {children}
     </p>
   );
@@ -181,9 +201,7 @@ function NavLink({
     <Link
       href={href}
       className={`group relative flex items-center gap-2.5 rounded-md px-3 py-2 text-[13px] transition-colors ${
-        active
-          ? 'bg-base-800/70 text-white'
-          : 'text-ink-200 hover:bg-base-800/50 hover:text-white'
+        active ? 'bg-base-800/70 text-white' : 'text-ink-200 hover:bg-base-800/50 hover:text-white'
       } ${expanded ? '' : 'lg:justify-center'}`}
     >
       {active && (
@@ -198,28 +216,30 @@ function NavLink({
   );
 }
 
-// --- Projects accordion -----------------------------------------------------
+// ── Project accordion ──────────────────────────────────────────────────────────
 
 function ProjectAccordion({ project, expanded }: { project: ApiProject; expanded: boolean }) {
   const pathname = usePathname();
   const isActive = pathname === `/app/projects/${project.slug}`;
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true); // auto-open since it's the only project shown
   const [rooms, setRooms] = useState<ApiRoom[] | null>(null);
 
-  const toggle = async () => {
-    setOpen((v) => !v);
-    if (!rooms) {
-      const all = await listRooms();
-      setRooms(all.filter((r) => r.project_id === project.id));
-    }
-  };
+  useEffect(() => {
+    let cancelled = false;
+    listRooms().then((all) => {
+      if (!cancelled) setRooms(all.filter((r) => r.project_id === project.id).sort((a, b) => a.sort_order - b.sort_order));
+    });
+    return () => { cancelled = true; };
+  }, [project.id]);
+
+  const toggle = () => setOpen((v) => !v);
 
   if (!expanded) {
     return (
       <Link
         href={`/app/projects/${project.slug}`}
         title={project.name}
-        className={`group relative hidden h-9 items-center justify-center rounded-md text-[12px] font-mono uppercase transition-colors lg:flex ${
+        className={`group relative hidden h-9 items-center justify-center rounded-md font-mono text-[12px] uppercase transition-colors lg:flex ${
           isActive ? 'bg-base-800/70 text-amber-500' : 'text-ink-300 hover:bg-base-800/50 hover:text-white'
         }`}
       >
@@ -233,9 +253,7 @@ function ProjectAccordion({ project, expanded }: { project: ApiProject; expanded
     <div>
       <div
         className={`group relative flex items-center gap-1 rounded-md text-[13px] transition-colors ${
-          isActive
-            ? 'bg-base-800/70 text-white'
-            : 'text-ink-100 hover:bg-base-800/50 hover:text-white'
+          isActive ? 'bg-base-800/70 text-white' : 'text-ink-100 hover:bg-base-800/50 hover:text-white'
         }`}
       >
         {isActive && <span className="absolute inset-y-1 left-0 w-[2px] rounded-r-sm bg-amber-500" />}
@@ -243,9 +261,12 @@ function ProjectAccordion({ project, expanded }: { project: ApiProject; expanded
           type="button"
           onClick={toggle}
           aria-expanded={open}
-          className="flex h-9 w-7 shrink-0 items-center justify-center text-ink-300 transition-transform"
+          className="flex h-9 w-7 shrink-0 items-center justify-center text-ink-300"
         >
-          <ChevronRight size={13} className={`transition-transform duration-150 ${open ? 'rotate-90' : ''}`} />
+          <ChevronRight
+            size={13}
+            className={`transition-transform duration-150 ${open ? 'rotate-90' : ''}`}
+          />
         </button>
         <Link href={`/app/projects/${project.slug}`} className="flex flex-1 items-center gap-2 py-2 pr-3">
           <Folder size={14} className="text-ink-300" />
@@ -263,7 +284,9 @@ function ProjectAccordion({ project, expanded }: { project: ApiProject; expanded
             transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
             className="overflow-hidden pl-7"
           >
-            {!rooms && <li className="px-2 py-1.5 font-mono text-[11px] text-ink-400">Loading…</li>}
+            {!rooms && (
+              <li className="px-2 py-1.5 font-mono text-[11px] text-ink-400">Loading…</li>
+            )}
             {rooms && rooms.length === 0 && (
               <li className="px-2 py-1.5 font-mono text-[11px] text-ink-400">No rooms yet</li>
             )}
@@ -306,7 +329,10 @@ function RoomAccordion({ room }: { room: ApiRoom }) {
           aria-expanded={open}
           className="flex h-7 w-5 shrink-0 items-center justify-center text-ink-400"
         >
-          <ChevronRight size={11} className={`transition-transform duration-150 ${open ? 'rotate-90' : ''}`} />
+          <ChevronRight
+            size={11}
+            className={`transition-transform duration-150 ${open ? 'rotate-90' : ''}`}
+          />
         </button>
         <Link
           href={`/app/room-explorer?room=${room.slug}`}
@@ -327,7 +353,9 @@ function RoomAccordion({ room }: { room: ApiRoom }) {
             transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
             className="overflow-hidden pl-5"
           >
-            {!dates && <li className="px-2 py-1 font-mono text-[10.5px] text-ink-400">Loading…</li>}
+            {!dates && (
+              <li className="px-2 py-1 font-mono text-[10.5px] text-ink-400">Loading…</li>
+            )}
             {dates && dates.length === 0 && (
               <li className="px-2 py-1 font-mono text-[10.5px] text-ink-400">No captures yet</li>
             )}
@@ -343,15 +371,7 @@ function RoomAccordion({ room }: { room: ApiRoom }) {
   );
 }
 
-function DateNode({
-  roomSlug,
-  date,
-  group,
-}: {
-  roomSlug: string;
-  date: string;
-  group: ApiRoomMediaGroup;
-}) {
+function DateNode({ roomSlug, date, group }: { roomSlug: string; date: string; group: ApiRoomMediaGroup }) {
   const total = group.images.length + group.videos.length + group.pointclouds.length + group.pdfs.length;
   return (
     <Link
@@ -370,32 +390,22 @@ function DateNode({
 function MediaGlyphs({ group }: { group: ApiRoomMediaGroup }) {
   const items: Array<{ Icon: LucideIcon; n: number; key: string }> = [
     { Icon: ImageIcon, n: group.images.length, key: 'img' },
-    { Icon: Video, n: group.videos.length, key: 'vid' },
-    { Icon: Box, n: group.pointclouds.length, key: 'pcd' },
-    { Icon: FileText, n: group.pdfs.length, key: 'pdf' },
+    { Icon: Video,     n: group.videos.length, key: 'vid' },
+    { Icon: Box,       n: group.pointclouds.length, key: 'pcd' },
+    { Icon: FileText,  n: group.pdfs.length, key: 'pdf' },
   ];
   return (
     <span className="flex items-center gap-1">
-      {items
-        .filter((i) => i.n > 0)
-        .map(({ Icon, key }) => (
-          <Icon key={key} size={10} />
-        ))}
+      {items.filter((i) => i.n > 0).map(({ Icon, key }) => (
+        <Icon key={key} size={10} />
+      ))}
     </span>
   );
 }
 
-// --- User footer ------------------------------------------------------------
+// ── User footer ────────────────────────────────────────────────────────────────
 
-function UserFooter({
-  expanded,
-  username,
-  role,
-}: {
-  expanded: boolean;
-  username: string;
-  role: string;
-}) {
+function UserFooter({ expanded, username, role }: { expanded: boolean; username: string; role: string }) {
   const initials = (() => {
     const parts = username.split(/[\s._-]/).filter(Boolean);
     if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
