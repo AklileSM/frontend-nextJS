@@ -8,7 +8,7 @@ import { useViewerContext } from './useViewerContext';
 import { backHrefFor } from '@/components/explorer/viewerContext';
 
 export function PdfViewer() {
-  const { ctx, loading } = useViewerContext();
+  const { ctx, loading, fallbackHref } = useViewerContext();
   const searchParams = useSearchParams();
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -19,9 +19,9 @@ export function PdfViewer() {
   const displayName = nameFromQuery || ctx?.file.file_name || 'Report PDF';
 
   const backHref = useMemo(() => {
-    if (!ctx || !ctx.roomSlug || !ctx.date) return '/app/profile';
+    if (!ctx || !ctx.roomSlug || !ctx.date) return fallbackHref;
     return backHrefFor(ctx);
-  }, [ctx]);
+  }, [ctx, fallbackHref]);
 
   useEffect(() => {
     let mounted = true;
@@ -67,8 +67,15 @@ export function PdfViewer() {
     };
   }, [activePdfSrc, ctx, srcFromQuery]);
 
-  if (loading && !srcFromQuery) return <div className="p-6 text-ink-300">Loading viewer...</div>;
-  if (!activePdfSrc) return <div className="p-6 text-ink-300">No file selected. Open a PDF from explorer first.</div>;
+  if (loading && !srcFromQuery) return <div className="p-6 text-ink-300">Loading viewer…</div>;
+  if (!activePdfSrc) return (
+    <div className="flex flex-col items-center justify-center gap-4 p-12 text-center">
+      <p className="text-[14px] text-ink-300">No file selected — open a PDF from the explorer.</p>
+      <Link href={fallbackHref} className="rounded-md bg-amber-500 px-4 py-2 text-[13px] font-semibold text-base-950 hover:bg-amber-400">
+        Back to Explorer
+      </Link>
+    </div>
+  );
 
   return (
     <div className="space-y-4 p-4">

@@ -1,7 +1,6 @@
 // Viewer context handoff. The Next.js App Router doesn't carry React Router's
-// `location.state`, so we stash the file metadata in sessionStorage and let the
-// viewer pages read it back after navigation. Keys are unique per viewer kind
-// so two tabs never clobber each other's state.
+// `location.state`, so we stash the file metadata in localStorage and let the
+// viewer pages read it back after navigation (including after a full page reload).
 
 import type { ApiMediaFile } from '@/types/api';
 
@@ -17,7 +16,7 @@ const KEY = 'a6.viewerContext';
 
 export function setViewerContext(ctx: ViewerContext): void {
   try {
-    sessionStorage.setItem(KEY, JSON.stringify(ctx));
+    localStorage.setItem(KEY, JSON.stringify(ctx));
   } catch {
     /* ignore */
   }
@@ -25,7 +24,7 @@ export function setViewerContext(ctx: ViewerContext): void {
 
 export function getViewerContext(): ViewerContext | null {
   try {
-    const raw = sessionStorage.getItem(KEY);
+    const raw = localStorage.getItem(KEY);
     if (!raw) return null;
     return JSON.parse(raw) as ViewerContext;
   } catch {
@@ -35,7 +34,7 @@ export function getViewerContext(): ViewerContext | null {
 
 export function clearViewerContext(): void {
   try {
-    sessionStorage.removeItem(KEY);
+    localStorage.removeItem(KEY);
   } catch {
     /* ignore */
   }

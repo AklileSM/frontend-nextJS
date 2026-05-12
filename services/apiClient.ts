@@ -19,7 +19,7 @@ import type {
   UploadSingleResponse,
 } from '@/types/api';
 import type { ApiProjectMember } from '@/types/api';
-import { getAccessToken } from '@/auth/authSession';
+import { clearAccessToken, getAccessToken } from '@/auth/authSession';
 
 // All API calls use the same-origin /api prefix. Next.js rewrites (next.config.mjs)
 // proxy /api/* to the backend at build/run time. This keeps the browser bundle
@@ -49,7 +49,12 @@ async function apiFetch(path: string, init?: RequestInit, withAuth = true): Prom
     const token = getAccessToken();
     if (token) headers.set('Authorization', `Bearer ${token}`);
   }
-  return fetch(`${API_BASE}${path}`, { ...init, headers });
+  const response = await fetch(`${API_BASE}${path}`, { ...init, headers });
+  if (response.status === 401 && typeof window !== 'undefined') {
+    clearAccessToken();
+    window.location.replace('/login');
+  }
+  return response;
 }
 
 async function getJson<T>(path: string, init?: RequestInit): Promise<T> {

@@ -18,6 +18,17 @@ const nextConfig = {
       { protocol: 'http', hostname: 'localhost', port: '3002', pathname: '/**' },
     ],
   },
+  async redirects() {
+    return [
+      // Canonical settings URL is /projects/:slug/settings (own layout, outside app shell).
+      // Query params (e.g. ?tab=) are preserved automatically by Next.js.
+      {
+        source: '/app/projects/:slug/settings',
+        destination: '/projects/:slug/settings',
+        permanent: false,
+      },
+    ];
+  },
   async rewrites() {
     return [
       {

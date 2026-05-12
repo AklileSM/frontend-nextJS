@@ -25,7 +25,7 @@ function PanoramaSphere({ src }: { src: string }) {
 }
 
 export function PanoramaViewer() {
-  const { ctx, loading } = useViewerContext();
+  const { ctx, loading, fallbackHref } = useViewerContext();
   const [aiDescription, setAiDescription] = useState('');
   const [analyzing, setAnalyzing] = useState(false);
   const [imageReady, setImageReady] = useState(false);
@@ -35,7 +35,7 @@ export function PanoramaViewer() {
 
   const imageSrc = ctx?.file.full_src || ctx?.file.src || '';
 
-  const backHref = useMemo(() => (ctx ? backHrefFor(ctx) : '/app'), [ctx]);
+  const backHref = useMemo(() => (ctx ? backHrefFor(ctx) : fallbackHref), [ctx, fallbackHref]);
 
   const runAi = async () => {
     if (!ctx || analyzing) return;
@@ -116,8 +116,15 @@ export function PanoramaViewer() {
     }
   };
 
-  if (loading) return <div className="p-6 text-ink-300">Loading viewer...</div>;
-  if (!ctx) return <div className="p-6 text-ink-300">No file selected. Open a file from explorer first.</div>;
+  if (loading) return <div className="p-6 text-ink-300">Loading viewer…</div>;
+  if (!ctx) return (
+    <div className="flex flex-col items-center justify-center gap-4 p-12 text-center">
+      <p className="text-[14px] text-ink-300">No file selected — open a file from the explorer.</p>
+      <Link href={fallbackHref} className="rounded-md bg-amber-500 px-4 py-2 text-[13px] font-semibold text-base-950 hover:bg-amber-400">
+        Back to Explorer
+      </Link>
+    </div>
+  );
 
   return (
     <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_360px]">
