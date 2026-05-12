@@ -15,7 +15,7 @@ import { getExplorerByRoom, listRooms } from '@/services/apiClient';
 
 type Row = { room: string; slug: string; total: number };
 
-export function ChartLocation({ projectId, hoveredRoom }: { projectId: string; hoveredRoom: string | null }) {
+export function ChartLocation({ projectId, hoveredRoom }: { projectId?: string; hoveredRoom: string | null }) {
   const [data, setData] = useState<Row[] | null>(null);
 
   useEffect(() => {
@@ -23,7 +23,7 @@ export function ChartLocation({ projectId, hoveredRoom }: { projectId: string; h
     (async () => {
       try {
         const rooms = await listRooms();
-        const targetRooms = rooms.filter((r) => r.project_id === projectId);
+        const targetRooms = projectId ? rooms.filter((r) => r.project_id === projectId) : rooms;
         const result: Row[] = await Promise.all(
           targetRooms.map(async (r) => {
             const res = await getExplorerByRoom(r.slug);

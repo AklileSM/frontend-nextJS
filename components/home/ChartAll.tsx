@@ -22,7 +22,7 @@ const SERIES: Array<{ key: keyof Omit<Row, 'date'>; label: string; fill: string 
   { key: 'pdfs', label: 'PDFs', fill: '#9BA3AE' },
 ];
 
-export function ChartAll({ projectId }: { projectId: string }) {
+export function ChartAll({ projectId }: { projectId?: string }) {
   const [data, setData] = useState<Row[] | null>(null);
 
   useEffect(() => {
@@ -30,7 +30,7 @@ export function ChartAll({ projectId }: { projectId: string }) {
     (async () => {
       try {
         const rooms = await listRooms();
-        const targetRooms = rooms.filter((r) => r.project_id === projectId);
+        const targetRooms = projectId ? rooms.filter((r) => r.project_id === projectId) : rooms;
         const acc = new Map<string, Row>();
         await Promise.all(
           targetRooms.map(async (room) => {
