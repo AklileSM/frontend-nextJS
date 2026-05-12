@@ -31,7 +31,7 @@ const config: Config = {
       fontFamily: {
         display: ['var(--font-inter-tight)', 'Inter Tight', 'system-ui', 'sans-serif'],
         body: ['var(--font-inter)', 'Inter', 'system-ui', 'sans-serif'],
-        mono: ['var(--font-plex-mono)', 'IBM Plex Mono', 'ui-monospace', 'monospace'],
+        mono: ['var(--font-inter)', 'Inter', 'system-ui', 'sans-serif'],
       },
     },
   },

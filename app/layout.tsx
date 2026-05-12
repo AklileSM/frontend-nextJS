@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Inter, Inter_Tight, IBM_Plex_Mono } from 'next/font/google';
+import { Inter, Inter_Tight } from 'next/font/google';
 import './globals.css';
 import { AuthPageProviders } from '@/components/providers/RouteProviders';
 
@@ -17,12 +17,6 @@ const interTight = Inter_Tight({
   display: 'swap',
 });
 
-const plexMono = IBM_Plex_Mono({
-  subsets: ['latin'],
-  weight: ['400', '500'],
-  variable: '--font-plex-mono',
-  display: 'swap',
-});
 
 export const metadata: Metadata = {
   title: 'SiteScope',
@@ -31,7 +25,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${interTight.variable} ${plexMono.variable}`}>
+    <html lang="en" className={`${inter.variable} ${interTight.variable}`}>
       <body className="bg-base-950 text-white antialiased">
         <AuthPageProviders>{children}</AuthPageProviders>
       </body>
