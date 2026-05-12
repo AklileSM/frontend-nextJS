@@ -15,6 +15,7 @@ import { uploadSingleFile } from '@/services/apiClient';
 import type { ApiMediaFile } from '@/types/api';
 
 type Props = {
+  roomId: string;
   roomSlug: string;
   captureDate: string;
   onUploaded: () => void;
@@ -37,7 +38,7 @@ function detectMediaType(file: File): ApiMediaFile['type'] {
   return 'image';
 }
 
-export function UploadZone({ roomSlug, captureDate, onUploaded }: Props) {
+export function UploadZone({ roomId, roomSlug, captureDate, onUploaded }: Props) {
   const [dragOver, setDragOver] = useState(false);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [confirmCancelJobId, setConfirmCancelJobId] = useState<string | null>(null);
@@ -66,7 +67,7 @@ export function UploadZone({ roomSlug, captureDate, onUploaded }: Props) {
     try {
       await uploadSingleFile({
         file: job.file,
-        roomSlug,
+        roomId,
         captureDate,
         mediaType: detectMediaType(job.file),
         signal: ac.signal,

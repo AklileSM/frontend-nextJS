@@ -248,7 +248,7 @@ const POINTCLOUD_CHUNK_MAX_RETRIES = 3;
 
 async function uploadPointcloudInChunks(params: {
   file: File;
-  roomSlug: string;
+  roomId: string;
   captureDate: string;
   onProgress?: (percent: number) => void;
   signal?: AbortSignal;
@@ -259,7 +259,7 @@ async function uploadPointcloudInChunks(params: {
   }
 
   const initForm = new FormData();
-  initForm.append('room_slug', params.roomSlug);
+  initForm.append('room_id', params.roomId);
   initForm.append('capture_date', params.captureDate);
   initForm.append('filename', params.file.name);
   initForm.append('file_size', String(params.file.size));
@@ -395,7 +395,7 @@ function uploadViaXhr(params: {
 
 async function uploadPointcloudDirect(params: {
   file: File;
-  roomSlug: string;
+  roomId: string;
   captureDate: string;
   onProgress?: (percent: number) => void;
   signal?: AbortSignal;
@@ -406,7 +406,7 @@ async function uploadPointcloudDirect(params: {
   }
 
   const initForm = new FormData();
-  initForm.append('room_slug', params.roomSlug);
+  initForm.append('room_id', params.roomId);
   initForm.append('capture_date', params.captureDate);
   initForm.append('filename', params.file.name);
   initForm.append('file_size', String(params.file.size));
@@ -448,7 +448,7 @@ async function uploadPointcloudDirect(params: {
 
 export async function uploadSingleFile(params: {
   file: File;
-  roomSlug: string;
+  roomId: string;
   mediaType: 'image' | 'video' | 'pointcloud' | 'pdf';
   captureDate: string;
   onProgress?: (percent: number) => void;
@@ -463,7 +463,7 @@ export async function uploadSingleFile(params: {
     try {
       return await uploadPointcloudDirect({
         file: params.file,
-        roomSlug: params.roomSlug,
+        roomId: params.roomId,
         captureDate: params.captureDate,
         onProgress: params.onProgress,
         signal: params.signal,
@@ -472,7 +472,7 @@ export async function uploadSingleFile(params: {
       if (err instanceof DOMException && err.name === 'AbortError') throw err;
       return uploadPointcloudInChunks({
         file: params.file,
-        roomSlug: params.roomSlug,
+        roomId: params.roomId,
         captureDate: params.captureDate,
         onProgress: params.onProgress,
         signal: params.signal,
@@ -482,7 +482,7 @@ export async function uploadSingleFile(params: {
 
   const form = new FormData();
   form.append('file', params.file);
-  form.append('room_slug', params.roomSlug);
+  form.append('room_id', params.roomId);
   form.append('media_type', params.mediaType);
   form.append('capture_date', params.captureDate);
 

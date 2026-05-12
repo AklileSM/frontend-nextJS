@@ -304,28 +304,30 @@ function RoomSection({
 }
 
 function Uploader({ rooms, captureDate, onUploaded }: { rooms: ApiRoom[]; captureDate: string; onUploaded: () => void }) {
-  const [roomSlug, setRoomSlug] = useState(rooms[0]?.slug ?? '');
+  const [roomId, setRoomId] = useState(rooms[0]?.id ?? '');
   useEffect(() => {
-    if (!roomSlug && rooms.length) setRoomSlug(rooms[0].slug);
-  }, [roomSlug, rooms]);
+    if (!roomId && rooms.length) setRoomId(rooms[0].id);
+  }, [roomId, rooms]);
 
-  if (!rooms.length || !roomSlug) return null;
+  const selectedRoom = rooms.find((r) => r.id === roomId);
+
+  if (!rooms.length || !roomId || !selectedRoom) return null;
 
   return (
     <div className="rounded-lg border border-base-800 bg-base-900/30 p-5">
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-300">Target room</span>
         <select
-          value={roomSlug}
-          onChange={(e) => setRoomSlug(e.target.value)}
+          value={roomId}
+          onChange={(e) => setRoomId(e.target.value)}
           className="rounded-md border border-base-700 bg-base-950 px-2.5 py-1.5 text-[13px] text-white outline-none focus:border-amber-500"
         >
           {rooms.map((r) => (
-            <option key={r.id} value={r.slug}>{r.name}</option>
+            <option key={r.id} value={r.id}>{r.name}</option>
           ))}
         </select>
       </div>
-      <UploadZone roomSlug={roomSlug} captureDate={captureDate} onUploaded={onUploaded} />
+      <UploadZone roomId={roomId} roomSlug={selectedRoom.slug} captureDate={captureDate} onUploaded={onUploaded} />
     </div>
   );
 }
