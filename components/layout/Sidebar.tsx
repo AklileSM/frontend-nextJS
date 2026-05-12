@@ -23,8 +23,9 @@ import { useSidebar } from './SidebarContext';
 import { MiniCalendar } from './MiniCalendar';
 import { useAuth } from '@/context/AuthContext';
 import { getExplorerByRoom, listProjects, listRooms } from '@/services/apiClient';
-import { getViewerContext } from '@/components/explorer/viewerContext';
 import type { ApiProject, ApiRoom, ApiRoomMediaGroup } from '@/types/api';
+
+const PERSIST_KEY = 'sidebar.lastProjectSlug';
 
 export function Sidebar() {
   const { open, close, toggle } = useSidebar();
@@ -34,7 +35,12 @@ export function Sidebar() {
 
   const [projects, setProjects] = useState<ApiProject[] | null>(null);
   const [allRooms, setAllRooms] = useState<ApiRoom[] | null>(null);
-  const [sessionSlug, setSessionSlug] = useState<string | null>(null);
+
+  // Seed from sessionStorage so the correct project shows instantly on pages
+  // that don't carry the slug in their URL (viewers, compare, /app home, etc.).
+  const [lastSlug, setLastSlug] = useState<string | null>(() => {
+    try { return sessionStorage.getItem(PERSIST_KEY); } catch { return null; }
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -47,19 +53,7 @@ export function Sidebar() {
     return () => { cancelled = true; };
   }, []);
 
-  // On viewer/compare/pdf pages the project slug isn't in the URL — read it
-  // from the sessionStorage context that was written before navigation.
-  const isViewerPath = /^\/app\/(viewer\/|pdf-viewer|compare)/.test(pathname);
-  useEffect(() => {
-    if (isViewerPath) {
-      const ctx = getViewerContext();
-      if (ctx?.projectSlug) setSessionSlug(ctx.projectSlug);
-    } else {
-      setSessionSlug(null);
-    }
-  }, [isViewerPath, pathname]);
-
-  // Derive current project: URL path → ?room= query → sessionStorage viewer context.
+  // Derive slug from URL — most reliable sources first.
   const slugFromPath = pathname.match(/\/app\/projects\/([^/]+)/)?.[1] ?? null;
   const roomSlug = searchParams.get('room');
   const roomFromQuery = roomSlug && allRooms ? allRooms.find((r) => r.slug === roomSlug) : null;
@@ -67,7 +61,17 @@ export function Sidebar() {
     ? (projects.find((p) => p.id === roomFromQuery.project_id)?.slug ?? null)
     : null;
 
-  const currentSlug = slugFromPath ?? slugFromRoom ?? sessionSlug ?? null;
+  // Persist whenever a URL-derived slug is available so it survives to pages
+  // like viewers and /app home where the slug isn't in the URL.
+  useEffect(() => {
+    const slug = slugFromPath ?? slugFromRoom;
+    if (slug && slug !== lastSlug) {
+      try { sessionStorage.setItem(PERSIST_KEY, slug); } catch { /* ignore */ }
+      setLastSlug(slug);
+    }
+  }, [slugFromPath, slugFromRoom, lastSlug]);
+
+  const currentSlug = slugFromPath ?? slugFromRoom ?? lastSlug ?? null;
   const currentProject = currentSlug ? (projects?.find((p) => p.slug === currentSlug) ?? null) : null;
   const currentRooms = currentProject && allRooms
     ? allRooms

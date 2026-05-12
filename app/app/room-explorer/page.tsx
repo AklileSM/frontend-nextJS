@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { format, parseISO } from 'date-fns';
-import { deleteFileAsset, getExplorerByRoom, listRooms } from '@/services/apiClient';
+import { deleteFileAsset, getExplorerByRoom, listProjects, listRooms } from '@/services/apiClient';
 import { useAuth } from '@/context/AuthContext';
 import { FileGrid } from '@/components/explorer/FileGrid';
 import { MediaTabs, type MediaTab } from '@/components/explorer/MediaTabs';
@@ -13,6 +13,8 @@ import { DateFilterMenu } from '@/components/explorer/DateFilterMenu';
 import { DeleteConfirm } from '@/components/explorer/DeleteConfirm';
 import type {
   ApiMediaFile,
+  ApiProject,
+  ApiRoom,
   ApiRoomMediaGroup,
   ExplorerByRoomResponse,
 } from '@/types/api';
@@ -39,6 +41,8 @@ function Inner() {
   const params = useSearchParams();
   const { user } = useAuth();
 
+  const [allRooms, setAllRooms] = useState<ApiRoom[]>([]);
+  const [projects, setProjects] = useState<ApiProject[]>([]);
   const [response, setResponse] = useState<ExplorerByRoomResponse | null>(null);
   const [tab, setTab] = useState<MediaTab>('images');
   const [pendingDelete, setPendingDelete] = useState<ApiMediaFile | null>(null);
@@ -67,21 +71,19 @@ function Inner() {
     }
   }, [queryRoom]);
 
-  // First-load fallback — pick the first A6-Stern room when no `?room=` param
-  // and nothing was stored in localStorage. The sidebar handles room switching
-  // from then on.
+  // Load rooms + projects for project-slug derivation and fallback room selection.
   useEffect(() => {
-    if (activeSlug) return;
     let cancelled = false;
-    listRooms().then((rs) => {
+    Promise.all([listRooms(), listProjects()]).then(([rs, ps]) => {
       if (cancelled) return;
-      const a6 = rs.filter((r) => r.project_id === 'p-a6');
-      if (a6.length) setActiveSlug(a6[0].slug);
+      setAllRooms(rs);
+      setProjects(ps);
+      // Fallback: pick first room when no ?room= param and nothing in localStorage.
+      if (!activeSlug && rs.length) setActiveSlug(rs[0].slug);
     });
-    return () => {
-      cancelled = true;
-    };
-  }, [activeSlug]);
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Persist last room
   useEffect(() => {
@@ -141,6 +143,12 @@ function Inner() {
       .filter((d) => effectiveSelected.has(d))
       .map((d) => [d, response.dates[d]] as [string, ApiRoomMediaGroup]);
   }, [response, allDates, effectiveSelected]);
+
+  const projectSlug = useMemo(() => {
+    if (!activeSlug || !allRooms.length || !projects.length) return '';
+    const room = allRooms.find((r) => r.slug === activeSlug);
+    return projects.find((p) => p.id === room?.project_id)?.slug ?? '';
+  }, [activeSlug, allRooms, projects]);
 
   const counts = useMemo(() => {
     const result: Record<MediaTab, number> = { images: 0, videos: 0, pointclouds: 0, pdfs: 0 };
@@ -218,6 +226,7 @@ function Inner() {
                 key={date}
                 date={date}
                 roomSlug={activeSlug ?? ''}
+                projectSlug={projectSlug}
                 files={files}
                 total={total}
                 isAdmin={user?.is_admin ?? false}
@@ -263,6 +272,7 @@ function Skeleton() {
 function DateSection({
   date,
   roomSlug,
+  projectSlug,
   files,
   total,
   isAdmin,
@@ -270,6 +280,7 @@ function DateSection({
 }: {
   date: string;
   roomSlug: string;
+  projectSlug: string;
   files: ApiMediaFile[];
   total: number;
   isAdmin: boolean;
@@ -288,6 +299,7 @@ function DateSection({
       <FileGrid
         files={files}
         roomSlug={roomSlug}
+        projectSlug={projectSlug}
         date={date}
         origin="room"
         isAdmin={isAdmin}
