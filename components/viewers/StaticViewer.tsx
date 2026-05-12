@@ -66,12 +66,11 @@ export function StaticViewer() {
   }, [ctx?.file.id]);
 
   useEffect(() => {
-    const blocking = annotationForm !== null || detailsForId !== null;
-    if (!blocking) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
-      setAnnotationForm(null);
-      setDetailsForId(null);
+      if (annotationForm !== null) { setAnnotationForm(null); return; }
+      if (detailsForId !== null) { setDetailsForId(null); return; }
+      window.history.back();
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);

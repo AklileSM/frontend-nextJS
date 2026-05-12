@@ -165,7 +165,24 @@ export default function ProfilePage() {
         </div>
 
         {loading ? (
-          <div className="mt-8 text-ink-300">Loading profile data...</div>
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div
+                key={i}
+                className="animate-pulse rounded-md border border-base-800 bg-base-900/40 p-4"
+                style={{ animationDelay: `${i * 55}ms` }}
+              >
+                <div className="mb-3 aspect-[4/3] rounded border border-base-800 bg-base-800/60" />
+                <div className="h-3.5 w-3/4 rounded bg-base-800" />
+                <div className="mt-2 h-3 w-1/2 rounded bg-base-800/70" />
+                <div className="mt-3 flex gap-2">
+                  <div className="h-7 w-14 rounded border border-base-800 bg-base-800/50" />
+                  <div className="h-7 w-20 rounded border border-base-800 bg-base-800/50" />
+                  <div className="h-7 w-14 rounded border border-base-800 bg-base-800/50" />
+                </div>
+              </div>
+            ))}
+          </div>
         ) : tab === 'reports' ? (
           <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {reports.map((r) => (

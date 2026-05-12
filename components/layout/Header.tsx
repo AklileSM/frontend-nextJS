@@ -133,8 +133,10 @@ function ProjectSwitcher({ projects }: { projects: ApiProject[] | null }) {
     };
   }, [open]);
 
-  const currentSlug = pathname?.match(/^\/app\/projects\/([^/]+)/)?.[1] ?? null;
-  const current = projects?.find((p) => p.slug === currentSlug) ?? projects?.[0];
+  const slugFromPath = pathname?.match(/^\/app\/projects\/([^/]+)/)?.[1] ?? null;
+  const slugFromStorage = (() => { try { return sessionStorage.getItem('sidebar.lastProjectSlug'); } catch { return null; } })();
+  const currentSlug = slugFromPath ?? slugFromStorage;
+  const current = (currentSlug ? projects?.find((p) => p.slug === currentSlug) : null) ?? projects?.[0];
 
   return (
     <div ref={wrapRef} className="relative">

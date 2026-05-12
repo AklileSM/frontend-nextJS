@@ -83,9 +83,21 @@ function Inner() {
   return (
     <StandaloneShell maxWidth="900px">
         {loading || !project ? (
-          <div className="flex items-center gap-2 text-[13px] text-ink-400">
-            <Loader2 size={14} className="animate-spin" />
-            Loading settings…
+          <div className="animate-pulse space-y-10">
+            <div>
+              <div className="h-3 w-24 rounded bg-base-800/80" />
+              <div className="mt-5 h-10 w-72 rounded bg-base-800" />
+            </div>
+            <div className="flex gap-6 border-b border-base-800 pb-1">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-4 w-16 rounded bg-base-800/70" />
+              ))}
+            </div>
+            <div className="space-y-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-10 rounded-md bg-base-800/50" style={{ width: `${70 + i * 7}%` }} />
+              ))}
+            </div>
           </div>
         ) : (
           <motion.div

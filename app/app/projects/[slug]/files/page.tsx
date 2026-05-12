@@ -46,7 +46,9 @@ export default function FileExplorerPage() {
   const [reloadToken, setReloadToken] = useState(0);
   const [roomFilter, setRoomFilter] = useState<Set<string> | null>(null);
   const [visibleCount, setVisibleCount] = useState(10);
+  const [hiddenFileIds, setHiddenFileIds] = useState<Set<string>>(new Set());
   const knownPendingRef = useRef<Set<string>>(new Set());
+  const cancelDeleteRefs = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   const date = params.get('date') ?? mockCaptureDates[mockCaptureDates.length - 1];
   const isAdmin = user?.is_admin ?? false;
@@ -131,16 +133,39 @@ export default function FileExplorerPage() {
     return () => clearInterval(id);
   }, [response, visibleRooms]);
 
-  const handleDeleteConfirm = useCallback(async () => {
+  const handleDeleteConfirm = useCallback(() => {
     if (!pendingDelete) return;
-    try {
-      await deleteFileAsset(pendingDelete.id);
-      toast.success(`Deleted ${pendingDelete.file_name}.`);
-      setPendingDelete(null);
-      setReloadToken((t) => t + 1);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Delete failed.');
-    }
+    const file = pendingDelete;
+    setPendingDelete(null);
+
+    // Optimistically hide the file immediately.
+    setHiddenFileIds((prev) => new Set([...prev, file.id]));
+
+    // Give a 5-second undo window before actually calling the API.
+    const timerId = setTimeout(async () => {
+      cancelDeleteRefs.current.delete(file.id);
+      try {
+        await deleteFileAsset(file.id);
+        setHiddenFileIds((prev) => { const n = new Set(prev); n.delete(file.id); return n; });
+        setReloadToken((t) => t + 1);
+      } catch (err) {
+        setHiddenFileIds((prev) => { const n = new Set(prev); n.delete(file.id); return n; });
+        toast.error(err instanceof Error ? err.message : 'Delete failed.');
+      }
+    }, 5000);
+    cancelDeleteRefs.current.set(file.id, timerId);
+
+    toast.success(`${file.file_name} deleted.`, {
+      duration: 5000,
+      action: {
+        label: 'Undo',
+        onClick: () => {
+          clearTimeout(cancelDeleteRefs.current.get(file.id));
+          cancelDeleteRefs.current.delete(file.id);
+          setHiddenFileIds((prev) => { const n = new Set(prev); n.delete(file.id); return n; });
+        },
+      },
+    });
   }, [pendingDelete]);
 
   if (!project) {
@@ -232,7 +257,7 @@ export default function FileExplorerPage() {
         {response &&
           visibleRooms.slice(0, visibleCount).map((room) => {
             const group = pickGroup(response.rooms, room) ?? emptyGroup();
-            const files = filesForTab(group, tab);
+            const files = filesForTab(group, tab).filter((f) => !hiddenFileIds.has(f.id));
             const total = group.images.length + group.videos.length + group.pointclouds.length + group.pdfs.length;
             return (
               <RoomSection

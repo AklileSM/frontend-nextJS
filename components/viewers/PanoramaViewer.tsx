@@ -37,6 +37,14 @@ export function PanoramaViewer() {
 
   const backHref = useMemo(() => (ctx ? backHrefFor(ctx) : fallbackHref), [ctx, fallbackHref]);
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') window.history.back();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
+
   const runAi = async () => {
     if (!ctx || analyzing) return;
     setAnalyzing(true);

@@ -67,6 +67,12 @@ export function Thumbnail({ file, roomSlug, projectSlug = '', date, origin, isAd
       <button
         type="button"
         onClick={open}
+        onKeyDown={(e) => {
+          if ((e.key === 'Delete' || e.key === 'Backspace') && canDelete) {
+            e.preventDefault();
+            onDelete(file);
+          }
+        }}
         className={`relative block w-full bg-gradient-to-br ${meta.gradient} aspect-[4/3]`}
         aria-label={`Open ${file.file_name}`}
       >

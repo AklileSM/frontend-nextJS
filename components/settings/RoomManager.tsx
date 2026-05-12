@@ -77,14 +77,19 @@ export function RoomManager({
   };
 
   const handleDelete = async (roomId: string, roomName: string) => {
+    // Optimistically remove the room immediately.
+    const prev = rooms;
+    const next = rooms.filter((r) => r.id !== roomId);
+    setRooms(next);
+    onRoomsChanged?.(next);
     setPendingDelete(roomId);
     try {
       await deleteRoom(projectId, roomId);
-      const next = rooms.filter((r) => r.id !== roomId);
-      setRooms(next);
-      onRoomsChanged?.(next);
       toast.success(`Room "${roomName}" deleted`);
     } catch (err) {
+      // Rollback on failure.
+      setRooms(prev);
+      onRoomsChanged?.(prev);
       toast.error(err instanceof Error ? err.message : 'Failed to delete room');
     } finally {
       setPendingDelete(null);
@@ -96,10 +101,17 @@ export function RoomManager({
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 py-6 text-[13px] text-ink-400">
-        <Loader2 size={14} className="animate-spin" />
-        Loading rooms…
-      </div>
+      <ul className="animate-pulse divide-y divide-base-800/60 overflow-hidden rounded-lg border border-base-800">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <li key={i} className="flex items-center justify-between gap-4 bg-base-900/20 px-4 py-3">
+            <div className="space-y-1.5">
+              <div className="h-3.5 w-32 rounded bg-base-800" />
+              <div className="h-2.5 w-20 rounded bg-base-800/60" />
+            </div>
+            <div className="h-7 w-7 rounded bg-base-800/50" />
+          </li>
+        ))}
+      </ul>
     );
   }
 

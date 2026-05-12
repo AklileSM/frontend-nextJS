@@ -49,6 +49,8 @@ function Inner() {
   const [tab, setTab] = useState<MediaTab>('images');
   const [pendingDelete, setPendingDelete] = useState<ApiMediaFile | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
+  const [hiddenFileIds, setHiddenFileIds] = useState<Set<string>>(new Set());
+  const cancelDeleteRefs = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   // null = "default" — treat as all dates checked. Once the user touches the
   // filter we store the explicit selection so empty (none-selected) is honored.
   const [dateFilter, setDateFilter] = useState<Set<string> | null>(null);
@@ -200,16 +202,37 @@ function Inner() {
     return () => clearInterval(id);
   }, [response, datesEntries]);
 
-  const handleDeleteConfirm = useCallback(async () => {
+  const handleDeleteConfirm = useCallback(() => {
     if (!pendingDelete) return;
-    try {
-      await deleteFileAsset(pendingDelete.id);
-      toast.success(`Deleted ${pendingDelete.file_name}.`);
-      setPendingDelete(null);
-      setReloadToken((t) => t + 1);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Delete failed.');
-    }
+    const file = pendingDelete;
+    setPendingDelete(null);
+
+    setHiddenFileIds((prev) => new Set([...prev, file.id]));
+
+    const timerId = setTimeout(async () => {
+      cancelDeleteRefs.current.delete(file.id);
+      try {
+        await deleteFileAsset(file.id);
+        setHiddenFileIds((prev) => { const n = new Set(prev); n.delete(file.id); return n; });
+        setReloadToken((t) => t + 1);
+      } catch (err) {
+        setHiddenFileIds((prev) => { const n = new Set(prev); n.delete(file.id); return n; });
+        toast.error(err instanceof Error ? err.message : 'Delete failed.');
+      }
+    }, 5000);
+    cancelDeleteRefs.current.set(file.id, timerId);
+
+    toast.success(`${file.file_name} deleted.`, {
+      duration: 5000,
+      action: {
+        label: 'Undo',
+        onClick: () => {
+          clearTimeout(cancelDeleteRefs.current.get(file.id));
+          cancelDeleteRefs.current.delete(file.id);
+          setHiddenFileIds((prev) => { const n = new Set(prev); n.delete(file.id); return n; });
+        },
+      },
+    });
   }, [pendingDelete]);
 
   return (
@@ -244,7 +267,7 @@ function Inner() {
         {!response && <Skeleton />}
         {response &&
           datesEntries.map(([date, group]) => {
-            const files = group[tab];
+            const files = group[tab].filter((f) => !hiddenFileIds.has(f.id));
             const total =
               group.images.length + group.videos.length + group.pointclouds.length + group.pdfs.length;
             return (

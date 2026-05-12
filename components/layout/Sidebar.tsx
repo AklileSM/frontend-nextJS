@@ -350,18 +350,33 @@ function ProjectAccordion({
   );
 }
 
+const roomOpenKey = (slug: string) => `a6.sidebar.roomOpen.${slug}`;
+
 function RoomAccordion({ room }: { room: ApiRoom }) {
   const params = useSearchParams();
   const isActive = params.get('room') === room.slug;
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(() => {
+    try { return sessionStorage.getItem(roomOpenKey(room.slug)) === '1'; } catch { return false; }
+  });
   const [dates, setDates] = useState<Array<[string, ApiRoomMediaGroup]> | null>(null);
 
-  const toggle = async () => {
-    setOpen((v) => !v);
-    if (!dates) {
-      const res = await getExplorerByRoom(room.slug);
+  // Fetch dates whenever the accordion opens for the first time.
+  useEffect(() => {
+    if (!open || dates) return;
+    getExplorerByRoom(room.slug).then((res) => {
       setDates(Object.entries(res.dates).sort(([a], [b]) => b.localeCompare(a)));
-    }
+    }).catch(() => {});
+  }, [open, dates, room.slug]);
+
+  const toggle = () => {
+    setOpen((v) => {
+      const next = !v;
+      try {
+        if (next) sessionStorage.setItem(roomOpenKey(room.slug), '1');
+        else sessionStorage.removeItem(roomOpenKey(room.slug));
+      } catch { /* ignore */ }
+      return next;
+    });
   };
 
   return (
