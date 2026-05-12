@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
-import { Plus, MapPin, Settings, FolderOpen, ChevronRight } from 'lucide-react';
+import { Plus, MapPin, Settings, FolderOpen, ChevronRight, Camera, ScanLine, FileText, ArrowRight } from 'lucide-react';
 import { listProjects } from '@/services/apiClient';
 import { useAuth } from '@/context/AuthContext';
 import { StandaloneShell } from '@/components/layout/StandaloneShell';
@@ -220,31 +220,79 @@ function ProjectCard({ project, isAdmin }: { project: ApiProject; isAdmin: boole
   );
 }
 
+const FEATURES = [
+  { icon: Camera, label: 'Photos & video', body: 'Capture every corner of the site organised by room and date.' },
+  { icon: ScanLine, label: '3D point clouds', body: 'Upload LiDAR scans and explore them in the browser.' },
+  { icon: FileText, label: 'Field reports', body: 'Annotate captures and publish PDF reports in one click.' },
+];
+
 function EmptyState({ isAdmin, onNew }: { isAdmin: boolean; onNew: () => void }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4 }}
-      className="flex flex-col items-center justify-center rounded-xl border border-dashed border-base-700 bg-base-900/20 px-6 py-24 text-center"
+      transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+      className="relative overflow-hidden rounded-2xl border border-base-800 bg-base-900/30"
     >
-      <div className="flex h-14 w-14 items-center justify-center rounded-full border border-base-700 bg-base-900">
-        <FolderOpen size={22} className="text-ink-400" />
+      {/* Background grid pattern */}
+      <div
+        className="pointer-events-none absolute inset-0 opacity-[0.035]"
+        style={{
+          backgroundImage: 'linear-gradient(rgba(255,255,255,0.6) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.6) 1px, transparent 1px)',
+          backgroundSize: '40px 40px',
+        }}
+      />
+      {/* Amber glow */}
+      <div className="pointer-events-none absolute -top-32 left-1/2 h-64 w-[480px] -translate-x-1/2 rounded-full bg-amber-500/10 blur-3xl" />
+
+      <div className="relative px-8 py-20 text-center sm:px-16">
+        {/* Icon badge */}
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-amber-500/25 bg-amber-500/10 shadow-[0_0_32px_-8px_rgba(245,158,11,0.3)]">
+          <FolderOpen size={26} className="text-amber-400" />
+        </div>
+
+        {/* Heading */}
+        <h2 className="mt-6 font-display text-[28px] font-semibold leading-tight tracking-[-0.018em] text-white sm:text-[34px]">
+          {isAdmin ? 'Create your first project' : 'No projects yet'}
+        </h2>
+        <p className="mx-auto mt-3 max-w-[42ch] text-[14px] leading-[1.7] text-ink-300">
+          {isAdmin
+            ? 'A project groups all the rooms, captures, and reports for one construction site. Set one up to get started.'
+            : 'You haven\'t been added to any projects yet. Ask your site admin to invite you.'}
+        </p>
+
+        {/* CTA */}
+        {isAdmin ? (
+          <button
+            type="button"
+            onClick={onNew}
+            className="mt-8 inline-flex items-center gap-2 rounded-lg bg-amber-500 px-6 py-3 text-[14px] font-semibold text-base-950 shadow-[0_8px_24px_-10px_rgba(245,158,11,0.55)] transition-all hover:bg-amber-400 hover:shadow-[0_8px_32px_-8px_rgba(245,158,11,0.7)]"
+          >
+            <Plus size={15} strokeWidth={2.5} />
+            New project
+            <ArrowRight size={14} className="ml-0.5 opacity-70" />
+          </button>
+        ) : (
+          <div className="mt-8 inline-flex items-center gap-2 rounded-lg border border-base-700 bg-base-800/50 px-5 py-2.5 font-mono text-[12px] uppercase tracking-[0.14em] text-ink-400">
+            Waiting for project access
+          </div>
+        )}
+
+        {/* Feature strip — admins only */}
+        {isAdmin && (
+          <div className="mx-auto mt-14 grid max-w-2xl gap-px overflow-hidden rounded-xl border border-base-800 sm:grid-cols-3">
+            {FEATURES.map(({ icon: Icon, label, body }) => (
+              <div key={label} className="flex flex-col items-start gap-2 bg-base-900/60 px-5 py-5 text-left">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-base-700 bg-base-800">
+                  <Icon size={15} className="text-amber-400" />
+                </div>
+                <p className="font-display text-[13px] font-semibold text-white">{label}</p>
+                <p className="text-[12px] leading-[1.6] text-ink-400">{body}</p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
-      <h2 className="mt-5 font-display text-[22px] font-semibold text-white">No projects yet</h2>
-      <p className="mt-2 max-w-[34ch] text-[14px] leading-[1.65] text-ink-300">
-        Projects organise your site documentation by location and team.
-      </p>
-      {isAdmin && (
-        <button
-          type="button"
-          onClick={onNew}
-          className="mt-8 inline-flex items-center gap-2 rounded-md bg-amber-500 px-5 py-2.5 text-[13px] font-semibold text-base-950 transition-all hover:bg-amber-400"
-        >
-          <Plus size={14} />
-          Create your first project
-        </button>
-      )}
     </motion.div>
   );
 }
