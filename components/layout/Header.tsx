@@ -23,6 +23,10 @@ export function Header() {
     return () => { cancelled = true; };
   }, []);
 
+  const slugFromPath = pathname?.match(/^\/app\/projects\/([^/]+)/)?.[1] ?? null;
+  const slugFromStorage = (() => { try { return sessionStorage.getItem('sidebar.lastProjectSlug'); } catch { return null; } })();
+  const currentSlug = slugFromPath ?? slugFromStorage ?? null;
+
   return (
     <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-base-800 bg-base-950/85 px-4 backdrop-blur sm:px-6 lg:px-8">
       <button
@@ -37,8 +41,8 @@ export function Header() {
       <Breadcrumb projects={projects} />
 
       <div className="ml-auto flex items-center gap-2">
-        <ProjectSwitcher projects={projects} />
-        <CompareToggle onCompare={!!onCompare} />
+        <ProjectSwitcher projects={projects} currentSlug={currentSlug} />
+        <CompareToggle onCompare={!!onCompare} projectSlug={currentSlug} />
         <ProfileMenu />
       </div>
     </header>
@@ -111,9 +115,8 @@ function humanize(slug: string): string {
 
 // --- Project switcher -------------------------------------------------------
 
-function ProjectSwitcher({ projects }: { projects: ApiProject[] | null }) {
+function ProjectSwitcher({ projects, currentSlug }: { projects: ApiProject[] | null; currentSlug: string | null }) {
   const router = useRouter();
-  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
 
@@ -133,9 +136,6 @@ function ProjectSwitcher({ projects }: { projects: ApiProject[] | null }) {
     };
   }, [open]);
 
-  const slugFromPath = pathname?.match(/^\/app\/projects\/([^/]+)/)?.[1] ?? null;
-  const slugFromStorage = (() => { try { return sessionStorage.getItem('sidebar.lastProjectSlug'); } catch { return null; } })();
-  const currentSlug = slugFromPath ?? slugFromStorage;
   const current = (currentSlug ? projects?.find((p) => p.slug === currentSlug) : null) ?? projects?.[0];
 
   return (
@@ -205,7 +205,7 @@ function ProjectSwitcher({ projects }: { projects: ApiProject[] | null }) {
 
 // --- Compare toggle ---------------------------------------------------------
 
-function CompareToggle({ onCompare }: { onCompare: boolean }) {
+function CompareToggle({ onCompare, projectSlug }: { onCompare: boolean; projectSlug: string | null }) {
   if (onCompare) {
     return (
       <Link
@@ -217,9 +217,10 @@ function CompareToggle({ onCompare }: { onCompare: boolean }) {
       </Link>
     );
   }
+  const href = projectSlug ? `/app/compare?project=${projectSlug}` : '/app/compare';
   return (
     <Link
-      href="/app/compare"
+      href={href}
       className="inline-flex items-center gap-2 rounded-md bg-amber-500 px-3 py-1.5 text-[13px] font-semibold text-base-950 transition-colors hover:bg-amber-400"
     >
       <GitCompareArrows size={14} />

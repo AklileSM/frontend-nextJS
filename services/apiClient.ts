@@ -155,6 +155,10 @@ export async function listRooms(): Promise<ApiRoom[]> {
   }
 }
 
+export function listProjectRooms(projectId: string): Promise<ApiRoom[]> {
+  return getJson<ApiRoom[]>(`/projects/${projectId}/rooms`);
+}
+
 export function getExplorerByDate(date: string): Promise<ExplorerByDateResponse> {
   return getJson<ExplorerByDateResponse>(`/files/explorer/date/${date}`);
 }
