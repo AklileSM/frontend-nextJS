@@ -27,7 +27,13 @@ function autoSlug(name: string) {
 const inputCls =
   'rounded-md border border-base-700 bg-base-950 px-3 py-2 text-[13px] text-white outline-none placeholder:text-ink-500 focus:border-amber-500 transition-colors';
 
-export function ProjectRoomsTab({ projectId }: { projectId: string }) {
+export function ProjectRoomsTab({
+  projectId,
+  onRoomsLoaded,
+}: {
+  projectId: string;
+  onRoomsLoaded?: (rooms: ApiRoom[]) => void;
+}) {
   const [rooms, setRooms] = useState<ApiRoom[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -55,6 +61,7 @@ export function ProjectRoomsTab({ projectId }: { projectId: string }) {
         .filter((r) => r.project_id === projectId)
         .sort((a, b) => a.sort_order - b.sort_order);
       setRooms(sorted);
+      onRoomsLoaded?.(sorted);
     } catch {
       toast.error('Failed to load rooms');
     } finally {

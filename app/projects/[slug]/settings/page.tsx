@@ -11,21 +11,19 @@ import { useAuth } from '@/context/AuthContext';
 import { Logo } from '@/components/landing/Logo';
 import { ProjectEditTab } from '@/components/settings/ProjectEditTab';
 import { ProjectMembersTab } from '@/components/settings/ProjectMembersTab';
-import { ProjectRoomsTab } from '@/components/settings/ProjectRoomsTab';
 import { ProjectSetupTab } from '@/components/settings/ProjectSetupTab';
 import { ProjectDangerTab } from '@/components/settings/ProjectDangerTab';
 import type { ApiProject, ApiProjectMember } from '@/types/api';
 
 export const dynamic = 'force-dynamic';
 
-type Tab = 'edit' | 'rooms' | 'members' | 'setup' | 'danger';
+type Tab = 'edit' | 'members' | 'setup' | 'danger';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'edit', label: 'Edit' },
-  { id: 'rooms', label: 'Rooms' },
   { id: 'members', label: 'Members' },
   { id: 'setup', label: 'Setup' },
-  { id: 'danger', label: 'Danger zone' },
+  { id: 'danger', label: 'Manage' },
 ];
 
 export default function ProjectSettingsPage() {
@@ -138,7 +136,6 @@ function Inner() {
             <div className="mb-10 flex gap-1 border-b border-base-800">
               {TABS.map((tab) => {
                 const active = tab.id === activeTab;
-                const isDanger = tab.id === 'danger';
                 return (
                   <button
                     key={tab.id}
@@ -146,12 +143,8 @@ function Inner() {
                     onClick={() => setTab(tab.id)}
                     className={`px-4 py-2.5 text-[13px] font-medium transition-colors border-b-2 -mb-px ${
                       active
-                        ? isDanger
-                          ? 'border-red-500 text-red-400'
-                          : 'border-amber-500 text-white'
-                        : isDanger
-                          ? 'border-transparent text-ink-400 hover:text-red-400'
-                          : 'border-transparent text-ink-400 hover:text-white'
+                        ? 'border-amber-500 text-white'
+                        : 'border-transparent text-ink-400 hover:text-white'
                     }`}
                   >
                     {tab.label}
@@ -163,9 +156,6 @@ function Inner() {
             {/* Tab content */}
             {activeTab === 'edit' && (
               <ProjectEditTab project={project} onUpdated={setProject} />
-            )}
-            {activeTab === 'rooms' && (
-              <ProjectRoomsTab projectId={project.id} />
             )}
             {activeTab === 'members' && (
               <ProjectMembersTab projectId={project.id} canManage={canManage} />
