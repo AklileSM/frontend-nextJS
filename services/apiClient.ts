@@ -74,17 +74,22 @@ function addRoomGroupsToDateCounts(
   }
 }
 
-async function explorerDatesSummaryFromRooms(): Promise<ExplorerDatesSummaryResponse> {
+async function explorerDatesSummaryFromRooms(projectId?: string): Promise<ExplorerDatesSummaryResponse> {
   const rooms = await listRooms();
+  const target = projectId ? rooms.filter((r) => r.project_id === projectId) : rooms;
   const byDate: Record<string, DateMediaCounts> = {};
   await Promise.all(
-    rooms.map((room) =>
+    target.map((room) =>
       getExplorerByRoom(room.slug).then((res) => {
         addRoomGroupsToDateCounts(byDate, res.dates ?? {});
       }),
     ),
   );
   return { dates: byDate };
+}
+
+export function getExplorerDatesSummaryForProject(projectId: string): Promise<ExplorerDatesSummaryResponse> {
+  return explorerDatesSummaryFromRooms(projectId);
 }
 
 export type ApiProjectCreateRequest = {

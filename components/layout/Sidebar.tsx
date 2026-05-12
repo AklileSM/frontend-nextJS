@@ -192,7 +192,7 @@ export function Sidebar() {
           <SectionLabel expanded={open} className="pt-3">
             Calendar
           </SectionLabel>
-          <MiniCalendar />
+          <MiniCalendar projectId={currentProject?.id} />
         </div>
 
         <UserFooter

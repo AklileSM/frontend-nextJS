@@ -15,15 +15,16 @@ import { motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
-import { getExplorerDatesSummary } from '@/services/apiClient';
+import { getExplorerDatesSummary, getExplorerDatesSummaryForProject } from '@/services/apiClient';
 import { useSelectedDate } from '@/context/SelectedDateContext';
 
 const SCOPE = 'home';
 const WEEKDAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'] as const;
+const PERSIST_KEY = 'sidebar.lastProjectSlug';
 
 type DateCounts = Record<string, { total: number }>;
 
-export function MiniCalendar() {
+export function MiniCalendar({ projectId }: { projectId?: string }) {
   const { getDateForScope, setDateForScope } = useSelectedDate();
   const router = useRouter();
   const pathname = usePathname();
@@ -31,10 +32,13 @@ export function MiniCalendar() {
   const selectedISO = getDateForScope(SCOPE);
   const selected = selectedISO ? parseISO(selectedISO) : null;
 
-  // Derive the active project slug from the current URL so the calendar routes
-  // to the correct project's file explorer. Falls back to a6-stern when on /app.
-  const projectSlug =
-    pathname.match(/\/app\/projects\/([^/]+)/)?.[1] ?? 'a6-stern';
+  // Derive the project slug to use for navigation: URL path wins, then
+  // the persisted sidebar slug (covers viewer pages, /app home, etc.).
+  const projectSlug = useMemo(() => {
+    const fromPath = pathname.match(/\/app\/projects\/([^/]+)/)?.[1];
+    if (fromPath) return fromPath;
+    try { return sessionStorage.getItem(PERSIST_KEY) ?? ''; } catch { return ''; }
+  }, [pathname]);
 
   const onPick = (iso: string) => {
     setDateForScope(SCOPE, iso);
@@ -43,16 +47,22 @@ export function MiniCalendar() {
     router.push(`/app/projects/${projectSlug}/files?${next.toString()}`);
   };
 
-  // Default to October 2024 (the month that has demo data) so first paint shows
-  // the highlights. Once the user navigates we honor that month.
-  const [cursor, setCursor] = useState(() => parseISO('2024-10-01'));
+  const [cursor, setCursor] = useState(() => {
+    // Start at the current month; demo data in October 2024 will still be
+    // reachable via the prev-month button.
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
   const [counts, setCounts] = useState<DateCounts>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    getExplorerDatesSummary()
+    const fetch = projectId
+      ? getExplorerDatesSummaryForProject(projectId)
+      : getExplorerDatesSummary();
+    fetch
       .then((res) => {
         if (cancelled) return;
         const next: DateCounts = {};
@@ -60,14 +70,19 @@ export function MiniCalendar() {
           next[date] = { total: c.images + c.videos + c.pointclouds + c.pdfs };
         }
         setCounts(next);
+        // Jump to the most recent month that has data, so the user sees dots
+        // immediately rather than an empty grid.
+        const dates = Object.keys(next).sort();
+        if (dates.length) {
+          const latest = parseISO(dates[dates.length - 1]);
+          setCursor(new Date(latest.getFullYear(), latest.getMonth(), 1));
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    return () => { cancelled = true; };
+  }, [projectId]);
 
   const cells = useMemo(() => buildMonthCells(cursor), [cursor]);
 

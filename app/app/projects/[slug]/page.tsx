@@ -172,7 +172,7 @@ export default function ProjectHomePage() {
                     <ChartLocation projectId={project.id} hoveredRoom={hoveredRoom} />
                   ) : (
                     <div className="-mx-2">
-                      <MiniCalendar />
+                      <MiniCalendar projectId={project.id} />
                     </div>
                   )}
                 </motion.div>
