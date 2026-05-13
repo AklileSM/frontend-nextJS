@@ -984,7 +984,7 @@ export async function deleteProject(projectId: string): Promise<void> {
 
 export function inviteProjectMember(
   projectId: string,
-  body: { username: string; role: 'owner' | 'editor' | 'viewer' },
+  body: { user_id: string; role: 'owner' | 'editor' | 'viewer' },
 ): Promise<ApiProjectMember> {
   return getJson<ApiProjectMember>(`/projects/${projectId}/members`, {
     method: 'POST',
