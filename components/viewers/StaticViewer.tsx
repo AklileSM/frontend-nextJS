@@ -203,8 +203,8 @@ export function StaticViewer() {
       <section className="space-y-4 rounded-md border border-base-800 bg-base-900/40 p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h1 className="font-display text-[26px] text-white">{ctx.file.file_name}</h1>
-            <p className="text-[12px] text-ink-300">Static viewer · pan/zoom · annotations · AI</p>
+            <p className="font-mono text-[12px] uppercase tracking-[0.22em] text-amber-500">Static Viewer</p>
+            <h1 className="mt-1.5 font-display text-[22px] font-semibold leading-tight tracking-[-0.015em] text-white sm:text-[26px]">{ctx.file.file_name}</h1>
           </div>
           <Link href={backHref} className="rounded-md border border-base-700 px-3 py-1.5 text-[13px] text-white">
             Back
