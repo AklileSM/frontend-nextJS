@@ -3,25 +3,25 @@
 import { Check, Minus } from 'lucide-react';
 import { Section, SectionHeading, Reveal } from './Section';
 
-type Capability = 'browse' | 'upload' | 'delete' | 'reports';
+type Capability = 'browse' | 'upload' | 'manage' | 'reports';
 
-const matrix: Record<'admin' | 'manager' | 'viewer', Record<Capability, boolean | 'self'>> = {
-  admin: { browse: true, upload: true, delete: true, reports: true },
-  manager: { browse: true, upload: false, delete: true, reports: 'self' },
-  viewer: { browse: true, upload: false, delete: false, reports: 'self' },
+const matrix: Record<'owner' | 'editor' | 'viewer', Record<Capability, boolean>> = {
+  owner:  { browse: true, upload: true, manage: true, reports: true },
+  editor: { browse: true, upload: true, manage: false, reports: true },
+  viewer: { browse: true, upload: false, manage: false, reports: true },
 };
 
-const roles: Array<{ key: 'admin' | 'manager' | 'viewer'; name: string; sub: string }> = [
-  { key: 'admin', name: 'Admin', sub: 'First user on a project becomes admin' },
-  { key: 'manager', name: 'Manager', sub: 'Reviews captures, deletes incorrect uploads' },
-  { key: 'viewer', name: 'Viewer', sub: 'Read-only field access' },
+const roles: Array<{ key: 'owner' | 'editor' | 'viewer'; name: string; sub: string }> = [
+  { key: 'owner', name: 'Owner', sub: 'Full control — uploads, rooms, members, and project settings' },
+  { key: 'editor', name: 'Editor', sub: 'Uploads and deletes captures, and manages rooms' },
+  { key: 'viewer', name: 'Viewer', sub: 'Read-only access to captures and reports' },
 ];
 
 const cols: Array<{ key: Capability; label: string; note: string }> = [
   { key: 'browse', label: 'Browse', note: 'Open the timeline and viewers' },
   { key: 'upload', label: 'Upload', note: 'Add captures to the project' },
-  { key: 'delete', label: 'Delete', note: 'Remove file assets' },
-  { key: 'reports', label: 'Reports', note: 'Publish & download PDFs' },
+  { key: 'manage', label: 'Manage team', note: 'Project settings and member invites' },
+  { key: 'reports', label: 'Reports', note: 'Create and publish PDFs' },
 ];
 
 export function Roles() {
@@ -83,18 +83,11 @@ export function Roles() {
   );
 }
 
-function Mark({ value }: { value: boolean | 'self' }) {
-  if (value === true) {
+function Mark({ value }: { value: boolean }) {
+  if (value) {
     return (
       <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-amber-500/15 text-amber-500">
         <Check size={16} strokeWidth={2.4} />
-      </span>
-    );
-  }
-  if (value === 'self') {
-    return (
-      <span className="inline-flex h-8 items-center rounded-md bg-base-800 px-3 font-mono text-[11px] uppercase tracking-[0.14em] text-ink-200">
-        Own only
       </span>
     );
   }
