@@ -353,7 +353,7 @@ function PanelFileExplorer({
       )}
 
       {/* Media tabs */}
-      <div className="border-b border-base-800 px-3 py-2">
+      <div className="border-b border-base-800 px-3 py-3">
         <MediaTabs
           active={activeTab}
           counts={tabCounts}
