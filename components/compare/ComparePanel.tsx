@@ -41,7 +41,7 @@ import {
   createComparisonDraft,
   deleteComparisonDraft,
   getComparisonDraft,
-  getExplorerByDate,
+  getExplorerByDateForProject,
   getExplorerDatesSummaryForProject,
   listComparisonDrafts,
   listProjects,
@@ -405,12 +405,14 @@ function PickerThumbnail({
 // ── PanelFileExplorer ─────────────────────────────────────────────────────────
 
 function PanelFileExplorer({
+  projectId,
   selectedDate,
   disabledFileUrl,
   onFileSelect,
   onBackToCalendar,
   tabRailId,
 }: {
+  projectId: string;
   selectedDate: string;
   disabledFileUrl: string | null;
   onFileSelect: (sel: FileSelection) => void;
@@ -418,49 +420,42 @@ function PanelFileExplorer({
   tabRailId: string;
 }) {
   const [activeTab, setActiveTab] = useState<MediaTab>('images');
-  const [selectedRoomSlug, setSelectedRoomSlug] = useState<string | null>(null);
   const [roomsForDate, setRoomsForDate] = useState<Record<string, ApiRoomMediaGroup>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Reset selections on date change
   useEffect(() => {
-    setSelectedRoomSlug(null);
     setActiveTab('images');
   }, [selectedDate]);
 
   useEffect(() => {
-    if (!selectedDate) return;
+    if (!selectedDate || !projectId) return;
     let cancelled = false;
     setLoading(true);
     setError(null);
-    getExplorerByDate(selectedDate)
+    getExplorerByDateForProject(projectId, selectedDate)
       .then((res) => { if (!cancelled) setRoomsForDate(res.rooms || {}); })
       .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load files.'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [selectedDate]);
+  }, [selectedDate, projectId]);
 
   const roomSlugs = Object.keys(roomsForDate);
 
   const tabCounts = useMemo((): Record<MediaTab, number> => {
     const result = { images: 0, videos: 0, pointclouds: 0, pdfs: 0 };
-    const entries = selectedRoomSlug
-      ? (roomsForDate[selectedRoomSlug] ? [[selectedRoomSlug, roomsForDate[selectedRoomSlug]] as const] : [])
-      : (Object.entries(roomsForDate) as [string, ApiRoomMediaGroup][]);
-    for (const [, m] of entries) {
+    for (const m of Object.values(roomsForDate)) {
       result.images      += m.images?.length ?? 0;
       result.videos      += m.videos?.length ?? 0;
       result.pointclouds += m.pointclouds?.length ?? 0;
       result.pdfs        += m.pdfs?.length ?? 0;
     }
     return result;
-  }, [roomsForDate, selectedRoomSlug]);
+  }, [roomsForDate]);
 
-  const displayedFiles = useMemo((): ApiMediaFile[] => {
-    const slugs = selectedRoomSlug ? [selectedRoomSlug] : Object.keys(roomsForDate);
-    return slugs.flatMap((slug) => roomsForDate[slug]?.[activeTab] ?? []);
-  }, [roomsForDate, selectedRoomSlug, activeTab]);
+  const displayedFiles = useMemo((): ApiMediaFile[] =>
+    roomSlugs.flatMap((slug) => roomsForDate[slug]?.[activeTab] ?? []),
+  [roomsForDate, roomSlugs, activeTab]);
 
   return (
     <div className="flex h-full flex-col">
@@ -476,37 +471,6 @@ function PanelFileExplorer({
           Calendar
         </button>
       </div>
-
-      {/* Room chips */}
-      {roomSlugs.length > 1 && (
-        <div className="flex items-center gap-1.5 overflow-x-auto border-b border-base-800 px-3 py-2 scrollbar-none">
-          <button
-            type="button"
-            onClick={() => setSelectedRoomSlug(null)}
-            className={`shrink-0 rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors ${
-              selectedRoomSlug === null
-                ? 'bg-amber-500/15 text-amber-400'
-                : 'text-ink-400 hover:bg-base-800 hover:text-white'
-            }`}
-          >
-            All
-          </button>
-          {roomSlugs.map((slug) => (
-            <button
-              key={slug}
-              type="button"
-              onClick={() => setSelectedRoomSlug(slug === selectedRoomSlug ? null : slug)}
-              className={`shrink-0 rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors ${
-                selectedRoomSlug === slug
-                  ? 'bg-amber-500/15 text-amber-400'
-                  : 'text-ink-400 hover:bg-base-800 hover:text-white'
-              }`}
-            >
-              {slug}
-            </button>
-          ))}
-        </div>
-      )}
 
       {/* Media tabs */}
       <div className="border-b border-base-800 px-3 py-3">
@@ -539,7 +503,7 @@ function PanelFileExplorer({
               const url = file.full_src || file.src;
               const isDisabled = url === disabledFileUrl;
               const isPcd = file.type === 'pointcloud' || isPCDUrl(url);
-              const roomSlug = selectedRoomSlug ?? roomSlugs.find(
+              const roomSlug = roomSlugs.find(
                 (s) => roomsForDate[s]?.[activeTab]?.some((f) => f.id === file.id)
               ) ?? '';
               return (
@@ -1060,6 +1024,7 @@ export function ComparePanel() {
 
                   {panel === 'explorer' && selectedDate && (
                     <PanelFileExplorer
+                      projectId={project?.id ?? ''}
                       selectedDate={selectedDate}
                       disabledFileUrl={otherFile?.fileUrl ?? null}
                       onFileSelect={(sel) => handleFileSelect(side, sel)}

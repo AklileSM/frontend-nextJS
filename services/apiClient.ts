@@ -163,6 +163,22 @@ export function getExplorerByDate(date: string): Promise<ExplorerByDateResponse>
   return getJson<ExplorerByDateResponse>(`/files/explorer/date/${date}`);
 }
 
+export async function getExplorerByDateForProject(
+  projectId: string,
+  date: string,
+): Promise<ExplorerByDateResponse> {
+  const [res, rooms] = await Promise.all([
+    getJson<ExplorerByDateResponse>(`/files/explorer/date/${date}`),
+    listProjectRooms(projectId),
+  ]);
+  const projectSlugs = new Set(rooms.map((r) => r.slug));
+  const filtered: Record<string, typeof res.rooms[string]> = {};
+  for (const [slug, group] of Object.entries(res.rooms)) {
+    if (projectSlugs.has(slug)) filtered[slug] = group;
+  }
+  return { ...res, rooms: filtered };
+}
+
 export function getExplorerByRoom(roomSlug: string): Promise<ExplorerByRoomResponse> {
   return getJson<ExplorerByRoomResponse>(`/files/explorer/room/${roomSlug}`);
 }
