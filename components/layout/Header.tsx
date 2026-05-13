@@ -3,16 +3,35 @@
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ChevronDown, GitCompareArrows, Home, Menu, X } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { ArrowLeft, ChevronDown, GitCompareArrows, Home, Menu, X } from 'lucide-react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useSidebar } from './SidebarContext';
 import { ProfileMenu } from '@/components/app/ProfileMenu';
 import { listProjects } from '@/services/apiClient';
 import type { ApiProject } from '@/types/api';
 
+function backFallbackFor(pathname: string, lastProjectSlug: string | null): string | null {
+  const parts = pathname.split('/').filter(Boolean);
+  // /app root — no back button
+  if (parts.length <= 1) return null;
+
+  if (parts[1] === 'projects') {
+    // /app/projects/[slug]/settings or /app/projects/[slug]/files → project home
+    if (parts[2] && parts[3]) return `/app/projects/${parts[2]}`;
+    // /app/projects/[slug] → projects list
+    if (parts[2]) return '/app';
+    return null;
+  }
+
+  // compare, room-explorer, viewer/*, pdf-viewer, profile, admin → last project or root
+  if (lastProjectSlug) return `/app/projects/${lastProjectSlug}`;
+  return '/app';
+}
+
 export function Header() {
   const { toggle, open } = useSidebar();
   const pathname = usePathname();
+  const router = useRouter();
   const onCompare = pathname?.startsWith('/app/compare');
 
   const [projects, setProjects] = useState<ApiProject[] | null>(null);
@@ -27,6 +46,32 @@ export function Header() {
   const slugFromStorage = (() => { try { return sessionStorage.getItem('sidebar.lastProjectSlug'); } catch { return null; } })();
   const currentSlug = slugFromPath ?? slugFromStorage ?? null;
 
+  // Track whether the user has navigated within this session so the back
+  // button can use router.back() instead of the structural fallback URL.
+  const prevPathname = useRef<string | null>(null);
+  const [hasAppHistory, setHasAppHistory] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return !!sessionStorage.getItem('app.hasHistory');
+  });
+
+  useEffect(() => {
+    if (prevPathname.current !== null && prevPathname.current !== pathname) {
+      setHasAppHistory(true);
+      try { sessionStorage.setItem('app.hasHistory', '1'); } catch { /* ignore */ }
+    }
+    prevPathname.current = pathname;
+  }, [pathname]);
+
+  const fallback = backFallbackFor(pathname ?? '/app', slugFromStorage);
+
+  const handleBack = useCallback(() => {
+    if (hasAppHistory) {
+      router.back();
+    } else if (fallback) {
+      router.push(fallback);
+    }
+  }, [hasAppHistory, fallback, router]);
+
   return (
     <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-base-800 bg-base-950/85 px-4 backdrop-blur sm:px-6 lg:px-8">
       <button
@@ -37,6 +82,17 @@ export function Header() {
       >
         {open ? <X size={16} /> : <Menu size={16} />}
       </button>
+
+      {fallback && (
+        <button
+          type="button"
+          onClick={handleBack}
+          aria-label="Go back"
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-base-700 text-ink-300 transition-colors hover:border-ink-300 hover:text-white"
+        >
+          <ArrowLeft size={15} />
+        </button>
+      )}
 
       <Breadcrumb projects={projects} />
 
