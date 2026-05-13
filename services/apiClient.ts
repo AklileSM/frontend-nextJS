@@ -794,6 +794,7 @@ export async function deleteComparisonDraft(draftId: string): Promise<void> {
 
 export async function createComparisonDraft(params: {
   fileId: string;
+  label?: string | null;
   manualObservations?: string | null;
   flags?: string[];
   state: Record<string, unknown>;
@@ -810,6 +811,7 @@ export async function createComparisonDraft(params: {
     },
     body: JSON.stringify({
       file_id: params.fileId,
+      label: params.label ?? null,
       manual_observations: params.manualObservations ?? null,
       flags: params.flags ?? [],
       state: params.state,
@@ -824,6 +826,7 @@ export async function createComparisonDraft(params: {
 export async function updateComparisonDraft(params: {
   draftId: string;
   fileId?: string;
+  label?: string | null;
   manualObservations?: string | null;
   flags?: string[];
   state: Record<string, unknown>;
@@ -842,6 +845,7 @@ export async function updateComparisonDraft(params: {
       },
       body: JSON.stringify({
         file_id: params.fileId ?? null,
+        label: params.label ?? null,
         manual_observations: params.manualObservations ?? null,
         flags: params.flags ?? [],
         state: params.state,
