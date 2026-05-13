@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
   addMonths,
   eachDayOfInterval,
@@ -11,6 +11,7 @@ import {
   endOfWeek,
   format,
   isSameMonth,
+  parseISO,
   startOfMonth,
   startOfWeek,
 } from 'date-fns';
@@ -100,6 +101,23 @@ function isPCDUrl(url: string): boolean {
 
 // ── CompareCalendar ───────────────────────────────────────────────────────────
 
+const WEEKDAYS_SHORT = ['M', 'T', 'W', 'T', 'F', 'S', 'S'] as const;
+const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'] as const;
+
+const calSlideVariants = {
+  enterForward:  { x: 20, opacity: 0 },
+  enterBackward: { x: -20, opacity: 0 },
+  center:        { x: 0,  opacity: 1 },
+  exitForward:   { x: -20, opacity: 0 },
+  exitBackward:  { x: 20,  opacity: 0 },
+};
+
+function activeMonthsFromDates(dates: ReadonlySet<string>): Set<string> {
+  const s = new Set<string>();
+  for (const iso of dates) s.add(iso.slice(0, 7));
+  return s;
+}
+
 function CompareCalendar({
   availableDates,
   onDateSelect,
@@ -110,66 +128,168 @@ function CompareCalendar({
   const [cursor, setCursor] = useState<Date>(() => {
     const sorted = [...availableDates].sort();
     return sorted.length > 0
-      ? startOfMonth(new Date(sorted.at(-1)! + 'T00:00:00'))
+      ? startOfMonth(parseISO(sorted.at(-1)! + 'T00:00:00'))
       : startOfMonth(new Date());
   });
+  const [view, setView] = useState<'days' | 'months'>('days');
+  const [direction, setDirection] = useState(1);
 
-  const monthStart = startOfMonth(cursor);
-  const calStart = startOfWeek(monthStart, { weekStartsOn: 1 });
-  const calEnd = endOfWeek(endOfMonth(cursor), { weekStartsOn: 1 });
-  const days = eachDayOfInterval({ start: calStart, end: calEnd });
+  const activeMonths = useMemo(() => activeMonthsFromDates(availableDates), [availableDates]);
+
+  const goMonth = (delta: number) => {
+    setDirection(delta);
+    setCursor((c) => addMonths(c, delta));
+  };
+
+  const goYear = (delta: number) => {
+    setDirection(delta);
+    setCursor((c) => new Date(c.getFullYear() + delta, c.getMonth(), 1));
+  };
+
+  const pickMonth = (idx: number) => {
+    const next = new Date(cursor.getFullYear(), idx, 1);
+    setDirection(next > cursor ? 1 : -1);
+    setCursor(next);
+    setView('days');
+  };
+
+  const days = useMemo(() => {
+    const start = startOfWeek(startOfMonth(cursor), { weekStartsOn: 1 });
+    const end = endOfWeek(endOfMonth(cursor), { weekStartsOn: 1 });
+    return eachDayOfInterval({ start, end });
+  }, [cursor]);
 
   return (
     <div className="flex h-full flex-col items-center justify-center p-6">
-      <div className="w-full max-w-[280px] space-y-3">
+      <div className="w-full max-w-[300px]">
+
+        {/* Header */}
         <div className="flex items-center justify-between">
           <button
             type="button"
-            onClick={() => setCursor((c) => addMonths(c, -1))}
-            className="rounded p-1.5 text-ink-400 transition-colors hover:bg-base-800 hover:text-white"
+            onClick={() => view === 'days' ? goMonth(-1) : goYear(-1)}
+            aria-label={view === 'days' ? 'Previous month' : 'Previous year'}
+            className="inline-flex h-7 w-7 items-center justify-center rounded text-ink-400 transition-colors hover:bg-base-800 hover:text-white"
           >
-            <ChevronLeft size={14} />
+            <ChevronLeft size={15} />
           </button>
-          <span className="font-mono text-[13px] font-medium text-white">{format(cursor, 'MMMM yyyy')}</span>
+
           <button
             type="button"
-            onClick={() => setCursor((c) => addMonths(c, 1))}
-            className="rounded p-1.5 text-ink-400 transition-colors hover:bg-base-800 hover:text-white"
+            onClick={() => setView((v) => v === 'days' ? 'months' : 'days')}
+            className="flex items-center gap-1.5 rounded px-2 py-1 font-mono text-[13px] font-medium text-white transition-colors hover:bg-base-800"
           >
-            <ChevronRight size={14} />
+            {view === 'days' ? format(cursor, 'MMMM yyyy') : cursor.getFullYear()}
+            <ChevronRight
+              size={11}
+              className={`text-ink-500 transition-transform duration-150 ${view === 'months' ? 'rotate-90' : '-rotate-90'}`}
+            />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => view === 'days' ? goMonth(1) : goYear(1)}
+            aria-label={view === 'days' ? 'Next month' : 'Next year'}
+            className="inline-flex h-7 w-7 items-center justify-center rounded text-ink-400 transition-colors hover:bg-base-800 hover:text-white"
+          >
+            <ChevronRight size={15} />
           </button>
         </div>
-        <div className="grid grid-cols-7 text-center">
-          {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
-            <div key={i} className="py-1 font-mono text-[10px] text-ink-600">{d}</div>
-          ))}
-          {days.map((day, i) => {
-            const iso = format(day, 'yyyy-MM-dd');
-            const inMonth = isSameMonth(day, cursor);
-            const hasFiles = availableDates.has(iso);
-            return (
-              <button
-                key={i}
-                type="button"
-                disabled={!hasFiles || !inMonth}
-                onClick={() => onDateSelect(iso)}
-                className={`relative flex h-8 w-full items-center justify-center rounded text-[12px] transition-colors ${
-                  !inMonth
-                    ? 'cursor-default text-ink-800'
-                    : hasFiles
-                    ? 'cursor-pointer text-white hover:bg-amber-500 hover:text-base-950'
-                    : 'cursor-default text-ink-700'
-                }`}
+
+        {/* Animated content */}
+        <div className="relative mt-4 overflow-hidden">
+          <AnimatePresence mode="wait" initial={false} custom={direction}>
+            {view === 'days' ? (
+              <motion.div
+                key={`days-${format(cursor, 'yyyy-MM')}`}
+                custom={direction}
+                variants={calSlideVariants}
+                initial={direction > 0 ? 'enterForward' : 'enterBackward'}
+                animate="center"
+                exit={direction > 0 ? 'exitForward' : 'exitBackward'}
+                transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
               >
-                {day.getDate()}
-                {hasFiles && inMonth && (
-                  <span className="absolute bottom-0.5 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-amber-500" />
-                )}
-              </button>
-            );
-          })}
+                {/* Weekday headers */}
+                <div className="grid grid-cols-7 gap-y-1">
+                  {WEEKDAYS_SHORT.map((d, i) => (
+                    <span key={i} className="text-center font-mono text-[10px] uppercase tracking-[0.12em] text-ink-500">
+                      {d}
+                    </span>
+                  ))}
+                </div>
+
+                {/* Day cells */}
+                <div className="mt-1 grid grid-cols-7 gap-y-0.5">
+                  {days.map((day, i) => {
+                    const iso = format(day, 'yyyy-MM-dd');
+                    const inMonth = isSameMonth(day, cursor);
+                    const hasFiles = availableDates.has(iso);
+                    return (
+                      <button
+                        key={i}
+                        type="button"
+                        disabled={!hasFiles || !inMonth}
+                        onClick={() => onDateSelect(iso)}
+                        className={`relative flex h-9 w-full items-center justify-center rounded text-[13px] transition-colors ${
+                          !inMonth
+                            ? 'cursor-default text-base-700'
+                            : hasFiles
+                            ? 'cursor-pointer font-medium text-white hover:bg-amber-500 hover:text-base-950'
+                            : 'cursor-not-allowed text-base-700 line-through opacity-40'
+                        }`}
+                      >
+                        {format(day, 'd')}
+                        {hasFiles && inMonth && (
+                          <span className="absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-amber-500" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div
+                key={`months-${cursor.getFullYear()}`}
+                custom={direction}
+                variants={calSlideVariants}
+                initial={direction > 0 ? 'enterForward' : 'enterBackward'}
+                animate="center"
+                exit={direction > 0 ? 'exitForward' : 'exitBackward'}
+                transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+                className="grid grid-cols-3 gap-1.5 py-1"
+              >
+                {MONTH_NAMES.map((name, idx) => {
+                  const key = `${cursor.getFullYear()}-${String(idx + 1).padStart(2, '0')}`;
+                  const hasData = activeMonths.has(key);
+                  const isCurrent = cursor.getMonth() === idx;
+                  return (
+                    <button
+                      key={name}
+                      type="button"
+                      onClick={() => pickMonth(idx)}
+                      className={`relative flex flex-col items-center justify-center rounded py-3 text-[12px] font-medium transition-colors ${
+                        isCurrent
+                          ? 'bg-amber-500 text-base-950'
+                          : hasData
+                          ? 'text-white hover:bg-base-800'
+                          : 'cursor-not-allowed text-base-700 opacity-40'
+                      }`}
+                    >
+                      {name}
+                      {hasData && !isCurrent && (
+                        <span className="absolute bottom-1.5 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-amber-500" />
+                      )}
+                    </button>
+                  );
+                })}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
-        <p className="text-center font-mono text-[11px] text-ink-600">Select a date to browse files</p>
+
+        <p className="mt-4 text-center font-mono text-[11px] text-ink-600">
+          {availableDates.size} captured {availableDates.size === 1 ? 'day' : 'days'} · select to browse
+        </p>
       </div>
     </div>
   );
