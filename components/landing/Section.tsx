@@ -26,8 +26,7 @@ export function Section({ id, children, bordered = true, className = '' }: Props
 
 export function SectionEyebrow({ children }: { children: ReactNode }) {
   return (
-    <span className="inline-flex items-center gap-2 font-mono text-[12px] uppercase tracking-[0.22em] text-amber-500">
-      <span className="h-px w-6 bg-amber-500/60" />
+    <span className="font-mono text-[12px] uppercase tracking-[0.22em] text-amber-500">
       {children}
     </span>
   );
@@ -71,10 +70,11 @@ const subVariants = {
 };
 
 export function SectionHeading({
+  eyebrow,
   title,
   sub,
 }: {
-  eyebrow?: string;
+  eyebrow: string;
   title: ReactNode;
   sub?: ReactNode;
 }) {
@@ -86,11 +86,15 @@ export function SectionHeading({
       variants={containerVariants}
       className="max-w-[68ch]"
     >
+      <motion.div variants={eyebrowVariants}>
+        <SectionEyebrow>{eyebrow}</SectionEyebrow>
+      </motion.div>
+
       {/* transformPerspective gives the rotateX genuine depth without a wrapper */}
       <motion.h2
         variants={titleVariants}
         style={{ transformPerspective: 800, transformOrigin: 'center top' }}
-        className="font-display text-[40px] font-semibold leading-[1.05] tracking-[-0.018em] text-white sm:text-[48px] lg:text-[54px]"
+        className="mt-4 font-display text-[40px] font-semibold leading-[1.05] tracking-[-0.018em] text-white sm:text-[48px] lg:text-[54px]"
       >
         {title}
       </motion.h2>
