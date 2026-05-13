@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
-import { UserMinus, Loader2, ChevronUp, ChevronDown, X } from 'lucide-react';
+import { UserMinus, Loader2, X } from 'lucide-react';
 import {
   listProjectMembers,
   inviteProjectMember,
@@ -222,9 +222,6 @@ export function ProjectMembersTab({
           <tbody className="divide-y divide-base-800/60">
             {members.map((m) => {
               const isSelf = m.user_id === user?.id;
-              const roleIndex = ROLES.indexOf(m.role);
-              const canPromote = canManage && !isSelf && roleIndex < ROLES.length - 1;
-              const canDemote  = canManage && !isSelf && roleIndex > 0;
               return (
                 <tr key={m.user_id} className="bg-base-900/20">
                   <td className="px-4 py-3">
@@ -242,45 +239,37 @@ export function ProjectMembersTab({
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`rounded-sm px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] ${ROLE_BADGE[m.role]}`}>
-                      {m.role}
-                    </span>
+                    {canManage && !isSelf ? (
+                      <select
+                        value={m.role}
+                        onChange={(e) => setConfirm({ type: 'role', member: m, newRole: e.target.value as ApiProjectMember['role'] })}
+                        className="rounded-md border border-base-700 bg-base-950 px-2 py-1 text-[12px] text-white outline-none focus:border-amber-500"
+                      >
+                        {ROLES.map((r) => (
+                          <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className={`rounded-sm px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] ${ROLE_BADGE[m.role]}`}>
+                        {m.role}
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3 font-mono text-[11px] text-ink-400">
                     {new Date(m.joined_at).toLocaleDateString()}
                   </td>
                   {canManage && (
                     <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-1">
+                      {!isSelf && (
                         <button
                           type="button"
-                          disabled={!canPromote}
-                          onClick={() => canPromote && setConfirm({ type: 'role', member: m, newRole: ROLES[roleIndex + 1] })}
-                          title="Promote"
-                          className="inline-flex h-7 w-7 items-center justify-center rounded text-ink-400 transition-colors hover:bg-base-800 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed"
+                          onClick={() => setConfirm({ type: 'remove', member: m })}
+                          title={`Remove ${m.username}`}
+                          className="inline-flex h-7 w-7 items-center justify-center rounded text-ink-400 transition-colors hover:bg-base-800 hover:text-red-400"
                         >
-                          <ChevronUp size={13} />
+                          <UserMinus size={13} />
                         </button>
-                        <button
-                          type="button"
-                          disabled={!canDemote}
-                          onClick={() => canDemote && setConfirm({ type: 'role', member: m, newRole: ROLES[roleIndex - 1] })}
-                          title="Demote"
-                          className="inline-flex h-7 w-7 items-center justify-center rounded text-ink-400 transition-colors hover:bg-base-800 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed"
-                        >
-                          <ChevronDown size={13} />
-                        </button>
-                        {!isSelf && (
-                          <button
-                            type="button"
-                            onClick={() => setConfirm({ type: 'remove', member: m })}
-                            title={`Remove ${m.username}`}
-                            className="inline-flex h-7 w-7 items-center justify-center rounded text-ink-400 transition-colors hover:bg-base-800 hover:text-red-400"
-                          >
-                            <UserMinus size={13} />
-                          </button>
-                        )}
-                      </div>
+                      )}
                     </td>
                   )}
                 </tr>
