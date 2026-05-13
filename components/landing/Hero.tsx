@@ -41,7 +41,6 @@ export function Hero() {
             transition={{ duration: 0.45 }}
             className="mt-28 inline-flex items-center gap-3 font-mono text-[12px] uppercase tracking-[0.22em] text-ink-300"
           >
-            <span className="h-px w-8 bg-amber-500/70" />
             Construction · documentation
           </motion.p>
 

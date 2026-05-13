@@ -32,28 +32,28 @@ export function LandingNav() {
       <nav className="mx-auto flex max-w-[1480px] items-center justify-between px-8 py-4 sm:px-12 lg:px-24 xl:px-32">
         <Logo />
 
-        <div className="hidden items-center gap-9 md:flex">
+        <div className="hidden items-center gap-10 md:flex">
           {links.map((l) => (
             <a
               key={l.href}
               href={l.href}
-              className="text-[14px] font-medium text-ink-200 transition-colors hover:text-white"
+              className="text-[16px] font-medium text-ink-200 transition-colors hover:text-white"
             >
               {l.label}
             </a>
           ))}
         </div>
 
-        <div className="hidden items-center gap-2.5 md:flex">
+        <div className="hidden items-center gap-3 md:flex">
           <Link
             href="/login"
-            className="rounded-md px-3.5 py-1.5 text-[14px] font-medium text-ink-200 transition-colors hover:text-white"
+            className="rounded-md px-4 py-2 text-[15px] font-medium text-ink-200 transition-colors hover:text-white"
           >
             Sign in
           </Link>
           <Link
             href="/register"
-            className="rounded-md bg-amber-500 px-4 py-2 text-[14px] font-semibold text-base-950 transition-colors hover:bg-amber-400"
+            className="rounded-md bg-amber-500 px-5 py-2.5 text-[15px] font-semibold text-base-950 transition-colors hover:bg-amber-400"
           >
             Get started
           </Link>
