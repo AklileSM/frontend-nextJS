@@ -125,6 +125,10 @@ export function listAdminUsers(): Promise<AdminUser[]> {
   return getJson<AdminUser[]>('/admin/users');
 }
 
+export function searchUsers(q: string): Promise<AdminUser[]> {
+  return getJson<AdminUser[]>(`/admin/users/search?q=${encodeURIComponent(q)}`);
+}
+
 export function updateAdminUser(
   userId: string,
   patch: Partial<Pick<AdminUser, 'is_admin' | 'is_active' | 'email'>>,

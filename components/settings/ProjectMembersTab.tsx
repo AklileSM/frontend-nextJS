@@ -1,32 +1,96 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
-import { UserMinus, Loader2, ChevronDown } from 'lucide-react';
+import { UserMinus, Loader2, ChevronUp, ChevronDown, X } from 'lucide-react';
 import {
   listProjectMembers,
   inviteProjectMember,
   updateProjectMember,
   removeProjectMember,
-  listAdminUsers,
+  searchUsers,
 } from '@/services/apiClient';
 import { useAuth } from '@/context/AuthContext';
 import type { AdminUser, ApiProjectMember } from '@/types/api';
 
-const ROLE_OPTIONS: { value: ApiProjectMember['role']; label: string }[] = [
-  { value: 'owner', label: 'Owner' },
-  { value: 'editor', label: 'Editor' },
-  { value: 'viewer', label: 'Viewer' },
-];
+const ROLES: ApiProjectMember['role'][] = ['viewer', 'editor', 'owner'];
 
 const ROLE_BADGE: Record<ApiProjectMember['role'], string> = {
-  owner: 'bg-amber-500/15 text-amber-400',
+  owner:  'bg-amber-500/15 text-amber-400',
   editor: 'bg-steel-500/15 text-steel-400',
   viewer: 'bg-base-800 text-ink-400',
 };
 
 function initial(username: string) {
   return username.slice(0, 2).toUpperCase();
+}
+
+type ConfirmAction =
+  | { type: 'remove'; member: ApiProjectMember }
+  | { type: 'role'; member: ApiProjectMember; newRole: ApiProjectMember['role'] };
+
+function ConfirmModal({
+  action,
+  onConfirm,
+  onCancel,
+}: {
+  action: ConfirmAction;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const title =
+    action.type === 'remove'
+      ? `Remove ${action.member.username}?`
+      : `Change role to ${action.newRole}?`;
+
+  const body =
+    action.type === 'remove'
+      ? `${action.member.username} will lose all access to this project.`
+      : `${action.member.username} will be ${action.newRole === 'owner' ? 'promoted to owner' : action.newRole === 'editor' ? `promoted to editor` : 'demoted to viewer'}.`;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-base-950/70 backdrop-blur-sm" onClick={onCancel} />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96, y: 8 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.96, y: 8 }}
+        transition={{ duration: 0.15, ease: [0.22, 1, 0.36, 1] }}
+        className="relative w-full max-w-sm rounded-xl border border-base-700 bg-base-900 p-6 shadow-2xl"
+      >
+        <button
+          type="button"
+          onClick={onCancel}
+          className="absolute right-4 top-4 rounded p-1 text-ink-400 transition-colors hover:text-white"
+        >
+          <X size={14} />
+        </button>
+        <h3 className="font-display text-[17px] font-semibold text-white">{title}</h3>
+        <p className="mt-2 text-[13px] leading-relaxed text-ink-400">{body}</p>
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-md border border-base-700 px-4 py-2 text-[13px] text-ink-300 transition-colors hover:border-ink-400 hover:text-white"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className={`rounded-md px-4 py-2 text-[13px] font-semibold transition-colors ${
+              action.type === 'remove'
+                ? 'bg-red-500/90 text-white hover:bg-red-500'
+                : 'bg-amber-500 text-base-950 hover:bg-amber-400'
+            }`}
+          >
+            {action.type === 'remove' ? 'Remove' : 'Confirm'}
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
 }
 
 export function ProjectMembersTab({
@@ -38,21 +102,27 @@ export function ProjectMembersTab({
 }) {
   const { user } = useAuth();
   const [members, setMembers] = useState<ApiProjectMember[]>([]);
-  const [allUsers, setAllUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
-  const [inviteUserId, setInviteUserId] = useState('');
+
+  // Search
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<AdminUser[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
   const [inviteRole, setInviteRole] = useState<ApiProjectMember['role']>('viewer');
   const [inviting, setInviting] = useState(false);
-  const [pendingRemove, setPendingRemove] = useState<string | null>(null);
-  const [query, setQuery] = useState('');
-  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Confirm modal
+  const [confirm, setConfirm] = useState<ConfirmAction | null>(null);
+  const [confirming, setConfirming] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [m, u] = await Promise.all([listProjectMembers(projectId), listAdminUsers()]);
-      setMembers(m);
-      setAllUsers(u);
+      setMembers(await listProjectMembers(projectId));
     } catch {
       toast.error('Failed to load members');
     } finally {
@@ -62,57 +132,67 @@ export function ProjectMembersTab({
 
   useEffect(() => { load(); }, [load]);
 
-  const nonMembers = allUsers.filter(
-    (u) => u.is_active && !members.some((m) => m.user_id === u.id),
-  );
+  // Debounced search
+  useEffect(() => {
+    if (searchDebounce.current) clearTimeout(searchDebounce.current);
+    if (!query.trim()) { setResults([]); setDropdownOpen(false); return; }
+    searchDebounce.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const found = await searchUsers(query.trim());
+        // Filter out existing members
+        setResults(found.filter((u) => !members.some((m) => m.user_id === u.id)));
+        setDropdownOpen(true);
+      } catch {
+        setResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 300);
+    return () => { if (searchDebounce.current) clearTimeout(searchDebounce.current); };
+  }, [query, members]);
 
-  const filteredUsers = query
-    ? nonMembers.filter(
-        (u) =>
-          u.username.toLowerCase().includes(query.toLowerCase()) ||
-          (u.email ?? '').toLowerCase().includes(query.toLowerCase()),
-      )
-    : nonMembers;
-
-  const selectedUser = allUsers.find((u) => u.id === inviteUserId) ?? null;
-
-  const handleRoleChange = async (userId: string, role: ApiProjectMember['role']) => {
-    try {
-      const updated = await updateProjectMember(projectId, userId, { role });
-      setMembers((prev) => prev.map((m) => (m.user_id === userId ? { ...m, role: updated.role } : m)));
-      toast.success('Role updated');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to update role');
-    }
-  };
-
-  const handleRemove = async (userId: string) => {
-    setPendingRemove(userId);
-    try {
-      await removeProjectMember(projectId, userId);
-      setMembers((prev) => prev.filter((m) => m.user_id !== userId));
-      toast.success('Member removed');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to remove member');
-    } finally {
-      setPendingRemove(null);
-    }
+  const handlePickUser = (u: AdminUser) => {
+    setSelectedUser(u);
+    setQuery(u.username);
+    setDropdownOpen(false);
   };
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inviteUserId) return;
+    if (!selectedUser) return;
     setInviting(true);
     try {
-      const member = await inviteProjectMember(projectId, { user_id: inviteUserId, role: inviteRole });
+      const member = await inviteProjectMember(projectId, { user_id: selectedUser.id, role: inviteRole });
       setMembers((prev) => [...prev, member]);
-      setInviteUserId('');
+      setSelectedUser(null);
       setQuery('');
       toast.success(`${member.username} added as ${member.role}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Invite failed');
     } finally {
       setInviting(false);
+    }
+  };
+
+  const handleConfirm = async () => {
+    if (!confirm) return;
+    setConfirming(true);
+    try {
+      if (confirm.type === 'remove') {
+        await removeProjectMember(projectId, confirm.member.user_id);
+        setMembers((prev) => prev.filter((m) => m.user_id !== confirm.member.user_id));
+        toast.success(`${confirm.member.username} removed`);
+      } else {
+        const updated = await updateProjectMember(projectId, confirm.member.user_id, { role: confirm.newRole });
+        setMembers((prev) => prev.map((m) => m.user_id === confirm.member.user_id ? { ...m, role: updated.role } : m));
+        toast.success(`${confirm.member.username} is now ${updated.role}`);
+      }
+      setConfirm(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Action failed');
+    } finally {
+      setConfirming(false);
     }
   };
 
@@ -127,6 +207,8 @@ export function ProjectMembersTab({
 
   return (
     <div className="max-w-2xl space-y-8">
+
+      {/* Members table */}
       <div className="overflow-hidden rounded-lg border border-base-800">
         <table className="w-full text-[13px]">
           <thead>
@@ -134,12 +216,15 @@ export function ProjectMembersTab({
               <th className="px-4 py-3 text-left font-mono text-[11px] uppercase tracking-[0.18em] text-ink-400">User</th>
               <th className="px-4 py-3 text-left font-mono text-[11px] uppercase tracking-[0.18em] text-ink-400">Role</th>
               <th className="px-4 py-3 text-left font-mono text-[11px] uppercase tracking-[0.18em] text-ink-400">Joined</th>
-              {canManage && <th className="w-10 px-4 py-3" />}
+              {canManage && <th className="w-24 px-4 py-3" />}
             </tr>
           </thead>
           <tbody className="divide-y divide-base-800/60">
             {members.map((m) => {
               const isSelf = m.user_id === user?.id;
+              const roleIndex = ROLES.indexOf(m.role);
+              const canPromote = canManage && !isSelf && roleIndex < ROLES.length - 1;
+              const canDemote  = canManage && !isSelf && roleIndex > 0;
               return (
                 <tr key={m.user_id} className="bg-base-900/20">
                   <td className="px-4 py-3">
@@ -157,40 +242,45 @@ export function ProjectMembersTab({
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    {canManage && !isSelf ? (
-                      <select
-                        value={m.role}
-                        onChange={(e) => handleRoleChange(m.user_id, e.target.value as ApiProjectMember['role'])}
-                        className="rounded-md border border-base-700 bg-base-950 px-2 py-1 text-[12px] text-white outline-none focus:border-amber-500"
-                      >
-                        {ROLE_OPTIONS.map((o) => (
-                          <option key={o.value} value={o.value}>{o.label}</option>
-                        ))}
-                      </select>
-                    ) : (
-                      <span className={`rounded-sm px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] ${ROLE_BADGE[m.role]}`}>
-                        {m.role}
-                      </span>
-                    )}
+                    <span className={`rounded-sm px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] ${ROLE_BADGE[m.role]}`}>
+                      {m.role}
+                    </span>
                   </td>
                   <td className="px-4 py-3 font-mono text-[11px] text-ink-400">
                     {new Date(m.joined_at).toLocaleDateString()}
                   </td>
                   {canManage && (
                     <td className="px-4 py-3">
-                      {!isSelf && (
+                      <div className="flex items-center justify-end gap-1">
                         <button
                           type="button"
-                          onClick={() => handleRemove(m.user_id)}
-                          disabled={pendingRemove === m.user_id}
-                          aria-label={`Remove ${m.username}`}
-                          className="inline-flex h-7 w-7 items-center justify-center rounded text-ink-400 transition-colors hover:bg-base-800 hover:text-red-400 disabled:opacity-40"
+                          disabled={!canPromote}
+                          onClick={() => canPromote && setConfirm({ type: 'role', member: m, newRole: ROLES[roleIndex + 1] })}
+                          title="Promote"
+                          className="inline-flex h-7 w-7 items-center justify-center rounded text-ink-400 transition-colors hover:bg-base-800 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed"
                         >
-                          {pendingRemove === m.user_id
-                            ? <Loader2 size={13} className="animate-spin" />
-                            : <UserMinus size={13} />}
+                          <ChevronUp size={13} />
                         </button>
-                      )}
+                        <button
+                          type="button"
+                          disabled={!canDemote}
+                          onClick={() => canDemote && setConfirm({ type: 'role', member: m, newRole: ROLES[roleIndex - 1] })}
+                          title="Demote"
+                          className="inline-flex h-7 w-7 items-center justify-center rounded text-ink-400 transition-colors hover:bg-base-800 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed"
+                        >
+                          <ChevronDown size={13} />
+                        </button>
+                        {!isSelf && (
+                          <button
+                            type="button"
+                            onClick={() => setConfirm({ type: 'remove', member: m })}
+                            title={`Remove ${m.username}`}
+                            className="inline-flex h-7 w-7 items-center justify-center rounded text-ink-400 transition-colors hover:bg-base-800 hover:text-red-400"
+                          >
+                            <UserMinus size={13} />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   )}
                 </tr>
@@ -200,52 +290,47 @@ export function ProjectMembersTab({
         </table>
       </div>
 
+      {/* Invite form */}
       {canManage && (
         <div>
           <h3 className="mb-3 font-mono text-[11px] uppercase tracking-[0.2em] text-ink-400">Add member</h3>
           <form onSubmit={handleInvite} className="flex flex-wrap items-end gap-3">
 
-            {/* User picker */}
-            <div className="relative flex-1 min-w-[200px]">
-              <div
-                className={`flex cursor-pointer items-center justify-between gap-2 rounded-md border bg-base-950 px-3 py-2 text-[13px] transition-colors ${
-                  dropdownOpen ? 'border-amber-500' : 'border-base-700'
-                }`}
-                onClick={() => { setDropdownOpen((v) => !v); setQuery(''); }}
-              >
-                <span className={selectedUser ? 'text-white' : 'text-ink-500'}>
-                  {selectedUser ? `${selectedUser.username}${selectedUser.email ? ` · ${selectedUser.email}` : ''}` : 'Select user…'}
-                </span>
-                <ChevronDown size={13} className="shrink-0 text-ink-500" />
+            {/* Search input */}
+            <div className="relative flex-1 min-w-[220px]">
+              <div className="relative">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={query}
+                  onChange={(e) => { setQuery(e.target.value); setSelectedUser(null); }}
+                  onFocus={() => { if (results.length) setDropdownOpen(true); }}
+                  onBlur={() => setTimeout(() => setDropdownOpen(false), 150)}
+                  placeholder="Search by username or email…"
+                  className="w-full rounded-md border border-base-700 bg-base-950 px-3 py-2 text-[13px] text-white outline-none placeholder:text-ink-500 focus:border-amber-500"
+                />
+                {searching && (
+                  <Loader2 size={13} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-ink-500" />
+                )}
               </div>
 
-              {dropdownOpen && (
-                <div className="absolute left-0 top-full z-20 mt-1 w-full rounded-md border border-base-700 bg-base-900 shadow-xl">
-                  <div className="border-b border-base-800 p-2">
-                    <input
-                      autoFocus
-                      type="text"
-                      value={query}
-                      onChange={(e) => setQuery(e.target.value)}
-                      placeholder="Search by name or email…"
-                      className="w-full rounded bg-base-950 px-2.5 py-1.5 text-[12px] text-white outline-none placeholder:text-ink-500"
-                    />
-                  </div>
-                  <ul className="max-h-52 overflow-y-auto py-1">
-                    {filteredUsers.length === 0 ? (
-                      <li className="px-3 py-2 text-[12px] text-ink-500">
-                        {nonMembers.length === 0 ? 'All users are already members.' : 'No matches.'}
-                      </li>
+              <AnimatePresence>
+                {dropdownOpen && (
+                  <motion.ul
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{ duration: 0.12 }}
+                    className="absolute left-0 top-full z-20 mt-1 w-full rounded-md border border-base-700 bg-base-900 py-1 shadow-xl"
+                  >
+                    {results.length === 0 ? (
+                      <li className="px-3 py-2 text-[12px] text-ink-500">No users found</li>
                     ) : (
-                      filteredUsers.map((u) => (
+                      results.map((u) => (
                         <li key={u.id}>
                           <button
                             type="button"
-                            onMouseDown={() => {
-                              setInviteUserId(u.id);
-                              setDropdownOpen(false);
-                              setQuery('');
-                            }}
+                            onMouseDown={() => handlePickUser(u)}
                             className="flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-base-800"
                           >
                             <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-base-700 font-mono text-[9px] font-semibold text-ink-200">
@@ -259,9 +344,9 @@ export function ProjectMembersTab({
                         </li>
                       ))
                     )}
-                  </ul>
-                </div>
-              )}
+                  </motion.ul>
+                )}
+              </AnimatePresence>
             </div>
 
             {/* Role */}
@@ -270,14 +355,14 @@ export function ProjectMembersTab({
               onChange={(e) => setInviteRole(e.target.value as ApiProjectMember['role'])}
               className="rounded-md border border-base-700 bg-base-950 px-3 py-2 text-[13px] text-white outline-none focus:border-amber-500"
             >
-              {ROLE_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
+              <option value="viewer">Viewer</option>
+              <option value="editor">Editor</option>
+              <option value="owner">Owner</option>
             </select>
 
             <button
               type="submit"
-              disabled={inviting || !inviteUserId}
+              disabled={inviting || !selectedUser}
               className="rounded-md bg-amber-500 px-4 py-2 text-[13px] font-semibold text-base-950 transition-colors hover:bg-amber-400 disabled:opacity-40"
             >
               {inviting ? 'Adding…' : 'Add'}
@@ -285,6 +370,17 @@ export function ProjectMembersTab({
           </form>
         </div>
       )}
+
+      {/* Confirmation modal */}
+      <AnimatePresence>
+        {confirm && (
+          <ConfirmModal
+            action={confirm}
+            onConfirm={handleConfirm}
+            onCancel={() => !confirming && setConfirm(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
