@@ -26,8 +26,7 @@ export function AuthShell({ title, subtitle, altLink, children }: Props) {
         <Logo />
 
         <div className="relative max-w-[42ch]">
-          <p className="inline-flex items-center gap-3 font-mono text-[12px] uppercase tracking-[0.22em] text-amber-500">
-            <span className="h-px w-8 bg-amber-500/60" />
+          <p className="font-mono text-[12px] uppercase tracking-[0.22em] text-amber-500">
             Site documentation
           </p>
           <h2 className="mt-5 font-display text-[40px] font-semibold leading-[1.08] tracking-[-0.018em] text-white">

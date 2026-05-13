@@ -141,8 +141,7 @@ export default function ProfilePage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
       >
-        <p className="inline-flex items-center gap-3 font-mono text-[12px] uppercase tracking-[0.22em] text-amber-500">
-          <span className="h-px w-8 bg-amber-500/60" />
+        <p className="font-mono text-[12px] uppercase tracking-[0.22em] text-amber-500">
           Profile
         </p>
         <h1 className="mt-4 font-display text-[40px] font-semibold leading-[1.08] tracking-[-0.018em] text-white sm:text-[48px]">

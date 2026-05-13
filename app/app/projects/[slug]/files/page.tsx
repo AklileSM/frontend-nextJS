@@ -192,8 +192,7 @@ export default function FileExplorerPage() {
             <ArrowLeft size={11} />
             {project.name}
           </Link>
-          <p className="mt-3 inline-flex items-center gap-3 font-mono text-[12px] uppercase tracking-[0.22em] text-amber-500">
-            <span className="h-px w-8 bg-amber-500/60" />
+          <p className="mt-3 font-mono text-[12px] uppercase tracking-[0.22em] text-amber-500">
             File explorer
           </p>
           <h1 className="mt-1 font-display text-[36px] font-semibold leading-[1.08] tracking-[-0.018em] text-white sm:text-[44px]">

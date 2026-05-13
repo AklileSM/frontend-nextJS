@@ -15,10 +15,8 @@ function UnauthorizedContent() {
   return (
     <main className="grid min-h-screen place-items-center px-6">
       <div className="w-full max-w-[480px] text-center">
-        <p className="inline-flex items-center gap-3 font-mono text-[12px] uppercase tracking-[0.22em] text-amber-500">
-          <span className="h-px w-8 bg-amber-500/60" />
+        <p className="font-mono text-[12px] uppercase tracking-[0.22em] text-amber-500">
           403
-          <span className="h-px w-8 bg-amber-500/60" />
         </p>
         <h1 className="mt-5 font-display text-[44px] font-semibold leading-[1.05] tracking-[-0.02em] text-white sm:text-[52px]">
           Access denied

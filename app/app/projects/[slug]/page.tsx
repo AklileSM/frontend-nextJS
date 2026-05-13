@@ -72,8 +72,7 @@ export default function ProjectHomePage() {
         className="flex flex-wrap items-end justify-between gap-4 max-w-none"
       >
         <div>
-          <p className="inline-flex items-center gap-3 font-mono text-[12px] uppercase tracking-[0.22em] text-amber-500">
-            <span className="h-px w-8 bg-amber-500/60" />
+          <p className="font-mono text-[12px] uppercase tracking-[0.22em] text-amber-500">
             Project · {project.slug}
           </p>
           <h1 className="mt-4 font-display text-[40px] font-semibold leading-[1.08] tracking-[-0.018em] text-white sm:text-[48px]">
