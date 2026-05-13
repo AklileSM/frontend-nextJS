@@ -17,9 +17,9 @@ type Row = { date: string; images: number; videos: number; pointclouds: number; 
 
 const SERIES: Array<{ key: keyof Omit<Row, 'date'>; label: string; fill: string }> = [
   { key: 'images', label: 'Images', fill: '#F59E0B' },
-  { key: 'videos', label: 'Videos', fill: '#38BDF8' },
-  { key: 'pointclouds', label: 'Point clouds', fill: '#A78BFA' },
-  { key: 'pdfs', label: 'PDFs', fill: '#9BA3AE' },
+  { key: 'videos', label: 'Videos', fill: '#2DD4BF' },
+  { key: 'pointclouds', label: 'Point clouds', fill: '#818CF8' },
+  { key: 'pdfs', label: 'PDFs', fill: '#6B7280' },
 ];
 
 export function ChartAll({ projectId }: { projectId?: string }) {
