@@ -4,8 +4,6 @@ import Link from 'next/link';
 import { Canvas, useLoader, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import { useEffect, useMemo, useState } from 'react';
-import { toast } from 'sonner';
-import { analyzeImage } from '@/services/apiClient';
 import { ReportBuilder } from '@/components/reports/ReportBuilder';
 import { useViewerContext } from './useViewerContext';
 import { backHrefFor } from '@/components/explorer/viewerContext';
@@ -85,6 +83,17 @@ export function PanoramaViewer() {
             Back
           </Link>
         </div>
+
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/app/viewer/static"
+            className="rounded border border-base-700 px-2 py-1 text-[12px] text-white hover:border-ink-300"
+          >
+            Open in Static
+          </Link>
+          
+        </div>
+
         <div className="h-[70vh] overflow-hidden rounded-md border border-base-800 bg-black/30">
           {imageReady && !imageError ? (
             <Canvas camera={{ position: [0, 0, 20], fov: 70 }}>
