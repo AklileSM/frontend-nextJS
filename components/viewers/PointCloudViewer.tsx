@@ -71,10 +71,7 @@ export function PointCloudViewer() {
         {/* Header */}
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.2em] text-amber-500">
-              <ScanLine size={11} />
-              Point cloud
-            </p>
+            <p className="font-mono text-[12px] tracking-[0.22em] text-amber-500">Point Cloud Viewer</p>
             <h1 className="mt-1.5 font-display text-[22px] font-semibold leading-tight tracking-[-0.015em] text-white sm:text-[26px]">
               {ctx.file.file_name}
             </h1>

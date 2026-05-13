@@ -203,7 +203,7 @@ export function StaticViewer() {
       <section className="space-y-4 rounded-md border border-base-800 bg-base-900/40 p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <p className="font-mono text-[12px] uppercase tracking-[0.22em] text-amber-500">Static Viewer</p>
+            <p className="font-mono text-[12px] tracking-[0.22em] text-amber-500">Static Viewer</p>
             <h1 className="mt-1.5 font-display text-[22px] font-semibold leading-tight tracking-[-0.015em] text-white sm:text-[26px]">{ctx.file.file_name}</h1>
           </div>
           <Link href={backHref} className="rounded-md border border-base-700 px-3 py-1.5 text-[13px] text-white">
@@ -224,7 +224,7 @@ export function StaticViewer() {
             disabled={analyzing}
             className="rounded border border-base-700 px-2 py-1 text-[12px] disabled:opacity-50"
           >
-            {analyzing ? 'Running AI...' : 'Run AI'}
+            {analyzing ? 'Generating...' : 'Generate Description'}
           </button>
           <button
             type="button"

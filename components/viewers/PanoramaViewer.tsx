@@ -31,7 +31,6 @@ export function PanoramaViewer() {
   const [imageReady, setImageReady] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const [panoramaSrc, setPanoramaSrc] = useState('');
-  const [debugging, setDebugging] = useState(false);
 
   const imageSrc = ctx?.file.full_src || ctx?.file.src || '';
 
@@ -44,20 +43,6 @@ export function PanoramaViewer() {
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, []);
-
-  const runAi = async () => {
-    if (!ctx || analyzing) return;
-    setAnalyzing(true);
-    try {
-      const result = await analyzeImage(ctx.file.full_src || ctx.file.src, ctx.file.id);
-      setAiDescription(result);
-      toast.success('AI analysis complete.');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'AI analysis failed.');
-    } finally {
-      setAnalyzing(false);
-    }
-  };
 
   useEffect(() => {
     if (!ctx) return;
@@ -78,52 +63,6 @@ export function PanoramaViewer() {
     img.src = imageSrc;
   }, [ctx, imageSrc]);
 
-  const runDebug = async () => {
-    if (!ctx || debugging) return;
-    const info: string[] = [];
-    setDebugging(true);
-    try {
-      info.push(`file.type=${ctx.file.type}`);
-      info.push(`file.src=${ctx.file.src}`);
-      info.push(`file.full_src=${ctx.file.full_src ?? '(null)'}`);
-      info.push(`resolved imageSrc=${imageSrc}`);
-      info.push(`resolved panoramaSrc=${panoramaSrc || '(not prepared yet)'}`);
-
-      const probe = new Image();
-      const imageProbe = await new Promise<{ ok: boolean; width?: number; height?: number; error?: string }>(
-        (resolve) => {
-          probe.onload = () => resolve({ ok: true, width: probe.naturalWidth, height: probe.naturalHeight });
-          probe.onerror = () => resolve({ ok: false, error: 'Image decode/load failed in browser.' });
-          probe.src = imageSrc;
-        },
-      );
-      if (imageProbe.ok) {
-        info.push(`image probe ok: ${imageProbe.width}x${imageProbe.height}`);
-      } else {
-        info.push(`image probe failed: ${imageProbe.error}`);
-      }
-
-      try {
-        const res = await fetch(imageSrc, { method: 'GET' });
-        info.push(`fetch status=${res.status} ${res.statusText}`);
-        info.push(`content-type=${res.headers.get('content-type') ?? '(missing)'}`);
-        info.push(`content-length=${res.headers.get('content-length') ?? '(missing)'}`);
-        if (res.ok) {
-          const blob = await res.blob();
-          info.push(`blob.type=${blob.type || '(empty)'}`);
-          info.push(`blob.size=${blob.size}`);
-        }
-      } catch (err) {
-        info.push(`fetch failed: ${err instanceof Error ? err.message : String(err)}`);
-      }
-    } finally {
-      console.group('[SiteScope] Panorama debug');
-      for (const line of info) console.info(line);
-      console.groupEnd();
-      setDebugging(false);
-    }
-  };
-
   if (loading) return <div className="p-6 text-ink-300">Loading viewer…</div>;
   if (!ctx) return (
     <div className="flex flex-col items-center justify-center gap-4 p-12 text-center">
@@ -139,39 +78,13 @@ export function PanoramaViewer() {
       <section className="space-y-4 rounded-md border border-base-800 bg-base-900/40 p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h1 className="font-display text-[26px] text-white">{ctx.file.file_name}</h1>
-            <p className="text-[12px] text-ink-300">Panorama viewer · orbit controls · AI</p>
+            <p className="font-mono text-[12px] tracking-[0.22em] text-amber-500">Panorama Viewer</p>
+            <h1 className="mt-1.5 font-display text-[22px] font-semibold leading-tight tracking-[-0.015em] text-white sm:text-[26px]">{ctx.file.file_name}</h1>
           </div>
           <Link href={backHref} className="rounded-md border border-base-700 px-3 py-1.5 text-[13px] text-white">
             Back
           </Link>
         </div>
-
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={runDebug}
-            disabled={debugging}
-            className="rounded border border-base-700 px-2 py-1 text-[12px] text-white hover:border-ink-300 disabled:opacity-50"
-          >
-            {debugging ? 'Running debug...' : 'Run Panorama Debug'}
-          </button>
-          <Link
-            href="/app/viewer/static"
-            className="rounded border border-base-700 px-2 py-1 text-[12px] text-white hover:border-ink-300"
-          >
-            Open in Static
-          </Link>
-          <button
-            type="button"
-            onClick={runAi}
-            disabled={analyzing}
-            className="rounded border border-base-700 px-2 py-1 text-[12px] disabled:opacity-50"
-          >
-            {analyzing ? 'Running AI...' : 'Run AI'}
-          </button>
-        </div>
-
         <div className="h-[70vh] overflow-hidden rounded-md border border-base-800 bg-black/30">
           {imageReady && !imageError ? (
             <Canvas camera={{ position: [0, 0, 20], fov: 70 }}>
