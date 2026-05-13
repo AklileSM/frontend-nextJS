@@ -2,7 +2,7 @@
 
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { Trash2, FileText, Image as ImageIcon, Box, Video, Eye } from 'lucide-react';
+import { Trash2, FileText, Image as ImageIcon, Box, Video } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -17,22 +17,22 @@ type Props = {
   origin: 'project' | 'room';
   isAdmin: boolean;
   onDelete: (file: ApiMediaFile) => void;
+  index?: number;
 };
 
 const TYPE_META: Record<
   ApiMediaFile['type'],
   { label: string; gradient: string; tint: string; Icon: typeof ImageIcon }
 > = {
-  image: { label: 'IMG', gradient: 'from-amber-500/20 via-amber-500/5 to-base-900', tint: 'text-amber-500', Icon: ImageIcon },
-  video: { label: 'VID', gradient: 'from-steel-500/25 via-steel-500/5 to-base-900', tint: 'text-steel-400', Icon: Video },
-  pointcloud: { label: 'PCD', gradient: 'from-violet-500/25 via-violet-500/5 to-base-900', tint: 'text-violet-300', Icon: Box },
-  pdf: { label: 'PDF', gradient: 'from-base-700/60 via-base-800 to-base-900', tint: 'text-ink-200', Icon: FileText },
+  image:      { label: 'IMG', gradient: 'from-amber-500/20 via-amber-500/5 to-base-900',   tint: 'text-amber-500',  Icon: ImageIcon },
+  video:      { label: 'VID', gradient: 'from-steel-500/25 via-steel-500/5 to-base-900',   tint: 'text-steel-400',  Icon: Video     },
+  pointcloud: { label: 'PCD', gradient: 'from-violet-500/25 via-violet-500/5 to-base-900', tint: 'text-violet-300', Icon: Box       },
+  pdf:        { label: 'PDF', gradient: 'from-base-700/60 via-base-800 to-base-900',        tint: 'text-ink-200',    Icon: FileText  },
 };
 
-export function Thumbnail({ file, roomSlug, projectSlug = '', date, origin, isAdmin, onDelete }: Props) {
+export function Thumbnail({ file, roomSlug, projectSlug = '', date, origin, isAdmin, onDelete, index = 0 }: Props) {
   const router = useRouter();
   const meta = TYPE_META[file.type];
-  const canDelete = isAdmin;
   const [pending, setPending] = useState(false);
   const [thumbFailed, setThumbFailed] = useState(false);
   const conversionStatus = file.conversion_status ?? null;
@@ -50,34 +50,23 @@ export function Thumbnail({ file, roomSlug, projectSlug = '', date, origin, isAd
       }
       return;
     }
-    if (file.type === 'video') {
-      // Video opens in a new tab in the live app. For the mock we still hand
-      // the file to the static viewer so deletion / draft flows can be tested.
-    }
     setViewerContext({ file, roomSlug, projectSlug, date, origin });
     router.push(viewerHrefFor(file));
   };
 
   return (
     <motion.div
-      whileHover={{ y: -2 }}
-      transition={{ duration: 0.18, ease: 'easeOut' }}
-      className="group relative overflow-hidden rounded-md border border-base-800 bg-base-900/40"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, delay: Math.min(index * 0.04, 0.48), ease: [0.22, 1, 0.36, 1] }}
+      whileHover={{ y: -3 }}
+      onClick={open}
+      className="group relative cursor-pointer overflow-hidden rounded-lg border border-base-800 bg-base-900 transition-colors hover:border-amber-500/40"
     >
-      <button
-        type="button"
-        onClick={open}
-        onKeyDown={(e) => {
-          if ((e.key === 'Delete' || e.key === 'Backspace') && canDelete) {
-            e.preventDefault();
-            onDelete(file);
-          }
-        }}
-        className={`relative block w-full bg-gradient-to-br ${meta.gradient} aspect-[4/3]`}
-        aria-label={`Open ${file.file_name}`}
-      >
+      <div className={`relative aspect-[4/3] bg-gradient-to-br ${meta.gradient}`}>
+
+        {/* Real thumbnail */}
         {showThumbnail && (
-          // Keep real thumbnails for media while retaining icon fallback for missing/broken URLs.
           <img
             src={file.src}
             alt={file.file_name}
@@ -86,15 +75,20 @@ export function Thumbnail({ file, roomSlug, projectSlug = '', date, origin, isAd
             onError={() => setThumbFailed(true)}
           />
         )}
-        <span
-          className={`pointer-events-none absolute inset-0 flex items-center justify-center ${meta.tint} transition-opacity ${
-            showThumbnail ? 'opacity-0 group-hover:opacity-100' : 'opacity-100'
-          }`}
-        >
-          <meta.Icon size={28} strokeWidth={1.5} />
-        </span>
-        {file.type === 'pointcloud' && (
-          <span className="pointer-events-none absolute inset-3 grid grid-cols-8 gap-1 opacity-70">
+
+        {/* Icon fallback — large centered icon + label */}
+        {!showThumbnail && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2.5">
+            <meta.Icon size={44} strokeWidth={1.25} className={meta.tint} />
+            <span className={`font-mono text-[10px] font-semibold uppercase tracking-[0.2em] opacity-60 ${meta.tint}`}>
+              {meta.label}
+            </span>
+          </div>
+        )}
+
+        {/* PCD dot scatter */}
+        {isPointcloud && (
+          <span className="pointer-events-none absolute inset-3 grid grid-cols-8 gap-1 opacity-50">
             {Array.from({ length: 24 }).map((_, i) => (
               <span
                 key={i}
@@ -104,46 +98,51 @@ export function Thumbnail({ file, roomSlug, projectSlug = '', date, origin, isAd
             ))}
           </span>
         )}
-        <span className="absolute right-1.5 top-1.5 rounded-sm bg-base-950/80 px-1.5 py-0.5 font-mono text-[9px] font-medium tracking-widest text-ink-200">
-          {meta.label}
-        </span>
+
+        {/* Type badge — only when showing a real thumbnail */}
+        {showThumbnail && (
+          <span className="absolute right-1.5 top-1.5 rounded-sm bg-base-950/80 px-1.5 py-0.5 font-mono text-[9px] font-medium tracking-widest text-ink-200">
+            {meta.label}
+          </span>
+        )}
+
+        {/* Conversion status badge */}
         {isPointcloud && conversionStatus && conversionStatus !== 'ready' && (
-          <span className="absolute left-1.5 top-1.5 rounded-sm bg-base-950/85 px-1.5 py-0.5 font-mono text-[9px] font-medium tracking-widest text-amber-300">
+          <span className="absolute left-2 top-2 rounded-sm bg-base-950/85 px-1.5 py-0.5 font-mono text-[9px] font-medium tracking-widest text-amber-300">
             {conversionStatus === 'processing' ? 'PROCESSING' : conversionStatus.toUpperCase()}
           </span>
         )}
-        <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1.5 bg-base-950/0 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.16em] text-white opacity-0 transition-all duration-200 group-hover:bg-base-950/70 group-hover:opacity-100">
-          <Eye size={11} />
-          {isPointcloud && !isPointcloudReady ? 'Converting...' : 'Open'}
-        </span>
-      </button>
 
-      <div className="flex items-start justify-between gap-2 px-3 py-2.5">
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-[12.5px] font-medium text-white" title={file.file_name}>
-            {file.file_name}
-          </p>
-          <p className="mt-0.5 font-mono text-[10px] text-ink-400">
-            {format(parseISO(file.capture_date), 'MMM d, yyyy')}
-          </p>
+        {/* Bottom info overlay */}
+        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-base-950/95 via-base-950/50 to-transparent px-3 pb-3 pt-10">
+          <div className="flex items-end justify-between gap-2">
+            <div className="min-w-0">
+              <p className="truncate text-[12px] font-medium leading-snug text-white" title={file.file_name}>
+                {file.file_name}
+              </p>
+              <p className="mt-0.5 font-mono text-[10px] text-ink-400">
+                {format(parseISO(file.capture_date), 'MMM d, yyyy')}
+              </p>
+            </div>
+            {isAdmin && (
+              <button
+                type="button"
+                disabled={pending}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPending(true);
+                  onDelete(file);
+                  setTimeout(() => setPending(false), 600);
+                }}
+                aria-label={`Delete ${file.file_name}`}
+                className="shrink-0 rounded p-1 text-ink-400 opacity-0 transition-opacity group-hover:opacity-100 hover:text-amber-400 disabled:opacity-30"
+              >
+                <Trash2 size={13} />
+              </button>
+            )}
+          </div>
         </div>
-        {canDelete && (
-          <button
-            type="button"
-            disabled={pending}
-            onClick={(e) => {
-              e.stopPropagation();
-              setPending(true);
-              onDelete(file);
-              // Reset pending after a tick — parent handles the actual deletion
-              setTimeout(() => setPending(false), 600);
-            }}
-            aria-label={`Delete ${file.file_name}`}
-            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-ink-400 opacity-0 transition-all duration-150 hover:bg-base-800 hover:text-amber-500 group-hover:opacity-100 disabled:opacity-40"
-          >
-            <Trash2 size={13} />
-          </button>
-        )}
+
       </div>
     </motion.div>
   );

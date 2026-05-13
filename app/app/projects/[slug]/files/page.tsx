@@ -258,7 +258,7 @@ export default function FileExplorerPage() {
           visibleRooms.slice(0, visibleCount).map((room) => {
             const group = pickGroup(response.rooms, room) ?? emptyGroup();
             const files = filesForTab(group, tab).filter((f) => !hiddenFileIds.has(f.id));
-            const total = group.images.length + group.videos.length + group.pointclouds.length + group.pdfs.length;
+            if (!files.length) return null;
             return (
               <RoomSection
                 key={room.id}
@@ -266,8 +266,8 @@ export default function FileExplorerPage() {
                 roomSlug={room.slug}
                 projectSlug={slug}
                 date={date}
+                group={group}
                 files={files}
-                total={total}
                 canDelete={canDelete}
                 onDelete={setPendingDelete}
               />
@@ -327,18 +327,39 @@ function Skeleton() {
   );
 }
 
+const TYPE_PILLS = [
+  { key: 'images' as const,      label: 'IMG', bg: 'bg-amber-500/10',  text: 'text-amber-400'  },
+  { key: 'videos' as const,      label: 'VID', bg: 'bg-steel-500/10',  text: 'text-steel-400'  },
+  { key: 'pointclouds' as const, label: 'PCD', bg: 'bg-violet-500/10', text: 'text-violet-400' },
+  { key: 'pdfs' as const,        label: 'PDF', bg: 'bg-base-700/50',   text: 'text-ink-300'    },
+] as const;
+
 function RoomSection({
-  roomName, roomSlug, projectSlug, date, files, total, canDelete, onDelete,
+  roomName, roomSlug, projectSlug, date, group, files, canDelete, onDelete,
 }: {
   roomName: string; roomSlug: string; projectSlug: string; date: string;
-  files: ApiMediaFile[]; total: number; canDelete: boolean; onDelete: (f: ApiMediaFile) => void;
+  group: ApiRoomMediaGroup; files: ApiMediaFile[]; canDelete: boolean; onDelete: (f: ApiMediaFile) => void;
 }) {
   return (
     <section>
-      <div className="mb-3 flex items-end justify-between">
+      <div className="mb-4 flex items-start justify-between gap-4">
         <div>
           <h2 className="font-display text-[20px] font-semibold tracking-tight text-white">{roomName}</h2>
-          <p className="mt-0.5 font-mono text-[11px] text-ink-300">{total} captures · {roomSlug}</p>
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            {TYPE_PILLS.map(({ key, label, bg, text }) => {
+              const count = group[key].length;
+              if (!count) return null;
+              return (
+                <span
+                  key={key}
+                  className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 font-mono text-[10px] font-medium ${bg} ${text}`}
+                >
+                  <span className="tabular-nums">{count}</span>
+                  <span className="opacity-70">{label}</span>
+                </span>
+              );
+            })}
+          </div>
         </div>
       </div>
       <FileGrid

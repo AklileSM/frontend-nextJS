@@ -268,8 +268,7 @@ function Inner() {
         {response &&
           datesEntries.map(([date, group]) => {
             const files = group[tab].filter((f) => !hiddenFileIds.has(f.id));
-            const total =
-              group.images.length + group.videos.length + group.pointclouds.length + group.pdfs.length;
+            if (!files.length) return null;
             return (
               <DateSection
                 key={date}
