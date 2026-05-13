@@ -171,10 +171,15 @@ export async function getExplorerByDateForProject(
     getJson<ExplorerByDateResponse>(`/files/explorer/date/${date}`),
     listProjectRooms(projectId),
   ]);
-  const projectSlugs = new Set(rooms.map((r) => r.slug));
+  // The API may key rooms by name OR slug — accept either.
+  const projectKeys = new Set<string>();
+  for (const r of rooms) {
+    projectKeys.add(r.slug);
+    projectKeys.add(r.name);
+  }
   const filtered: Record<string, typeof res.rooms[string]> = {};
-  for (const [slug, group] of Object.entries(res.rooms)) {
-    if (projectSlugs.has(slug)) filtered[slug] = group;
+  for (const [key, group] of Object.entries(res.rooms)) {
+    if (projectKeys.has(key)) filtered[key] = group;
   }
   return { ...res, rooms: filtered };
 }
