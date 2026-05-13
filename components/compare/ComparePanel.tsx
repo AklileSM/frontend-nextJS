@@ -18,16 +18,19 @@ import { PDFDocument } from 'pdf-lib';
 import { toast } from 'sonner';
 import {
   ArrowLeft,
+  Box,
   CalendarDays,
   Camera,
   ChevronLeft,
   ChevronRight,
-  Eye,
+  FileText,
   GitCompareArrows,
+  Image as ImageIcon,
   Link2,
   Link2Off,
   Loader2,
   Trash2,
+  Video as VideoIcon,
   X,
 } from 'lucide-react';
 import { MediaTabs, type MediaTab } from '@/components/explorer/MediaTabs';
@@ -174,11 +177,16 @@ function CompareCalendar({
 
 // ── Type metadata for picker thumbnails ──────────────────────────────────────
 
-const PICKER_TYPE_META: Record<string, { label: string; gradient: string }> = {
-  image:      { label: 'IMG', gradient: 'from-amber-500/20 via-amber-500/5 to-base-900' },
-  video:      { label: 'VID', gradient: 'from-steel-500/25 via-steel-500/5 to-base-900' },
-  pointcloud: { label: 'PCD', gradient: 'from-violet-500/25 via-violet-500/5 to-base-900' },
-  pdf:        { label: 'PDF', gradient: 'from-base-700/60 via-base-800 to-base-900' },
+const PICKER_TYPE_META: Record<string, {
+  label: string;
+  gradient: string;
+  tint: string;
+  Icon: typeof ImageIcon;
+}> = {
+  image:      { label: 'IMG', gradient: 'from-amber-500/20 via-amber-500/5 to-base-900',   tint: 'text-amber-500',  Icon: ImageIcon  },
+  video:      { label: 'VID', gradient: 'from-steel-500/25 via-steel-500/5 to-base-900',   tint: 'text-steel-400',  Icon: VideoIcon  },
+  pointcloud: { label: 'PCD', gradient: 'from-violet-500/25 via-violet-500/5 to-base-900', tint: 'text-violet-300', Icon: Box        },
+  pdf:        { label: 'PDF', gradient: 'from-base-700/60 via-base-800 to-base-900',        tint: 'text-ink-200',    Icon: FileText   },
 };
 
 // ── PickerThumbnail ───────────────────────────────────────────────────────────
@@ -186,33 +194,34 @@ const PICKER_TYPE_META: Record<string, { label: string; gradient: string }> = {
 function PickerThumbnail({
   file,
   disabled,
+  index = 0,
   onPick,
 }: {
   file: ApiMediaFile;
   disabled: boolean;
+  index?: number;
   onPick: () => void;
 }) {
   const [thumbFailed, setThumbFailed] = useState(false);
   const meta = PICKER_TYPE_META[file.type] ?? PICKER_TYPE_META.image;
-  const showThumb = !thumbFailed && (file.type === 'image' || file.type === 'video') && !!file.src;
+  const showThumb = !thumbFailed && (file.type === 'image' || file.type === 'video' || file.type === 'pdf') && !!file.src;
 
   return (
     <motion.div
-      whileHover={!disabled ? { y: -2 } : {}}
-      transition={{ duration: 0.15, ease: 'easeOut' }}
-      className={`group relative overflow-hidden rounded-md border ${
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25, delay: Math.min(index * 0.03, 0.36), ease: [0.22, 1, 0.36, 1] }}
+      whileHover={!disabled ? { y: -3 } : {}}
+      onClick={!disabled ? onPick : undefined}
+      className={`group relative overflow-hidden rounded-lg border transition-colors ${
         disabled
-          ? 'cursor-not-allowed border-base-800 opacity-40'
-          : 'cursor-pointer border-base-800 hover:border-amber-500/60'
+          ? 'cursor-not-allowed border-amber-500/50 opacity-50'
+          : 'cursor-pointer border-base-800 hover:border-amber-500/40'
       }`}
     >
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={onPick}
-        className={`relative block w-full bg-gradient-to-br ${meta.gradient} aspect-[4/3]`}
-        aria-label={`Select ${file.file_name}`}
-      >
+      <div className={`relative aspect-[4/3] bg-gradient-to-br ${meta.gradient}`}>
+
+        {/* Real thumbnail */}
         {showThumb && (
           <img
             src={file.src}
@@ -222,25 +231,52 @@ function PickerThumbnail({
             onError={() => setThumbFailed(true)}
           />
         )}
-        <span className="absolute right-1.5 top-1.5 rounded-sm bg-base-950/80 px-1.5 py-0.5 font-mono text-[9px] font-medium tracking-widest text-ink-200">
-          {meta.label}
-        </span>
-        {disabled ? (
-          <span className="absolute left-1.5 top-1.5 rounded-sm bg-amber-500/20 px-1.5 py-0.5 font-mono text-[9px] font-medium text-amber-400">
-            IN USE
-          </span>
-        ) : (
-          <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 bg-base-950/0 py-1.5 font-mono text-[10px] uppercase tracking-wider text-white opacity-0 transition-all duration-150 group-hover:bg-base-950/70 group-hover:opacity-100">
-            <Eye size={10} />
-            Select
+
+        {/* Icon fallback */}
+        {!showThumb && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2.5">
+            <meta.Icon size={36} strokeWidth={1.25} className={meta.tint} />
+            <span className={`font-mono text-[9px] font-semibold uppercase tracking-[0.2em] opacity-60 ${meta.tint}`}>
+              {meta.label}
+            </span>
+          </div>
+        )}
+
+        {/* PCD dot scatter */}
+        {file.type === 'pointcloud' && (
+          <span className="pointer-events-none absolute inset-3 grid grid-cols-8 gap-1 opacity-50">
+            {Array.from({ length: 24 }).map((_, i) => (
+              <span
+                key={i}
+                className="block h-0.5 w-0.5 rounded-full bg-amber-500/60"
+                style={{ opacity: 0.3 + ((i * 13) % 7) * 0.1 }}
+              />
+            ))}
           </span>
         )}
-      </button>
-      <div className="px-2 py-1.5">
-        <p className="truncate text-[11px] font-medium text-white" title={file.file_name}>
-          {file.file_name}
-        </p>
-        <p className="font-mono text-[10px] text-ink-500">{file.capture_date}</p>
+
+        {/* Type badge — only when showing a real thumbnail */}
+        {showThumb && (
+          <span className="absolute right-1.5 top-1.5 rounded-sm bg-base-950/80 px-1.5 py-0.5 font-mono text-[9px] font-medium tracking-widest text-ink-200">
+            {meta.label}
+          </span>
+        )}
+
+        {/* IN USE badge */}
+        {disabled && (
+          <span className="absolute left-2 top-2 rounded-sm bg-amber-500/20 px-1.5 py-0.5 font-mono text-[9px] font-medium tracking-widest text-amber-400">
+            IN USE
+          </span>
+        )}
+
+        {/* Bottom info overlay */}
+        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-base-950/95 via-base-950/50 to-transparent px-2.5 pb-2.5 pt-8">
+          <p className="truncate text-[11px] font-medium leading-snug text-white" title={file.file_name}>
+            {file.file_name}
+          </p>
+          <p className="mt-0.5 font-mono text-[9px] text-ink-400">{file.capture_date}</p>
+        </div>
+
       </div>
     </motion.div>
   );
@@ -379,7 +415,7 @@ function PanelFileExplorer({
           </div>
         ) : (
           <div className="grid grid-cols-3 gap-2">
-            {displayedFiles.map((file) => {
+            {displayedFiles.map((file, i) => {
               const url = file.full_src || file.src;
               const isDisabled = url === disabledFileUrl;
               const isPcd = file.type === 'pointcloud' || isPCDUrl(url);
@@ -391,6 +427,7 @@ function PanelFileExplorer({
                   key={file.id}
                   file={file}
                   disabled={isDisabled}
+                  index={i}
                   onPick={() => {
                     if (file.type === 'pdf') {
                       window.open(url, '_blank', 'noopener,noreferrer');
