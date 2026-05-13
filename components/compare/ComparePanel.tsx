@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import { motion } from 'framer-motion';
 import {
   addMonths,
   eachDayOfInterval,
@@ -19,9 +20,9 @@ import {
   ArrowLeft,
   CalendarDays,
   Camera,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Eye,
   GitCompareArrows,
   Link2,
   Link2Off,
@@ -29,6 +30,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
+import { MediaTabs, type MediaTab } from '@/components/explorer/MediaTabs';
 import Compare360Viewer, { type CameraSyncState } from './Compare360Viewer';
 import {
   API_BASE,
@@ -50,7 +52,7 @@ import {
   type CompareDraftStateV1,
 } from '@/lib/compareDraftPdfFromState';
 import { flagsFromObservationBooleans } from '@/lib/observationReportFlags';
-import type { ApiComparisonDraft, ApiProject, ApiRoomMediaGroup } from '@/types/api';
+import type { ApiComparisonDraft, ApiMediaFile, ApiProject, ApiRoomMediaGroup } from '@/types/api';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -170,6 +172,80 @@ function CompareCalendar({
   );
 }
 
+// ── Type metadata for picker thumbnails ──────────────────────────────────────
+
+const PICKER_TYPE_META: Record<string, { label: string; gradient: string }> = {
+  image:      { label: 'IMG', gradient: 'from-amber-500/20 via-amber-500/5 to-base-900' },
+  video:      { label: 'VID', gradient: 'from-steel-500/25 via-steel-500/5 to-base-900' },
+  pointcloud: { label: 'PCD', gradient: 'from-violet-500/25 via-violet-500/5 to-base-900' },
+  pdf:        { label: 'PDF', gradient: 'from-base-700/60 via-base-800 to-base-900' },
+};
+
+// ── PickerThumbnail ───────────────────────────────────────────────────────────
+
+function PickerThumbnail({
+  file,
+  disabled,
+  onPick,
+}: {
+  file: ApiMediaFile;
+  disabled: boolean;
+  onPick: () => void;
+}) {
+  const [thumbFailed, setThumbFailed] = useState(false);
+  const meta = PICKER_TYPE_META[file.type] ?? PICKER_TYPE_META.image;
+  const showThumb = !thumbFailed && (file.type === 'image' || file.type === 'video') && !!file.src;
+
+  return (
+    <motion.div
+      whileHover={!disabled ? { y: -2 } : {}}
+      transition={{ duration: 0.15, ease: 'easeOut' }}
+      className={`group relative overflow-hidden rounded-md border ${
+        disabled
+          ? 'cursor-not-allowed border-base-800 opacity-40'
+          : 'cursor-pointer border-base-800 hover:border-amber-500/60'
+      }`}
+    >
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={onPick}
+        className={`relative block w-full bg-gradient-to-br ${meta.gradient} aspect-[4/3]`}
+        aria-label={`Select ${file.file_name}`}
+      >
+        {showThumb && (
+          <img
+            src={file.src}
+            alt={file.file_name}
+            loading="lazy"
+            className="absolute inset-0 h-full w-full object-cover"
+            onError={() => setThumbFailed(true)}
+          />
+        )}
+        <span className="absolute right-1.5 top-1.5 rounded-sm bg-base-950/80 px-1.5 py-0.5 font-mono text-[9px] font-medium tracking-widest text-ink-200">
+          {meta.label}
+        </span>
+        {disabled ? (
+          <span className="absolute left-1.5 top-1.5 rounded-sm bg-amber-500/20 px-1.5 py-0.5 font-mono text-[9px] font-medium text-amber-400">
+            IN USE
+          </span>
+        ) : (
+          <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 bg-base-950/0 py-1.5 font-mono text-[10px] uppercase tracking-wider text-white opacity-0 transition-all duration-150 group-hover:bg-base-950/70 group-hover:opacity-100">
+            <Eye size={10} />
+            Select
+          </span>
+        )}
+      </button>
+      <div className="px-2 py-1.5">
+        <p className="truncate text-[11px] font-medium text-white" title={file.file_name}>
+          {file.file_name}
+        </p>
+        <p className="font-mono text-[10px] text-ink-500">{file.capture_date}</p>
+      </div>
+    </motion.div>
+  );
+}
+
 // ── PanelFileExplorer ─────────────────────────────────────────────────────────
 
 function PanelFileExplorer({
@@ -177,18 +253,25 @@ function PanelFileExplorer({
   disabledFileUrl,
   onFileSelect,
   onBackToCalendar,
+  tabRailId,
 }: {
   selectedDate: string;
   disabledFileUrl: string | null;
   onFileSelect: (sel: FileSelection) => void;
   onBackToCalendar: () => void;
+  tabRailId: string;
 }) {
-  type TabKey = 'images' | 'videos' | 'pointclouds' | 'pdfs';
-  const [activeTab, setActiveTab] = useState<TabKey>('images');
+  const [activeTab, setActiveTab] = useState<MediaTab>('images');
+  const [selectedRoomSlug, setSelectedRoomSlug] = useState<string | null>(null);
   const [roomsForDate, setRoomsForDate] = useState<Record<string, ApiRoomMediaGroup>>({});
-  const [collapsedRooms, setCollapsedRooms] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Reset selections on date change
+  useEffect(() => {
+    setSelectedRoomSlug(null);
+    setActiveTab('images');
+  }, [selectedDate]);
 
   useEffect(() => {
     if (!selectedDate) return;
@@ -196,35 +279,36 @@ function PanelFileExplorer({
     setLoading(true);
     setError(null);
     getExplorerByDate(selectedDate)
-      .then((res) => {
-        if (cancelled) return;
-        setRoomsForDate(res.rooms || {});
-      })
+      .then((res) => { if (!cancelled) setRoomsForDate(res.rooms || {}); })
       .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load files.'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [selectedDate]);
 
-  useEffect(() => {
-    setCollapsedRooms((prev) => {
-      const next: Record<string, boolean> = {};
-      for (const [slug, media] of Object.entries(roomsForDate)) {
-        const hasFiles = (media[activeTab] ?? []).length > 0;
-        next[slug] = slug in prev ? prev[slug] : !hasFiles;
-      }
-      return next;
-    });
-  }, [activeTab, roomsForDate]);
+  const roomSlugs = Object.keys(roomsForDate);
 
-  const TABS: { key: TabKey; label: string }[] = [
-    { key: 'images', label: 'Images' },
-    { key: 'videos', label: 'Videos' },
-    { key: 'pointclouds', label: 'Point clouds' },
-    { key: 'pdfs', label: 'PDFs' },
-  ];
+  const tabCounts = useMemo((): Record<MediaTab, number> => {
+    const result = { images: 0, videos: 0, pointclouds: 0, pdfs: 0 };
+    const entries = selectedRoomSlug
+      ? (roomsForDate[selectedRoomSlug] ? [[selectedRoomSlug, roomsForDate[selectedRoomSlug]] as const] : [])
+      : (Object.entries(roomsForDate) as [string, ApiRoomMediaGroup][]);
+    for (const [, m] of entries) {
+      result.images      += m.images?.length ?? 0;
+      result.videos      += m.videos?.length ?? 0;
+      result.pointclouds += m.pointclouds?.length ?? 0;
+      result.pdfs        += m.pdfs?.length ?? 0;
+    }
+    return result;
+  }, [roomsForDate, selectedRoomSlug]);
+
+  const displayedFiles = useMemo((): ApiMediaFile[] => {
+    const slugs = selectedRoomSlug ? [selectedRoomSlug] : Object.keys(roomsForDate);
+    return slugs.flatMap((slug) => roomsForDate[slug]?.[activeTab] ?? []);
+  }, [roomsForDate, selectedRoomSlug, activeTab]);
 
   return (
     <div className="flex h-full flex-col">
+      {/* Header */}
       <div className="flex items-center justify-between border-b border-base-800 px-4 py-3">
         <span className="font-mono text-[13px] font-medium text-white">{selectedDate}</span>
         <button
@@ -236,22 +320,49 @@ function PanelFileExplorer({
           Calendar
         </button>
       </div>
-      <div className="flex border-b border-base-800">
-        {TABS.map(({ key, label }) => (
+
+      {/* Room chips */}
+      {roomSlugs.length > 1 && (
+        <div className="flex items-center gap-1.5 overflow-x-auto border-b border-base-800 px-3 py-2 scrollbar-none">
           <button
-            key={key}
             type="button"
-            onClick={() => setActiveTab(key)}
-            className={`flex-1 py-2 text-[11px] font-medium transition-colors ${
-              activeTab === key
-                ? 'border-b-2 border-amber-500 text-amber-400'
-                : 'text-ink-500 hover:text-white'
+            onClick={() => setSelectedRoomSlug(null)}
+            className={`shrink-0 rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors ${
+              selectedRoomSlug === null
+                ? 'bg-amber-500/15 text-amber-400'
+                : 'text-ink-400 hover:bg-base-800 hover:text-white'
             }`}
           >
-            {label}
+            All
           </button>
-        ))}
+          {roomSlugs.map((slug) => (
+            <button
+              key={slug}
+              type="button"
+              onClick={() => setSelectedRoomSlug(slug === selectedRoomSlug ? null : slug)}
+              className={`shrink-0 rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                selectedRoomSlug === slug
+                  ? 'bg-amber-500/15 text-amber-400'
+                  : 'text-ink-400 hover:bg-base-800 hover:text-white'
+              }`}
+            >
+              {slug}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Media tabs */}
+      <div className="border-b border-base-800 px-3 py-2">
+        <MediaTabs
+          active={activeTab}
+          counts={tabCounts}
+          onChange={setActiveTab}
+          railId={tabRailId}
+        />
       </div>
+
+      {/* File grid */}
       <div className="flex-1 overflow-y-auto p-3">
         {loading ? (
           <div className="flex justify-center py-8">
@@ -259,93 +370,47 @@ function PanelFileExplorer({
           </div>
         ) : error ? (
           <p className="py-4 text-center text-[12px] text-red-400">{error}</p>
-        ) : Object.keys(roomsForDate).length === 0 ? (
-          <p className="py-4 text-center text-[12px] text-ink-500">No files for this date.</p>
+        ) : displayedFiles.length === 0 && !loading ? (
+          <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
+            <p className="text-[12px] font-medium text-ink-400">No {activeTab} here</p>
+            <p className="text-[11px] text-ink-600">
+              {roomSlugs.length === 0 ? 'No files for this date.' : 'Try a different room or media type.'}
+            </p>
+          </div>
         ) : (
-          Object.entries(roomsForDate).map(([roomSlug, media]) => {
-            const files = media[activeTab] ?? [];
-            const isCollapsed = collapsedRooms[roomSlug] ?? false;
-            return (
-              <div key={roomSlug} className="mb-3">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setCollapsedRooms((p) => ({ ...p, [roomSlug]: !p[roomSlug] }))
-                  }
-                  className="flex w-full items-center gap-2 rounded-lg border border-base-800 bg-base-800/50 px-3 py-2 text-left"
-                >
-                  <span className="min-w-0 flex-1 text-[12px] font-medium text-white">
-                    {roomSlug}
-                    <span className="ml-1.5 text-ink-500">({files.length})</span>
-                  </span>
-                  <ChevronDown
-                    size={12}
-                    className={`shrink-0 text-ink-500 transition-transform ${isCollapsed ? '' : 'rotate-180'}`}
-                  />
-                </button>
-                {!isCollapsed && (
-                  <div className="mt-2 grid grid-cols-2 gap-2 px-1">
-                    {files.length === 0 ? (
-                      <p className="col-span-2 py-2 text-center text-[11px] text-ink-600">
-                        No {activeTab} for this room.
-                      </p>
-                    ) : (
-                      files.map((file) => {
-                        const url = file.full_src || file.src;
-                        const isDisabled = url === disabledFileUrl;
-                        const isPcd = file.type === 'pointcloud' || isPCDUrl(url);
-                        return (
-                          <button
-                            key={file.id}
-                            type="button"
-                            disabled={isDisabled}
-                            onClick={() => {
-                              if (file.type === 'pdf') {
-                                window.open(url, '_blank', 'noopener,noreferrer');
-                                return;
-                              }
-                              onFileSelect({
-                                fileUrl: url,
-                                fileId: file.id,
-                                displayFileName: file.file_name,
-                                roomSlug,
-                                roomLabel: roomSlug,
-                                captureDate: file.capture_date,
-                                mediaType: file.type,
-                                isPCD: isPcd,
-                              });
-                            }}
-                            className={`overflow-hidden rounded-lg border transition-colors ${
-                              isDisabled
-                                ? 'cursor-not-allowed border-base-800 opacity-30'
-                                : 'cursor-pointer border-base-700 hover:border-amber-500'
-                            }`}
-                          >
-                            {file.type === 'image' ? (
-                              <img
-                                src={file.src}
-                                alt={file.file_name}
-                                className="aspect-square w-full object-cover"
-                              />
-                            ) : (
-                              <div className="flex aspect-square w-full items-center justify-center bg-base-800 px-2">
-                                <span className="line-clamp-3 text-center text-[10px] text-ink-400">
-                                  {file.file_name}
-                                </span>
-                              </div>
-                            )}
-                            <p className="truncate bg-base-900/80 px-1.5 py-1 text-[10px] text-ink-300">
-                              {file.file_name}
-                            </p>
-                          </button>
-                        );
-                      })
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })
+          <div className="grid grid-cols-3 gap-2">
+            {displayedFiles.map((file) => {
+              const url = file.full_src || file.src;
+              const isDisabled = url === disabledFileUrl;
+              const isPcd = file.type === 'pointcloud' || isPCDUrl(url);
+              const roomSlug = selectedRoomSlug ?? roomSlugs.find(
+                (s) => roomsForDate[s]?.[activeTab]?.some((f) => f.id === file.id)
+              ) ?? '';
+              return (
+                <PickerThumbnail
+                  key={file.id}
+                  file={file}
+                  disabled={isDisabled}
+                  onPick={() => {
+                    if (file.type === 'pdf') {
+                      window.open(url, '_blank', 'noopener,noreferrer');
+                      return;
+                    }
+                    onFileSelect({
+                      fileUrl: url,
+                      fileId: file.id,
+                      displayFileName: file.file_name,
+                      roomSlug,
+                      roomLabel: roomSlug,
+                      captureDate: file.capture_date,
+                      mediaType: file.type,
+                      isPCD: isPcd,
+                    });
+                  }}
+                />
+              );
+            })}
+          </div>
         )}
       </div>
     </div>
@@ -845,6 +910,7 @@ export function ComparePanel() {
                         if (side === 'left') setLeftPanel('calendar');
                         else setRightPanel('calendar');
                       }}
+                      tabRailId={`compare-${side}-tab`}
                     />
                   )}
 

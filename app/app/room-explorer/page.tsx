@@ -274,10 +274,10 @@ function Inner() {
               <DateSection
                 key={date}
                 date={date}
+                group={group}
                 roomSlug={activeSlug ?? ''}
                 projectSlug={projectSlug}
                 files={files}
-                total={total}
                 isAdmin={user?.is_admin ?? false}
                 onDelete={setPendingDelete}
               />
@@ -316,31 +316,52 @@ function Skeleton() {
   );
 }
 
+const TYPE_PILLS = [
+  { key: 'images' as const,      label: 'IMG', bg: 'bg-amber-500/10',   text: 'text-amber-400'  },
+  { key: 'videos' as const,      label: 'VID', bg: 'bg-steel-500/10',   text: 'text-steel-400'  },
+  { key: 'pointclouds' as const, label: 'PCD', bg: 'bg-violet-500/10',  text: 'text-violet-400' },
+  { key: 'pdfs' as const,        label: 'PDF', bg: 'bg-base-700/50',    text: 'text-ink-300'    },
+] as const;
+
 function DateSection({
   date,
+  group,
   roomSlug,
   projectSlug,
   files,
-  total,
   isAdmin,
   onDelete,
 }: {
   date: string;
+  group: ApiRoomMediaGroup;
   roomSlug: string;
   projectSlug: string;
   files: ApiMediaFile[];
-  total: number;
   isAdmin: boolean;
   onDelete: (file: ApiMediaFile) => void;
 }) {
   return (
     <section>
-      <div className="mb-3 flex items-end justify-between">
+      <div className="mb-4 flex items-start justify-between gap-4">
         <div>
           <h2 className="font-display text-[20px] font-semibold tracking-tight text-white">
             {format(parseISO(date), 'EEE, MMM d, yyyy')}
           </h2>
-          <p className="mt-0.5 font-mono text-[11px] text-ink-300">{total} captures · {date}</p>
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            {TYPE_PILLS.map(({ key, label, bg, text }) => {
+              const count = group[key].length;
+              if (!count) return null;
+              return (
+                <span
+                  key={key}
+                  className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 font-mono text-[10px] font-medium ${bg} ${text}`}
+                >
+                  <span className="tabular-nums">{count}</span>
+                  <span className="opacity-70">{label}</span>
+                </span>
+              );
+            })}
+          </div>
         </div>
       </div>
       <FileGrid
