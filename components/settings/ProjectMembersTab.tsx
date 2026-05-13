@@ -34,18 +34,33 @@ function RoleDropdown({
   onChange: (r: ApiProjectMember['role']) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
+  const btnRef = useRef<HTMLButtonElement>(null);
+
+  const openDropdown = () => {
+    if (btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      setCoords({ top: r.bottom + 4, left: r.left, width: r.width });
+    }
+    setOpen(true);
+  };
+
+  const dotColor = (r: ApiProjectMember['role']) =>
+    r === 'owner' ? 'bg-amber-400' : r === 'editor' ? 'bg-steel-400' : 'bg-ink-500';
+
   return (
-    <div className="relative">
+    <div>
       <button
+        ref={btnRef}
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={openDropdown}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
-        className="flex items-center gap-1.5 rounded-md border border-base-700 bg-base-950 px-2.5 py-1 text-[12px] text-white transition-colors hover:border-base-600"
+        className="flex w-full items-center justify-between gap-1.5 rounded-md border border-base-700 bg-base-950 px-2.5 py-1 text-[12px] text-white transition-colors hover:border-base-600"
       >
-        <span className={`h-1.5 w-1.5 rounded-full ${
-          value === 'owner' ? 'bg-amber-400' : value === 'editor' ? 'bg-steel-400' : 'bg-ink-500'
-        }`} />
-        {value.charAt(0).toUpperCase() + value.slice(1)}
+        <span className="flex items-center gap-1.5">
+          <span className={`h-1.5 w-1.5 rounded-full ${dotColor(value)}`} />
+          {value.charAt(0).toUpperCase() + value.slice(1)}
+        </span>
         <ChevronDown size={11} className="text-ink-500" />
       </button>
       <AnimatePresence>
@@ -55,7 +70,8 @@ function RoleDropdown({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.1 }}
-            className="absolute left-0 top-full z-20 mt-1 min-w-[110px] rounded-md border border-base-700 bg-base-900 py-1 shadow-xl"
+            style={{ top: coords.top, left: coords.left, width: coords.width }}
+            className="fixed z-50 rounded-md border border-base-700 bg-base-900 py-1 shadow-xl"
           >
             {ROLES.map((r) => (
               <li key={r}>
@@ -66,9 +82,7 @@ function RoleDropdown({
                     r === value ? 'text-white' : 'text-ink-400'
                   }`}
                 >
-                  <span className={`h-1.5 w-1.5 rounded-full ${
-                    r === 'owner' ? 'bg-amber-400' : r === 'editor' ? 'bg-steel-400' : 'bg-ink-500'
-                  }`} />
+                  <span className={`h-1.5 w-1.5 rounded-full ${dotColor(r)}`} />
                   {r.charAt(0).toUpperCase() + r.slice(1)}
                 </button>
               </li>
