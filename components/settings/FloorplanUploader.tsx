@@ -2,9 +2,9 @@
 
 import { useRef, useState, type DragEvent, type ChangeEvent } from 'react';
 import { motion } from 'framer-motion';
-import { ImagePlus, Loader2 } from 'lucide-react';
+import { ImagePlus, Loader2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { uploadProjectFloorplan } from '@/services/apiClient';
+import { uploadProjectFloorplan, deleteProjectFloorplan } from '@/services/apiClient';
 import type { ApiProject } from '@/types/api';
 
 export function FloorplanUploader({
@@ -16,6 +16,7 @@ export function FloorplanUploader({
 }) {
   const [dragOver, setDragOver] = useState(false);
   const [progress, setProgress] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const upload = async (file: File) => {
@@ -48,6 +49,19 @@ export function FloorplanUploader({
     e.target.value = '';
   };
 
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      const updated = await deleteProjectFloorplan(project.id);
+      onUploaded(updated);
+      toast.success('Floorplan removed');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to remove floorplan');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const uploading = progress !== null;
 
   return (
@@ -59,9 +73,24 @@ export function FloorplanUploader({
             alt="Current floorplan"
             className="max-h-48 w-full object-contain bg-base-950"
           />
-          <p className="border-t border-base-800 px-3 py-2 font-mono text-[11px] text-ink-400">
-            Current floorplan — drop a new image below to replace it
-          </p>
+          <div className="flex items-center justify-between border-t border-base-800 px-3 py-2">
+            <p className="font-mono text-[11px] text-ink-400">
+              Current floorplan — drop a new image below to replace it
+            </p>
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={deleting || uploading}
+              className="flex items-center gap-1 font-mono text-[11px] text-red-400 hover:text-red-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              {deleting ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Trash2 className="h-3 w-3" />
+              )}
+              Remove
+            </button>
+          </div>
         </div>
       )}
 

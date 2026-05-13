@@ -1051,6 +1051,10 @@ export async function uploadProjectFloorplan(
   });
 }
 
+export function deleteProjectFloorplan(projectId: string): Promise<ApiProject> {
+  return getJson<ApiProject>(`/projects/${projectId}/floorplan`, { method: 'DELETE' });
+}
+
 export function createRoom(
   projectId: string,
   body: { name: string; slug: string; sort_order?: number },
