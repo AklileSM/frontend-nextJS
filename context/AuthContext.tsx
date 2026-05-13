@@ -14,7 +14,7 @@ import {
   apiLogin,
   apiRegister,
 } from '@/services/apiClient';
-import { clearAccessToken, setAccessToken } from '@/auth/authSession';
+import { clearAccessToken, getAccessToken, setAccessToken } from '@/auth/authSession';
 import type { AuthUser } from '@/types/api';
 
 export type { AuthUser };
@@ -54,6 +54,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true;
     const bootstrapUser = async () => {
+      if (!getAccessToken()) {
+        if (mounted) setIsLoading(false);
+        return;
+      }
       try {
         const me = await apiFetchCurrentUser();
         if (!mounted) return;
