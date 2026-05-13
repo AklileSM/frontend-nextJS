@@ -126,7 +126,7 @@ export function listAdminUsers(): Promise<AdminUser[]> {
 }
 
 export function searchUsers(q: string): Promise<AdminUser[]> {
-  return getJson<AdminUser[]>(`/admin/users/search?q=${encodeURIComponent(q)}`);
+  return getJson<AdminUser[]>(`/admin/user-search?q=${encodeURIComponent(q)}`);
 }
 
 export function updateAdminUser(
