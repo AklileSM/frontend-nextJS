@@ -167,58 +167,57 @@ export default function ProfilePage() {
         </div>
 
         {loading ? (
-          <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-6 space-y-2">
             {Array.from({ length: 6 }).map((_, i) => (
               <div
                 key={i}
-                className="animate-pulse rounded-md border border-base-800 bg-base-900/40 p-4"
+                className="flex animate-pulse items-center gap-3 rounded-md border border-base-800 bg-base-900/40 px-4 py-3"
                 style={{ animationDelay: `${i * 55}ms` }}
               >
-                <div className="mb-3 aspect-[4/3] rounded border border-base-800 bg-base-800/60" />
-                <div className="h-3.5 w-3/4 rounded bg-base-800" />
-                <div className="mt-2 h-3 w-1/2 rounded bg-base-800/70" />
-                <div className="mt-3 flex gap-2">
-                  <div className="h-7 w-14 rounded border border-base-800 bg-base-800/50" />
-                  <div className="h-7 w-20 rounded border border-base-800 bg-base-800/50" />
-                  <div className="h-7 w-14 rounded border border-base-800 bg-base-800/50" />
+                <div className="h-8 w-8 shrink-0 rounded border border-base-700 bg-base-800" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3.5 w-2/5 rounded bg-base-800" />
+                  <div className="h-3 w-1/4 rounded bg-base-800/70" />
+                </div>
+                <div className="flex gap-2">
+                  <div className="h-7 w-12 rounded border border-base-800 bg-base-800/50" />
+                  <div className="h-7 w-18 rounded border border-base-800 bg-base-800/50" />
+                  <div className="h-7 w-12 rounded border border-base-800 bg-base-800/50" />
                 </div>
               </div>
             ))}
           </div>
         ) : tab === 'reports' ? (
-          <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-6 space-y-2">
             {reports.map((r) => (
-              <article key={r.id} className="rounded-md border border-base-800 bg-base-900/40 p-4">
-                <div className="mb-3 aspect-[4/3] overflow-hidden rounded border border-base-800 bg-base-950">
+              <article key={r.id} className="flex items-center gap-3 rounded-md border border-base-800 bg-base-900/40 px-4 py-3">
+                <div className="flex h-8 w-8 shrink-0 overflow-hidden rounded border border-base-700 bg-base-900">
                   {r.screenshots[0] ? (
-                    <img
-                      src={r.screenshots[0]}
-                      alt=""
-                      className="h-full w-full object-cover"
-                    />
+                    <img src={r.screenshots[0]} alt="" className="h-full w-full object-cover" />
                   ) : (
-                    <div className="flex h-full flex-col items-center justify-center gap-2 text-ink-700">
-                      <FileText size={26} />
-                      <span className="text-[11px]">No preview</span>
-                    </div>
+                    <span className="flex h-full w-full items-center justify-center text-ink-600">
+                      <FileText size={15} />
+                    </span>
                   )}
                 </div>
-                <p className="truncate text-[13px] font-medium text-white">{r.label ?? 'Report'}</p>
-                <p className="mt-0.5 text-[11px] text-ink-400">
-                  {formatTimestamp(r.created_at)}{r.flags.length > 0 ? ` · ${r.flags.join(', ')}` : ''}
-                </p>
-                <div className="mt-3 flex gap-2">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[13px] font-medium text-white">{r.label ?? 'Report'}</p>
+                  <p className="mt-0.5 text-[11px] text-ink-400">
+                    {formatTimestamp(r.created_at)}{r.flags.length > 0 ? ` · ${r.flags.join(', ')}` : ''}
+                  </p>
+                </div>
+                <div className="flex shrink-0 gap-2">
                   <button
                     type="button"
                     onClick={() => void onOpen(r)}
-                    className="rounded border border-base-700 px-2.5 py-1 text-[12px] text-white"
+                    className="rounded border border-base-700 px-2.5 py-1 text-[12px] text-white transition-colors hover:border-ink-300"
                   >
                     Open
                   </button>
                   <button
                     type="button"
                     onClick={() => void onDownload(r)}
-                    className="rounded border border-base-700 px-2.5 py-1 text-[12px] text-white"
+                    className="rounded border border-base-700 px-2.5 py-1 text-[12px] text-white transition-colors hover:border-ink-300"
                   >
                     Download
                   </button>
@@ -226,7 +225,7 @@ export default function ProfilePage() {
                     type="button"
                     disabled={!!deletingId}
                     onClick={() => setPendingDeleteId(r.id)}
-                    className="rounded border border-red-700/60 px-2.5 py-1 text-[12px] text-red-200 disabled:opacity-50"
+                    className="rounded border border-red-800/50 px-2.5 py-1 text-[12px] text-red-200 transition-colors hover:border-red-600/60 disabled:opacity-50"
                   >
                     {deletingId === r.id ? 'Deleting…' : 'Delete'}
                   </button>
