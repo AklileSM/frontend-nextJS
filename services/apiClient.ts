@@ -757,6 +757,7 @@ export async function createReportWithPdf(params: {
   pdfBlob: Blob;
   fileId: string;
   filename?: string;
+  label?: string | null;
   aiDescription?: string | null;
   manualObservations?: string | null;
   flags?: string[];
@@ -768,6 +769,9 @@ export async function createReportWithPdf(params: {
   const form = new FormData();
   form.append('file', params.pdfBlob, params.filename ?? 'report.pdf');
   form.append('file_id', params.fileId);
+  if (params.label != null && params.label !== '') {
+    form.append('label', params.label);
+  }
   if (params.aiDescription != null && params.aiDescription !== '') {
     form.append('ai_description', params.aiDescription);
   }
@@ -872,6 +876,7 @@ export async function publishViewerFieldDraft(params: {
   pdfBlob: Blob;
   fileId: string;
   filename?: string;
+  label?: string | null;
   aiDescription?: string | null;
   manualObservations?: string | null;
   flags?: string[];
@@ -883,6 +888,9 @@ export async function publishViewerFieldDraft(params: {
   const form = new FormData();
   form.append('file', params.pdfBlob, params.filename ?? 'report.pdf');
   form.append('file_id', params.fileId);
+  if (params.label != null && params.label !== '') {
+    form.append('label', params.label);
+  }
   if (params.aiDescription != null && params.aiDescription !== '') {
     form.append('ai_description', params.aiDescription);
   }

@@ -203,8 +203,10 @@ export default function ProfilePage() {
                     </div>
                   )}
                 </div>
-                <p className="text-[13px] font-medium text-white">{formatTimestamp(r.created_at)}</p>
-                <p className="mt-1 text-[12px] text-ink-300">Flags: {r.flags.join(', ') || '(none)'}</p>
+                <p className="truncate text-[13px] font-medium text-white">{r.label ?? 'Report'}</p>
+                <p className="mt-0.5 text-[11px] text-ink-400">
+                  {formatTimestamp(r.created_at)}{r.flags.length > 0 ? ` · ${r.flags.join(', ')}` : ''}
+                </p>
                 <div className="mt-3 flex gap-2">
                   <button
                     type="button"

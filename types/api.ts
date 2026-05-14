@@ -147,6 +147,7 @@ export interface ApiConversionStatus {
 export interface ApiReport {
   id: string;
   file_id: string;
+  label: string | null;
   ai_description: string | null;
   manual_observations: string | null;
   flags: string[];
