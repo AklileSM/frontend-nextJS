@@ -66,7 +66,7 @@ export function PointCloudViewer() {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-        className="space-y-4 rounded-xl border border-base-800 bg-base-900/40 p-5"
+        className="space-y-4 rounded-md border border-base-800 bg-base-900/40 p-4"
       >
         {/* Header */}
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -81,7 +81,7 @@ export function PointCloudViewer() {
             <button
               type="button"
               onClick={toggleFullscreen}
-              className="inline-flex items-center gap-1.5 rounded-md border border-base-700 bg-base-900 px-3 py-1.5 text-[12px] font-medium text-ink-200 transition-colors hover:border-base-600 hover:bg-base-800 hover:text-white"
+              className="inline-flex items-center gap-1.5 rounded-md border border-base-700 px-3 py-1.5 text-[12px] text-white transition-colors hover:border-ink-300"
             >
               {isFullscreen ? (
                 <><Minimize2 size={12} /> Exit fullscreen</>
@@ -91,7 +91,7 @@ export function PointCloudViewer() {
             </button>
             <Link
               href={backHref}
-              className="inline-flex items-center gap-1.5 rounded-md border border-base-700 bg-base-900 px-3 py-1.5 text-[12px] font-medium text-ink-200 transition-colors hover:border-base-600 hover:bg-base-800 hover:text-white"
+              className="inline-flex items-center gap-1.5 rounded-md border border-base-700 px-3 py-1.5 text-[12px] text-white transition-colors hover:border-ink-300"
             >
               <ArrowLeft size={12} />
               Back
@@ -102,7 +102,7 @@ export function PointCloudViewer() {
         {/* Viewer iframe */}
         <div
           ref={containerRef}
-          className="relative h-[70vh] overflow-hidden rounded-lg border border-base-800 bg-black/40"
+          className="relative h-[70vh] overflow-hidden rounded-md border border-base-800 bg-black/40"
         >
           {potreeUrl ? (
             <iframe
@@ -120,7 +120,7 @@ export function PointCloudViewer() {
             <button
               type="button"
               onClick={toggleFullscreen}
-              className="absolute right-4 top-4 z-20 inline-flex items-center gap-1.5 rounded-md border border-base-700 bg-base-950/90 px-3 py-1.5 text-[12px] font-medium text-white backdrop-blur-sm transition-colors hover:bg-base-800"
+              className="absolute right-4 top-4 z-20 inline-flex items-center gap-1.5 rounded-md border border-base-700 px-3 py-1.5 text-[12px] text-white transition-colors hover:border-ink-300"
             >
               <Minimize2 size={12} />
               Exit fullscreen
@@ -140,9 +140,9 @@ export function PointCloudViewer() {
         <button
           type="button"
           onClick={() => setOverlayOpen((v) => !v)}
-          className="flex w-full items-center justify-between rounded-xl border border-base-800 bg-base-900/40 px-4 py-3 text-left transition-colors hover:border-base-700 hover:bg-base-900/70"
+          className="flex w-full items-center justify-between rounded-md border border-base-700 px-4 py-3 text-left text-white transition-colors hover:border-ink-300"
         >
-          <span className="font-display text-[14px] font-semibold text-white">Field report</span>
+          <span className="font-display text-[14px] font-semibold">Field report</span>
           {overlayOpen
             ? <ChevronUp size={15} className="text-ink-400" />
             : <ChevronDown size={15} className="text-ink-400" />}
