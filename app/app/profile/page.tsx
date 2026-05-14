@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
+import { ArrowLeftRight, FileText, Globe, Image as ImageIcon, ScanLine } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { getAccessToken } from '@/auth/authSession';
@@ -186,10 +187,19 @@ export default function ProfilePage() {
           <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {reports.map((r) => (
               <article key={r.id} className="rounded-md border border-base-800 bg-base-900/40 p-4">
-                <div className="mb-3 aspect-[4/3] overflow-hidden rounded border border-base-800 bg-black/20">
-                  <div className="flex h-full items-center justify-center text-[12px] text-ink-400">
-                    Report thumbnail
-                  </div>
+                <div className="mb-3 aspect-[4/3] overflow-hidden rounded border border-base-800 bg-base-950">
+                  {r.screenshots[0] ? (
+                    <img
+                      src={r.screenshots[0]}
+                      alt=""
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full flex-col items-center justify-center gap-2 text-ink-700">
+                      <FileText size={26} />
+                      <span className="text-[11px]">No preview</span>
+                    </div>
+                  )}
                 </div>
                 <p className="text-[13px] font-medium text-white">{formatTimestamp(r.created_at)}</p>
                 <p className="mt-1 text-[12px] text-ink-300">Flags: {r.flags.join(', ') || '(none)'}</p>
@@ -222,22 +232,37 @@ export default function ProfilePage() {
             {reports.length === 0 && <p className="text-[13px] text-ink-300">No reports yet.</p>}
           </div>
         ) : (
-          <div className="mt-6 space-y-3">
-            {allDrafts.map((d) => (
-              <article key={`${d.kind}-${d.id}`} className="flex items-center justify-between rounded-md border border-base-800 bg-base-900/40 p-4">
-                <div>
-                  <p className="text-[13px] font-medium text-white">
-                    {d.kind === 'comparison' ? 'Comparison draft' : `${d.viewerKind} draft`}
-                  </p>
-                  <p className="mt-0.5 text-[12px] text-ink-300">
-                    {formatTimestamp(d.createdAt)} · flags: {d.flags.join(', ') || '(none)'}
-                  </p>
-                </div>
-                <Link href={d.href} className="rounded-md bg-amber-500 px-3 py-1.5 text-[12px] font-medium text-base-950">
-                  Continue editing
-                </Link>
-              </article>
-            ))}
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {allDrafts.map((d) => {
+              const icon =
+                d.viewerKind === 'interactive_360' ? <Globe size={26} /> :
+                d.viewerKind === 'static_pcd' || d.viewerKind === 'point-cloud' ? <ScanLine size={26} /> :
+                d.kind === 'comparison' ? <ArrowLeftRight size={26} /> :
+                <ImageIcon size={26} />;
+              const typeLabel =
+                d.viewerKind === 'interactive_360' ? 'Panorama draft' :
+                d.viewerKind === 'static_pcd' || d.viewerKind === 'point-cloud' ? 'Point cloud draft' :
+                d.kind === 'comparison' ? 'Comparison draft' :
+                'Image draft';
+              return (
+                <article key={`${d.kind}-${d.id}`} className="rounded-md border border-base-800 bg-base-900/40 p-4">
+                  <div className="mb-3 flex aspect-[4/3] items-center justify-center overflow-hidden rounded border border-base-800 bg-base-950 text-ink-700">
+                    {icon}
+                  </div>
+                  <p className="text-[13px] font-medium text-white">{typeLabel}</p>
+                  <p className="mt-0.5 text-[12px] text-ink-300">{formatTimestamp(d.createdAt)}</p>
+                  <p className="mt-0.5 text-[12px] text-ink-300">Flags: {d.flags.join(', ') || '(none)'}</p>
+                  <div className="mt-3">
+                    <Link
+                      href={d.href}
+                      className="rounded-md bg-amber-500 px-3 py-1.5 text-[12px] font-medium text-base-950 transition-colors hover:bg-amber-400"
+                    >
+                      Continue editing
+                    </Link>
+                  </div>
+                </article>
+              );
+            })}
             {allDrafts.length === 0 && <p className="text-[13px] text-ink-300">No drafts yet.</p>}
           </div>
         )}

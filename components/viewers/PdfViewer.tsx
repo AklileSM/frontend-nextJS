@@ -2,10 +2,9 @@
 
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { getAccessToken } from '@/auth/authSession';
 import { useViewerContext } from './useViewerContext';
-import { backHrefFor } from '@/components/explorer/viewerContext';
 
 export function PdfViewer() {
   const { ctx, loading, fallbackHref } = useViewerContext();
@@ -17,11 +16,6 @@ export function PdfViewer() {
   const nameFromQuery = (searchParams.get('name') || '').trim();
   const activePdfSrc = srcFromQuery || (ctx?.file.full_src || ctx?.file.src || '');
   const displayName = nameFromQuery || ctx?.file.file_name || 'Report PDF';
-
-  const backHref = useMemo(() => {
-    if (!ctx || !ctx.roomSlug || !ctx.date) return fallbackHref;
-    return backHrefFor(ctx);
-  }, [ctx, fallbackHref]);
 
   useEffect(() => {
     let mounted = true;
@@ -84,9 +78,13 @@ export function PdfViewer() {
           <p className="font-mono text-[12px] tracking-[0.22em] text-amber-500">PDF Viewer</p>
           <h1 className="mt-1.5 font-display text-[22px] font-semibold leading-tight tracking-[-0.015em] text-white sm:text-[26px]">{displayName}</h1>
         </div>
-        <Link href={backHref} className="rounded-md border border-base-700 px-3 py-1.5 text-[13px] text-white">
+        <button
+          type="button"
+          onClick={() => window.history.back()}
+          className="rounded-md border border-base-700 px-3 py-1.5 text-[13px] text-white transition-colors hover:border-ink-300"
+        >
           Back
-        </Link>
+        </button>
       </div>
 
       <div className="h-[78vh] overflow-hidden rounded-md border border-base-800 bg-black/20">
