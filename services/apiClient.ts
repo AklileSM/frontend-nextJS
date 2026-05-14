@@ -803,6 +803,7 @@ export async function deleteViewerFieldDraft(draftId: string): Promise<void> {
 export async function createViewerFieldDraft(params: {
   fileId: string;
   viewerKind: string;
+  label?: string | null;
   manualObservations?: string | null;
   flags?: string[];
   state: Record<string, unknown>;
@@ -820,6 +821,7 @@ export async function createViewerFieldDraft(params: {
     body: JSON.stringify({
       file_id: params.fileId,
       viewer_kind: params.viewerKind,
+      label: params.label ?? null,
       manual_observations: params.manualObservations ?? null,
       flags: params.flags ?? [],
       state: params.state,
@@ -835,6 +837,7 @@ export async function updateViewerFieldDraft(params: {
   draftId: string;
   fileId?: string;
   viewerKind?: string;
+  label?: string | null;
   manualObservations?: string | null;
   flags?: string[];
   state: Record<string, unknown>;
@@ -852,6 +855,7 @@ export async function updateViewerFieldDraft(params: {
     body: JSON.stringify({
       file_id: params.fileId ?? null,
       viewer_kind: params.viewerKind ?? null,
+      label: params.label ?? null,
       manual_observations: params.manualObservations ?? null,
       flags: params.flags ?? [],
       state: params.state,

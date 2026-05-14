@@ -183,6 +183,7 @@ export function ReportBuilder({ file, viewerKind, aiDescription, state, viewerCo
       if (draftId) {
         await updateViewerFieldDraft({
           draftId,
+          label: file.file_name,
           state: mergedState,
           manualObservations,
           flags,
@@ -192,6 +193,7 @@ export function ReportBuilder({ file, viewerKind, aiDescription, state, viewerCo
         const d = await createViewerFieldDraft({
           fileId: file.id,
           viewerKind: viewerKindForApi(viewerKind),
+          label: file.file_name,
           state: mergedState,
           manualObservations,
           flags,

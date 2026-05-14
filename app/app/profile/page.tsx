@@ -68,6 +68,7 @@ export default function ProfilePage() {
         id: d.id,
         kind: 'viewer' as const,
         viewerKind: d.viewer_kind,
+        label: d.label,
         createdAt: d.created_at,
         flags: d.flags,
         href: continueHrefForViewerDraft(d),
@@ -76,6 +77,7 @@ export default function ProfilePage() {
         id: d.id,
         kind: 'comparison' as const,
         viewerKind: 'compare',
+        label: d.label,
         createdAt: d.created_at,
         flags: d.flags,
         href: `/app/compare?draft=${encodeURIComponent(d.id)}`,
@@ -232,34 +234,37 @@ export default function ProfilePage() {
             {reports.length === 0 && <p className="text-[13px] text-ink-300">No reports yet.</p>}
           </div>
         ) : (
-          <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-6 space-y-2">
             {allDrafts.map((d) => {
               const icon =
-                d.viewerKind === 'interactive_360' ? <Globe size={26} /> :
-                d.viewerKind === 'static_pcd' || d.viewerKind === 'point-cloud' ? <ScanLine size={26} /> :
-                d.kind === 'comparison' ? <ArrowLeftRight size={26} /> :
-                <ImageIcon size={26} />;
+                d.viewerKind === 'interactive_360' ? <Globe size={15} /> :
+                d.viewerKind === 'static_pcd' || d.viewerKind === 'point-cloud' ? <ScanLine size={15} /> :
+                d.kind === 'comparison' ? <ArrowLeftRight size={15} /> :
+                <ImageIcon size={15} />;
               const typeLabel =
-                d.viewerKind === 'interactive_360' ? 'Panorama draft' :
-                d.viewerKind === 'static_pcd' || d.viewerKind === 'point-cloud' ? 'Point cloud draft' :
-                d.kind === 'comparison' ? 'Comparison draft' :
-                'Image draft';
+                d.viewerKind === 'interactive_360' ? 'Panorama' :
+                d.viewerKind === 'static_pcd' || d.viewerKind === 'point-cloud' ? 'Point cloud' :
+                d.kind === 'comparison' ? 'Comparison' :
+                'Image';
               return (
-                <article key={`${d.kind}-${d.id}`} className="rounded-md border border-base-800 bg-base-900/40 p-4">
-                  <div className="mb-3 flex aspect-[4/3] items-center justify-center overflow-hidden rounded border border-base-800 bg-base-950 text-ink-700">
+                <article key={`${d.kind}-${d.id}`} className="flex items-center gap-3 rounded-md border border-base-800 bg-base-900/40 px-4 py-3">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-base-700 bg-base-900 text-ink-400">
                     {icon}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13px] font-medium text-white">
+                      {d.label ?? `${typeLabel} draft`}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-ink-400">
+                      {typeLabel} · {formatTimestamp(d.createdAt)}{d.flags.length > 0 ? ` · ${d.flags.join(', ')}` : ''}
+                    </p>
                   </div>
-                  <p className="text-[13px] font-medium text-white">{typeLabel}</p>
-                  <p className="mt-0.5 text-[12px] text-ink-300">{formatTimestamp(d.createdAt)}</p>
-                  <p className="mt-0.5 text-[12px] text-ink-300">Flags: {d.flags.join(', ') || '(none)'}</p>
-                  <div className="mt-3">
-                    <Link
-                      href={d.href}
-                      className="rounded-md bg-amber-500 px-3 py-1.5 text-[12px] font-medium text-base-950 transition-colors hover:bg-amber-400"
-                    >
-                      Continue editing
-                    </Link>
-                  </div>
+                  <Link
+                    href={d.href}
+                    className="shrink-0 rounded-md border border-base-700 px-3 py-1.5 text-[12px] text-white transition-colors hover:border-ink-300"
+                  >
+                    Continue
+                  </Link>
                 </article>
               );
             })}
