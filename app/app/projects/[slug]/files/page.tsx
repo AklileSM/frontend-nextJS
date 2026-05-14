@@ -21,7 +21,6 @@ import { MediaTabs, type MediaTab } from '@/components/explorer/MediaTabs';
 import { UploadZone } from '@/components/explorer/UploadZone';
 import { DeleteConfirm } from '@/components/explorer/DeleteConfirm';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { mockCaptureDates } from '@/services/mockData';
 import { Calendar, Filter } from 'lucide-react';
 import type {
   ApiMediaFile,
@@ -52,7 +51,7 @@ export default function FileExplorerPage() {
   const knownPendingRef = useRef<Set<string>>(new Set());
   const deleteControllers = useRef<Map<string, { controller: AbortController; done: boolean }>>(new Map());
 
-  const date = params.get('date') ?? mockCaptureDates[mockCaptureDates.length - 1];
+  const date = params.get('date') ?? '';
   const isAdmin = user?.is_admin ?? false;
   const { canUpload, canDelete: roleCanDelete } = useMyProjectRole(project?.id);
   const canDelete = isAdmin || roleCanDelete;
@@ -69,7 +68,7 @@ export default function FileExplorerPage() {
   }, [slug]);
 
   useEffect(() => {
-    if (!project) return;
+    if (!project || !date) return;
     let cancelled = false;
     setResponse(null);
     getExplorerByDate(date).then((r) => { if (!cancelled) setResponse(r); });
