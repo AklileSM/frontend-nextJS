@@ -18,7 +18,7 @@ type Props = {
   roomId: string;
   roomSlug: string;
   captureDate: string;
-  onUploaded: () => void;
+  onUploaded: (type: ApiMediaFile['type']) => void;
 };
 
 type Job = {
@@ -81,7 +81,7 @@ export function UploadZone({ roomId, roomSlug, captureDate, onUploaded }: Props)
         prev.map((j) => (j.id === job.id ? { ...j, state: 'done', progress: 100 } : j)),
       );
       toast.success(`${job.file.name} uploaded.`);
-      onUploaded();
+      onUploaded(detectMediaType(job.file));
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') {
         setJobs((prev) =>

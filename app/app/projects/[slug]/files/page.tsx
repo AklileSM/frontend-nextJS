@@ -251,7 +251,10 @@ export default function FileExplorerPage() {
           <Uploader
             rooms={rooms}
             captureDate={date}
-            onUploaded={() => setReloadToken((t) => t + 1)}
+            onUploaded={(type) => {
+              setReloadToken((t) => t + 1);
+              setTab(TYPE_TO_TAB[type]);
+            }}
           />
         </motion.div>
       )}
@@ -388,7 +391,14 @@ function RoomSection({
   );
 }
 
-function Uploader({ rooms, captureDate, onUploaded }: { rooms: ApiRoom[]; captureDate: string; onUploaded: () => void }) {
+const TYPE_TO_TAB: Record<ApiMediaFile['type'], MediaTab> = {
+  image: 'images',
+  video: 'videos',
+  pointcloud: 'pointclouds',
+  pdf: 'pdfs',
+};
+
+function Uploader({ rooms, captureDate, onUploaded }: { rooms: ApiRoom[]; captureDate: string; onUploaded: (type: ApiMediaFile['type']) => void }) {
   const [roomId, setRoomId] = useState(rooms[0]?.id ?? '');
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
