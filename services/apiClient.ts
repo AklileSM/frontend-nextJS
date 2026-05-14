@@ -318,8 +318,8 @@ export async function analyzeImage(imageUrl: string, fileId?: string): Promise<s
   throw new Error('AI analysis timed out. Please try again later.');
 }
 
-export async function deleteFileAsset(fileId: string): Promise<void> {
-  const response = await apiFetch(`/files/${fileId}`, { method: 'DELETE' }, true);
+export async function deleteFileAsset(fileId: string, signal?: AbortSignal): Promise<void> {
+  const response = await apiFetch(`/files/${fileId}`, { method: 'DELETE', signal }, true);
   if (!response.ok) {
     throw new Error(await parseApiError(response));
   }

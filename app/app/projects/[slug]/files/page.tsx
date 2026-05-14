@@ -50,7 +50,7 @@ export default function FileExplorerPage() {
   const [visibleCount, setVisibleCount] = useState(10);
   const [hiddenFileIds, setHiddenFileIds] = useState<Set<string>>(new Set());
   const knownPendingRef = useRef<Set<string>>(new Set());
-  const cancelDeleteRefs = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const deleteControllers = useRef<Map<string, { controller: AbortController; done: boolean }>>(new Map());
 
   const date = params.get('date') ?? mockCaptureDates[mockCaptureDates.length - 1];
   const isAdmin = user?.is_admin ?? false;
@@ -143,33 +143,44 @@ export default function FileExplorerPage() {
     // Optimistically hide the file immediately.
     setHiddenFileIds((prev) => new Set([...prev, file.id]));
 
-    // Give a 5-second undo window before actually calling the API.
-    const timerId = setTimeout(async () => {
-      cancelDeleteRefs.current.delete(file.id);
-      try {
-        await deleteFileAsset(file.id);
-        setHiddenFileIds((prev) => { const n = new Set(prev); n.delete(file.id); return n; });
-        setReloadToken((t) => t + 1);
-        bumpFilesVersion();
-      } catch (err) {
-        setHiddenFileIds((prev) => { const n = new Set(prev); n.delete(file.id); return n; });
-        toast.error(err instanceof Error ? err.message : 'Delete failed.');
-      }
-    }, 5000);
-    cancelDeleteRefs.current.set(file.id, timerId);
+    // Start the API call right away so the delete persists even if the user
+    // navigates away. The abort controller lets undo cancel it while in-flight.
+    const controller = new AbortController();
+    const entry = { controller, done: false };
+    deleteControllers.current.set(file.id, entry);
 
     toast.success(`${file.file_name} deleted.`, {
       duration: 5000,
       action: {
         label: 'Undo',
         onClick: () => {
-          clearTimeout(cancelDeleteRefs.current.get(file.id));
-          cancelDeleteRefs.current.delete(file.id);
+          const e = deleteControllers.current.get(file.id);
+          if (!e || e.done) return; // API already responded — too late to undo
+          e.controller.abort();
+          deleteControllers.current.delete(file.id);
           setHiddenFileIds((prev) => { const n = new Set(prev); n.delete(file.id); return n; });
         },
       },
     });
-  }, [pendingDelete]);
+
+    try {
+      await deleteFileAsset(file.id, controller.signal);
+      entry.done = true;
+      deleteControllers.current.delete(file.id);
+      setHiddenFileIds((prev) => { const n = new Set(prev); n.delete(file.id); return n; });
+      setReloadToken((t) => t + 1);
+      bumpFilesVersion();
+    } catch (err) {
+      deleteControllers.current.delete(file.id);
+      if (controller.signal.aborted) {
+        // User hit Undo before the request completed — restore the file.
+        return;
+      }
+      entry.done = true;
+      setHiddenFileIds((prev) => { const n = new Set(prev); n.delete(file.id); return n; });
+      toast.error(err instanceof Error ? err.message : 'Delete failed.');
+    }
+  }, [pendingDelete, bumpFilesVersion]);
 
   if (!project) {
     return (
