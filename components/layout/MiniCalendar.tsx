@@ -43,7 +43,7 @@ const slideVariants = {
 };
 
 export function MiniCalendar({ projectId }: { projectId?: string }) {
-  const { getDateForScope, setDateForScope } = useSelectedDate();
+  const { getDateForScope, setDateForScope, filesVersion } = useSelectedDate();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -95,7 +95,7 @@ export function MiniCalendar({ projectId }: { projectId?: string }) {
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [projectId]);
+  }, [projectId, filesVersion]);
 
   const cells = useMemo(() => buildMonthCells(cursor), [cursor]);
   const activeMonths = useMemo(() => activateMonths(counts), [counts]);

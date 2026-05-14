@@ -14,6 +14,8 @@ type DatesByScope = Record<string, string | null>;
 type SelectedDateContextValue = {
   getDateForScope: (scope: string) => string | null;
   setDateForScope: (scope: string, date: string | null) => void;
+  filesVersion: number;
+  bumpFilesVersion: () => void;
 };
 
 const SelectedDateContext = createContext<SelectedDateContextValue | undefined>(undefined);
@@ -51,6 +53,7 @@ function readFromStorage(): DatesByScope {
  */
 export function SelectedDateProvider({ children }: { children: ReactNode }) {
   const [dates, setDates] = useState<DatesByScope>(readFromStorage);
+  const [filesVersion, setFilesVersion] = useState(0);
 
   const getDateForScope = useCallback((scope: string) => dates[scope] ?? null, [dates]);
 
@@ -67,9 +70,11 @@ export function SelectedDateProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const bumpFilesVersion = useCallback(() => setFilesVersion((v) => v + 1), []);
+
   const value = useMemo<SelectedDateContextValue>(
-    () => ({ getDateForScope, setDateForScope }),
-    [getDateForScope, setDateForScope],
+    () => ({ getDateForScope, setDateForScope, filesVersion, bumpFilesVersion }),
+    [getDateForScope, setDateForScope, filesVersion, bumpFilesVersion],
   );
 
   return <SelectedDateContext.Provider value={value}>{children}</SelectedDateContext.Provider>;

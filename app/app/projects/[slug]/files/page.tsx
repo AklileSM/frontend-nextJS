@@ -13,6 +13,7 @@ import {
   listRooms,
 } from '@/services/apiClient';
 import { useAuth } from '@/context/AuthContext';
+import { useSelectedDate } from '@/context/SelectedDateContext';
 import { useMyProjectRole } from '@/hooks/useMyProjectRole';
 import { RoomFilterMenu } from '@/components/explorer/RoomFilterMenu';
 import { FileGrid } from '@/components/explorer/FileGrid';
@@ -36,6 +37,7 @@ export default function FileExplorerPage() {
   const { slug } = useParams<{ slug: string }>();
   const params = useSearchParams();
   const { user } = useAuth();
+  const { bumpFilesVersion } = useSelectedDate();
 
   const [project, setProject] = useState<ApiProject | null>(null);
   const [rooms, setRooms] = useState<ApiRoom[]>([]);
@@ -148,6 +150,7 @@ export default function FileExplorerPage() {
         await deleteFileAsset(file.id);
         setHiddenFileIds((prev) => { const n = new Set(prev); n.delete(file.id); return n; });
         setReloadToken((t) => t + 1);
+        bumpFilesVersion();
       } catch (err) {
         setHiddenFileIds((prev) => { const n = new Set(prev); n.delete(file.id); return n; });
         toast.error(err instanceof Error ? err.message : 'Delete failed.');
