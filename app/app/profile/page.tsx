@@ -11,6 +11,7 @@ import { getAccessToken } from '@/auth/authSession';
 import { formatTimestamp } from '@/lib/formatDate';
 import { Tabs } from '@/components/ui/Tabs';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { MoreMenu } from '@/components/ui/MoreMenu';
 import {
   deleteReport,
   listComparisonDrafts,
@@ -206,30 +207,13 @@ export default function ProfilePage() {
                     {formatTimestamp(r.created_at)}{r.flags.length > 0 ? ` · ${r.flags.join(', ')}` : ''}
                   </p>
                 </div>
-                <div className="flex shrink-0 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void onOpen(r)}
-                    className="rounded border border-base-700 px-2.5 py-1 text-[12px] text-white transition-colors hover:border-ink-300"
-                  >
-                    Open
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void onDownload(r)}
-                    className="rounded border border-base-700 px-2.5 py-1 text-[12px] text-white transition-colors hover:border-ink-300"
-                  >
-                    Download
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!!deletingId}
-                    onClick={() => setPendingDeleteId(r.id)}
-                    className="rounded border border-red-800/50 px-2.5 py-1 text-[12px] text-red-200 transition-colors hover:border-red-600/60 disabled:opacity-50"
-                  >
-                    {deletingId === r.id ? 'Deleting…' : 'Delete'}
-                  </button>
-                </div>
+                <MoreMenu
+                  items={[
+                    { label: 'Open', onClick: () => void onOpen(r) },
+                    { label: 'Download', onClick: () => void onDownload(r) },
+                    { label: 'Delete', onClick: () => setPendingDeleteId(r.id), danger: true },
+                  ]}
+                />
               </article>
             ))}
             {reports.length === 0 && <p className="text-[13px] text-ink-300">No reports yet.</p>}
