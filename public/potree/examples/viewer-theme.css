@@ -42,9 +42,7 @@ html, body {
   gap: 8px;
   padding: 10px 14px 12px;
   border-top: 1px solid var(--pc-border);
-  background: rgba(11, 14, 18, 0.96);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: var(--pc-bg);
 }
 
 /* ── Dock header ── */
@@ -72,7 +70,7 @@ html, body {
   display: inline-block;
   width: 20px;
   height: 1px;
-  background: color-mix(in srgb, var(--pc-accent) 55%, transparent);
+  background: var(--pc-accent);
 }
 
 .pc-dock-header button {
@@ -107,7 +105,7 @@ html, body {
 .pc-group {
   background: var(--pc-bg-card);
   border: 1px solid var(--pc-border);
-  border-radius: 10px;
+  border-radius: 6px;
   padding: 8px 10px;
   color: var(--pc-text);
   font-size: 12px;
@@ -209,26 +207,25 @@ html, body {
 }
 
 .pc-group button {
-  background: color-mix(in srgb, var(--pc-accent) 12%, var(--pc-bg-panel));
-  color: var(--pc-accent-hi);
-  border: 1px solid color-mix(in srgb, var(--pc-accent) 30%, transparent);
+  background: transparent;
+  color: var(--pc-text);
+  border: 1px solid var(--pc-border);
   border-radius: 6px;
   height: 28px;
   padding: 0 8px;
   font: inherit;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  transition: border-color 0.15s, color 0.15s;
   white-space: nowrap;
 }
 
 .pc-group button:hover {
-  background: color-mix(in srgb, var(--pc-accent) 22%, var(--pc-bg-panel));
-  border-color: color-mix(in srgb, var(--pc-accent) 55%, transparent);
+  border-color: var(--pc-border-hi);
   color: #fff;
 }
 
 .pc-group button:active {
-  background: color-mix(in srgb, var(--pc-accent) 30%, var(--pc-bg-panel));
+  background: var(--pc-bg-panel);
 }
