@@ -24,6 +24,7 @@
     "pdfjs-dist": "^3.11.174",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
+    "react-markdown": "^10.1.0",
     "recharts": "^2.13.3",
     "sonner": "^1.7.0",
     "three": "^0.169.0"

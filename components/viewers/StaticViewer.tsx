@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
 import { Maximize2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -366,8 +367,22 @@ export function StaticViewer() {
 
         {aiDescription && (
           <div className="rounded-md border border-base-800 bg-base-950/60 p-3 text-[13px] text-ink-200">
-            <p className="mb-1 font-medium text-white">AI description</p>
-            <p>{aiDescription}</p>
+            <p className="mb-2 font-medium text-white">AI description</p>
+            <ReactMarkdown
+              components={{
+                p:      ({ children }) => <p className="my-1 leading-relaxed">{children}</p>,
+                strong: ({ children }) => <strong className="font-semibold text-white">{children}</strong>,
+                em:     ({ children }) => <em className="italic text-ink-300">{children}</em>,
+                ul:     ({ children }) => <ul className="my-1 list-disc pl-4 space-y-0.5">{children}</ul>,
+                ol:     ({ children }) => <ol className="my-1 list-decimal pl-4 space-y-0.5">{children}</ol>,
+                li:     ({ children }) => <li>{children}</li>,
+                h1:     ({ children }) => <h1 className="mt-3 mb-1 text-[14px] font-semibold text-white">{children}</h1>,
+                h2:     ({ children }) => <h2 className="mt-3 mb-1 text-[13px] font-semibold text-white">{children}</h2>,
+                h3:     ({ children }) => <h3 className="mt-2 mb-1 font-semibold text-white">{children}</h3>,
+              }}
+            >
+              {aiDescription}
+            </ReactMarkdown>
           </div>
         )}
       </section>
