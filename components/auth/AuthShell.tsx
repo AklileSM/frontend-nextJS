@@ -33,33 +33,8 @@ export function AuthShell({ title, subtitle, altLink, children }: Props) {
             Documentation that doesn&rsquo;t go missing.
           </h2>
           <p className="mt-5 text-[16px] leading-[1.7] text-ink-200">
-            Every photo, panorama, video, point cloud, and field report — keyed to the room and
+            Every photo, panorama, video, point cloud, and field report, keyed to the room and
             date it came from, ready for the timeline that already lives in your team.
-          </p>
-        </div>
-
-        <div className="relative rounded-md border border-base-800 bg-base-900/50 px-5 py-4">
-          <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-amber-500">
-            Mock mode
-          </p>
-          <p className="mt-2 text-[13px] leading-[1.65] text-ink-200">
-            Any username works. Use{' '}
-            <code className="rounded bg-base-800 px-1.5 py-0.5 font-mono text-[12px] text-ink-100">
-              admin
-            </code>
-            {', '}
-            <code className="rounded bg-base-800 px-1.5 py-0.5 font-mono text-[12px] text-ink-100">
-              manager
-            </code>
-            {', or '}
-            <code className="rounded bg-base-800 px-1.5 py-0.5 font-mono text-[12px] text-ink-100">
-              viewer
-            </code>{' '}
-            as the username to demo a specific role. Sign in as{' '}
-            <code className="rounded bg-base-800 px-1.5 py-0.5 font-mono text-[12px] text-ink-100">
-              fail
-            </code>{' '}
-            to see the error path.
           </p>
         </div>
       </aside>

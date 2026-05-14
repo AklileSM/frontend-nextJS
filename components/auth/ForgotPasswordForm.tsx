@@ -30,7 +30,7 @@ export function ForgotPasswordForm() {
     return (
       <div className="space-y-6">
         <div className="rounded-md border border-base-700 bg-base-900/60 px-5 py-4 text-[14px] leading-relaxed text-ink-200">
-          If that email address is registered, you'll receive a reset link shortly. Check your inbox — it may take a minute or two.
+          If that email address is registered, you'll receive a reset link shortly. Check your inbox, it may take a minute or two.
         </div>
         <Link
           href="/login"
