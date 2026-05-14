@@ -36,6 +36,19 @@ function readFromStorage(): DatesByScope {
   }
 }
 
+/**
+ * Persists the user's selected date per explorer scope across navigation.
+ *
+ * A "scope" is a string key that identifies which part of the UI owns a date
+ * selection — typically a project ID (e.g. `"proj-abc123"`). Using scopes lets
+ * different projects remember different selected dates independently.
+ *
+ * State is kept in React for instant UI updates and mirrored to localStorage
+ * under the key pattern `a6.explorerDate.<scope>` so the selection survives
+ * page refreshes. SSR is guarded (`typeof window` check in `readFromStorage`).
+ *
+ * Mounted once at the app root inside `AuthProvider` via `AppProviders`.
+ */
 export function SelectedDateProvider({ children }: { children: ReactNode }) {
   const [dates, setDates] = useState<DatesByScope>(readFromStorage);
 

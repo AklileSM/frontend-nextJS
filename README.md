@@ -107,6 +107,78 @@ After upload, point clouds are converted to Potree format asynchronously. The fi
 | `components/explorer/` | File grid, thumbnails, date/room filters, upload zone |
 | `components/compare/` | Side-by-side 360° comparison viewer and panel |
 
+## next.config.mjs explained
+
+Three things happen in `next.config.mjs` that are easy to miss:
+
+**1. The API rewrite (proxy)**
+
+```js
+{ source: '/api/:path*', destination: `${backendBase}/api/:path*` }
+```
+
+Every browser request to `/api/*` is rewritten server-side by Next.js to the backend URL. The browser always calls the same origin as the frontend — the backend address never reaches the client. This eliminates CORS configuration entirely.
+
+**2. BACKEND_URL is build-time AND runtime**
+
+`backendBase` is read from `process.env.BACKEND_URL` when the Next.js server starts. In Docker, it is baked into the route manifest at `docker build` time as a build arg. Changing the value in `.env` after building has no effect — you must rebuild the image.
+
+**3. Proxy body size limit**
+
+Next.js buffers the full request body before forwarding it. The default is ~10 MB, which silently truncates point-cloud chunks (the backend accepts up to 32 MB per chunk). `NEXT_PROXY_MAX_BODY` raises this to 128 MB. If you change the backend chunk size you must also update this limit.
+
+## State management
+
+There is no global state library (no Redux, no Zustand). State is split across three mechanisms:
+
+### React Context (in-memory, resets on hard refresh)
+
+| Context | Provider | Hook | What it holds |
+|---------|----------|------|---------------|
+| `AuthContext` | `AuthProvider` | `useAuth()` | Current user, login/logout/register actions, `isLoading` flag |
+| `SelectedDateContext` | `SelectedDateProvider` | `useSelectedDate()` | Selected date per explorer scope (scoped to project ID) |
+| `SidebarContext` | `SidebarProvider` | `useSidebar()` | Sidebar open/collapsed state |
+
+**Provider hierarchy** (outermost first):
+
+```
+AuthProvider
+  └── SelectedDateProvider       (app routes only)
+        └── AppShell
+              └── SidebarProvider (inside AppShell)
+```
+
+`AuthProvider` and `SelectedDateProvider` are mounted by `AppProviders` in `components/providers/RouteProviders.tsx`, which wraps every page under `/app/*`. `SidebarProvider` is mounted by `AppShell`.
+
+### localStorage (persisted, survives refreshes)
+
+| Key | Written by | Purpose |
+|-----|-----------|---------|
+| `a6_auth_v2` | `auth/authSession.ts` | JWT access token (7-day lifetime) |
+| `a6.explorerDate.<scope>` | `SelectedDateContext` | Selected date per project scope |
+| `a6.sidebarOpen` | `SidebarContext` | Sidebar collapsed preference (`"0"` or `"1"`) |
+
+`a6_access_token` is a legacy key migrated transparently to `a6_auth_v2` on first read.
+
+### URL / navigation state
+
+Viewer state (which file is open, camera position) is passed via `sessionStorage` or `location.state` by the navigation code in each viewer component. It is not in Context or localStorage because it is ephemeral and route-specific.
+
+### Auth lifecycle
+
+1. **Page load**: `AuthProvider` checks for `a6_auth_v2` in localStorage. If present, calls `GET /auth/me` to hydrate the user object. `isLoading` is `true` until this settles.
+2. **Login/register**: the token is written to localStorage; the user object is set in context.
+3. **401 from any API call**: `apiFetch` clears the token and hard-redirects to `/login`.
+4. **Logout**: token cleared from localStorage; user set to `null` in context.
+5. **Token expiry**: handled identically to a 401 — the next API call triggers the redirect.
+
+### Adding new global state
+
+- **Short-lived, route-scoped**: use `useState` in the component or page.
+- **Shared across sibling components**: lift to the nearest common ancestor.
+- **Persisted across navigation within a session**: add to `SelectedDateContext` or create a new context following the same pattern.
+- **Persisted across hard refreshes**: write to localStorage and seed React state from it on mount (see `SidebarContext` for the pattern).
+
 ## Tech stack
 
 | Area | Library |

@@ -1,5 +1,15 @@
 'use client';
 
+/**
+ * Low-level JWT persistence in localStorage.
+ *
+ * The current key is `a6_auth_v2`. On first read the module transparently
+ * migrates any token stored under the legacy key `a6_access_token` so existing
+ * browser sessions survive a key rename without forcing re-login.
+ *
+ * All functions are no-ops in SSR (typeof window check guards them) so they
+ * are safe to import in Server Components even though they read the DOM.
+ */
 const ACCESS_TOKEN_KEY = 'a6_auth_v2';
 const LEGACY_ACCESS_TOKEN_KEY = 'a6_access_token';
 

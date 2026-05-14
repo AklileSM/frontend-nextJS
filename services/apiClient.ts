@@ -1,3 +1,19 @@
+/**
+ * All API calls for the A6-Stern frontend.
+ *
+ * Design decisions
+ * ----------------
+ * - Every request goes to the same-origin `/api/*` prefix. Next.js rewrites
+ *   (next.config.mjs) proxy those server-side to the backend, so no internal
+ *   Docker hostname ever reaches the browser.
+ * - `apiFetch` is the single gateway: it attaches the auth header and handles
+ *   the global 401 → redirect-to-login side effect.
+ * - All public exports throw `Error` with a human-readable message on failure
+ *   (extracted from the backend's `{"detail": ...}` shape by `parseApiError`).
+ *   Callers do not need to inspect status codes.
+ * - There is no automatic token refresh. When the 7-day JWT expires the user
+ *   is redirected to /login.
+ */
 import type {
   AdminUser,
   ApiAnnotation,
@@ -26,6 +42,13 @@ import { clearAccessToken, getAccessToken } from '@/auth/authSession';
 // free of any internal Docker hostnames.
 export const API_BASE = '/api';
 
+/**
+ * Extract a readable message from a non-OK response.
+ *
+ * The backend returns either `{"detail": "string"}` for application errors or
+ * `{"detail": [{msg, loc, ...}, ...]}` for Pydantic validation failures (422).
+ * Both shapes are normalised to a plain string here.
+ */
 async function parseApiError(response: Response): Promise<string> {
   try {
     const j = (await response.json()) as { detail?: unknown };
@@ -43,6 +66,19 @@ async function parseApiError(response: Response): Promise<string> {
   return `Request failed: ${response.status}`;
 }
 
+/**
+ * Core fetch wrapper used by every API call in this module.
+ *
+ * - Prepends `/api` to `path` and attaches `Authorization: Bearer <token>` when
+ *   `withAuth` is true (default). Auth-free paths (login, register) pass `false`.
+ * - On a 401 response outside the auth pages: clears the stored token and
+ *   hard-redirects to `/login`. This is a client-side-only side effect —
+ *   the guard `typeof window !== 'undefined'` prevents it from running during
+ *   SSR. The login and register pages are excluded to avoid a redirect loop
+ *   when credentials are simply wrong.
+ * - Does NOT retry. Callers that need retry logic implement it themselves
+ *   (see `uploadOneChunkWithRetry` for the chunked upload pattern).
+ */
 async function apiFetch(path: string, init?: RequestInit, withAuth = true): Promise<Response> {
   const headers = new Headers(init?.headers);
   if (withAuth) {
@@ -151,6 +187,7 @@ export async function deleteAdminProject(projectId: string): Promise<void> {
   }
 }
 
+/** Fetches all rooms. Retries once on any network or server error. */
 export async function listRooms(): Promise<ApiRoom[]> {
   try {
     return await getJson<ApiRoom[]>('/rooms');
@@ -192,6 +229,13 @@ export function getExplorerByRoom(roomSlug: string): Promise<ExplorerByRoomRespo
   return getJson<ExplorerByRoomResponse>(`/files/explorer/room/${roomSlug}`);
 }
 
+/**
+ * Returns per-date media counts for the date-picker calendar.
+ *
+ * Tries the dedicated `/files/explorer/dates` endpoint first (single fast
+ * query). If the backend returns 404 (older deployments that lack this route),
+ * falls back to fetching each room individually and aggregating client-side.
+ */
 export async function getExplorerDatesSummary(): Promise<ExplorerDatesSummaryResponse> {
   const response = await apiFetch('/files/explorer/dates', undefined, true);
   if (response.ok) {
@@ -255,6 +299,16 @@ function sleepAbortable(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
+/**
+ * Request AI analysis for an image and poll until the result is ready.
+ *
+ * The backend may return 202 if the analysis is still in-progress (triggered
+ * automatically at upload time). This function polls every 2 s for up to 60 s
+ * (30 attempts). Throws if the analysis is not ready within that window.
+ *
+ * Results are cached server-side — repeated calls for the same `fileId` return
+ * immediately without re-calling the vision API.
+ */
 export async function analyzeImage(imageUrl: string, fileId?: string): Promise<string> {
   for (let attempt = 0; attempt < AI_POLL_MAX_ATTEMPTS; attempt++) {
     const result = await analyzeImageOnce(imageUrl, fileId);
@@ -290,6 +344,22 @@ const POINTCLOUD_CHUNK_SIZE = 64 * 1024 * 1024;
 const POINTCLOUD_UPLOAD_CONCURRENCY = 5;
 const POINTCLOUD_CHUNK_MAX_RETRIES = 3;
 
+/**
+ * Upload a LAZ/LAS file in 64 MB chunks through the Next.js proxy.
+ *
+ * Protocol:
+ *  1. POST /upload/pointcloud/init  → upload_id, chunk_size
+ *  2. POST /upload/pointcloud/chunk (repeated, up to 5 concurrent workers)
+ *     Each chunk retries up to 3 times with exponential back-off (500 ms × 2^n).
+ *  3. POST /upload/pointcloud/complete → UploadSingleResponse
+ *
+ * `onProgress` is called with 0–99% during chunk uploads and 100% on completion.
+ * The `signal` propagates cancellation to every fetch and sleep; an AbortError
+ * bubbles up immediately without further retries.
+ *
+ * Used as the fallback when `uploadPointcloudDirect` fails (e.g. no presigned
+ * URL configured) or is unavailable.
+ */
 async function uploadPointcloudInChunks(params: {
   file: File;
   roomId: string;
@@ -437,6 +507,22 @@ function uploadViaXhr(params: {
   });
 }
 
+/**
+ * Upload a LAZ/LAS file directly from the browser to MinIO via a presigned URL.
+ *
+ * Protocol:
+ *  1. POST /upload/pointcloud/direct-init → upload_id, upload_url (presigned PUT)
+ *  2. PUT <upload_url>  (XHR, direct to MinIO, bypasses the Next.js proxy)
+ *  3. POST /upload/pointcloud/direct-complete → UploadSingleResponse
+ *
+ * XHR is used instead of fetch because `XMLHttpRequest.upload.onprogress` gives
+ * real upload progress events. The fetch Streams API does not support upload
+ * progress in all browsers.
+ *
+ * Requires `MINIO_PUBLIC_UPLOAD_BASE_URL` to be set server-side. If the backend
+ * returns 400 on direct-init, `uploadSingleFile` catches it and falls back to
+ * `uploadPointcloudInChunks`. AbortError is re-thrown immediately (no fallback).
+ */
 async function uploadPointcloudDirect(params: {
   file: File;
   roomId: string;
@@ -490,6 +576,19 @@ async function uploadPointcloudDirect(params: {
   return doneRes.json() as Promise<UploadSingleResponse>;
 }
 
+/**
+ * Upload any supported file type to the backend.
+ *
+ * For images, videos, and PDFs: single multipart POST to /upload/single.
+ *
+ * For point clouds (LAZ/LAS):
+ *  - Tries `uploadPointcloudDirect` first (browser → MinIO presigned URL).
+ *  - Falls back to `uploadPointcloudInChunks` on any non-abort error (e.g.
+ *    presigned URLs not configured, CORS issue, network hiccup).
+ *  - AbortError from either path is re-thrown immediately — no fallback.
+ *
+ * `onProgress` is called with 0–100. `signal` cancels the upload at any stage.
+ */
 export async function uploadSingleFile(params: {
   file: File;
   roomId: string;
