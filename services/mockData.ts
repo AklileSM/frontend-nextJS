@@ -19,6 +19,7 @@ export const mockAdminUser: AuthUser = {
   username: 'admin',
   email: 'admin@sitescope.local',
   is_admin: true,
+  email_verified: true,
 };
 
 const _now = new Date().toISOString();
