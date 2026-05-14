@@ -370,50 +370,15 @@ export function StaticViewer() {
             <p>{aiDescription}</p>
           </div>
         )}
-
-        <div className="rounded-md border border-base-800 bg-base-950/60 p-3">
-          <p className="mb-2 text-[13px] font-medium text-white">Annotations ({annotations.length})</p>
-          <div className="space-y-2">
-            {annotations.map((a) => (
-              <div
-                key={a.id}
-                id={`annotation-card-${a.id}`}
-                role="button"
-                tabIndex={0}
-                onClick={() => {
-                  setSelectedAnnotationId(a.id);
-                  setDetailsForId(a.id);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    setSelectedAnnotationId(a.id);
-                    setDetailsForId(a.id);
-                  }
-                }}
-                className={`cursor-pointer rounded border px-2 py-1.5 text-[12px] outline-none transition-colors hover:border-amber-500/40 hover:bg-base-800/60 ${
-                  selectedAnnotationId === a.id
-                    ? 'border-amber-500/60 bg-amber-500/10 text-amber-100'
-                    : 'border-base-800 text-ink-200'
-                }`}
-              >
-                <p className="font-mono text-[10px] text-ink-300">
-                  x={a.x.toFixed(3)} · y={a.y.toFixed(3)}
-                </p>
-                <p className="mt-1 line-clamp-3">{a.text}</p>
-              </div>
-            ))}
-            {annotations.length === 0 && <p className="text-[12px] text-ink-400">No annotations loaded.</p>}
-          </div>
-        </div>
       </section>
 
       <ReportBuilder
         file={ctx.file}
         viewerKind="static"
         aiDescription={aiDescription}
-        state={{ scale, annotationsCount: annotations.length }}
+        state={{ scale }}
         viewerContext={{ roomSlug: ctx.roomSlug, date: ctx.date }}
+        annotations={annotations}
       />
 
       {/* Annotation form (new + edit) */}

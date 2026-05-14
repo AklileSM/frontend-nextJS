@@ -36,6 +36,9 @@ export type FieldObservationPdfInput = {
     includeEngineerComments: boolean;
     engineerCommentsHeading?: string;
     engineerCommentsBody: string;
+    includeAnnotations: boolean;
+    annotationsHeading?: string;
+    annotations: { index: number; text: string }[];
   };
   flags: FieldObservationFlags;
   /** PNG data URLs from canvas */
@@ -226,6 +229,35 @@ export function buildFieldObservationPdf(input: FieldObservationPdfInput): jsPDF
       10,
       'normal',
     );
+  }
+
+  if (input.sections.includeAnnotations) {
+    writeSectionHeading(
+      String(sectionNo++),
+      (input.sections.annotationsHeading ?? 'IMAGE ANNOTATIONS').toUpperCase(),
+    );
+    const anns = input.sections.annotations;
+    if (anns.length === 0) {
+      writeParagraph('No annotations were present on this image at the time of issue.', 10, 'italic');
+    } else {
+      for (const ann of anns) {
+        ensureSpace(BODY_LH * 2 + 4);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        doc.setTextColor(28);
+        doc.text(`${ann.index}.`, PAGE.margin, state.y);
+        doc.setFont('helvetica', 'normal');
+        const lines = doc.splitTextToSize(ann.text.trim() || '—', CONTENT_W - 8);
+        doc.text(lines[0] ?? '—', PAGE.margin + 8, state.y);
+        state.y += BODY_LH;
+        for (let i = 1; i < lines.length; i++) {
+          ensureSpace(BODY_LH);
+          doc.text(lines[i], PAGE.margin + 8, state.y);
+          state.y += BODY_LH;
+        }
+        state.y += 2;
+      }
+    }
   }
 
   writeSectionHeading(String(sectionNo++), 'CLASSIFICATION SUMMARY');
