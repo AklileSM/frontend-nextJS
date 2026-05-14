@@ -4,6 +4,7 @@ export interface AuthUser {
   id: string;
   username: string;
   email: string | null;
+  email_verified: boolean;
   is_admin: boolean;
 }
 
@@ -14,6 +15,7 @@ export interface ApiTokenResponse {
     id: string;
     username: string;
     email: string | null;
+    email_verified: boolean;
     is_admin: boolean;
   };
 }

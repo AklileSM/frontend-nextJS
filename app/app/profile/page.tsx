@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { ArrowLeftRight, FileText, Globe, Image as ImageIcon, ScanLine } from 'lucide-react';
+import { ArrowLeftRight, FileText, Globe, Image as ImageIcon, Loader2, Mail, ScanLine } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { getAccessToken } from '@/auth/authSession';
@@ -17,6 +17,7 @@ import {
   listComparisonDrafts,
   listReports,
   listViewerFieldDrafts,
+  resendVerificationEmail,
 } from '@/services/apiClient';
 import type { ApiComparisonDraft, ApiReport, ApiViewerFieldDraft } from '@/types/api';
 
@@ -32,6 +33,7 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [resending, setResending] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -154,6 +156,37 @@ export default function ProfilePage() {
         <p className="mt-3 text-[16px] text-ink-300">
           {user?.email ?? 'no email on file'} · <span className="text-white">{user?.is_admin ? 'admin' : 'member'}</span>
         </p>
+
+        {user && user.email && !user.email_verified && (
+          <div className="mt-8 flex items-start gap-3 rounded-md border border-amber-500/30 bg-amber-500/5 px-4 py-3">
+            <Mail size={15} className="mt-0.5 shrink-0 text-amber-400" />
+            <div className="min-w-0 flex-1 text-[13px]">
+              <span className="font-medium text-white">Verify your email address. </span>
+              <span className="text-ink-300">
+                We sent a link to <span className="text-white">{user.email}</span>. Check your inbox and click it to enable password reset.
+              </span>
+            </div>
+            <button
+              type="button"
+              disabled={resending}
+              onClick={async () => {
+                setResending(true);
+                try {
+                  await resendVerificationEmail();
+                  toast.success('Verification email sent.');
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : 'Could not resend email.');
+                } finally {
+                  setResending(false);
+                }
+              }}
+              className="shrink-0 inline-flex items-center gap-1.5 rounded border border-amber-500/40 px-2.5 py-1 text-[12px] text-amber-300 transition-colors hover:border-amber-400/60 hover:text-amber-200 disabled:opacity-50"
+            >
+              {resending && <Loader2 size={11} className="animate-spin" />}
+              Resend
+            </button>
+          </div>
+        )}
 
         <div className="mt-8">
           <Tabs<'reports' | 'drafts'>

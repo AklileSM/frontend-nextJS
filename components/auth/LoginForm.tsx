@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
@@ -45,16 +46,27 @@ export function LoginForm({ next = '/projects' }: { next?: string }) {
         onChange={(e) => setUsername(e.target.value)}
         placeholder="your username"
       />
-      <Field
-        label="Password"
-        name="password"
-        type="password"
-        autoComplete="current-password"
-        required
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        placeholder="••••••••"
-      />
+      <div>
+        <div className="flex items-center justify-between">
+          <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-ink-300">Password</span>
+          <Link
+            href="/forgot-password"
+            className="font-mono text-[11px] text-ink-400 transition-colors hover:text-amber-400"
+          >
+            Forgot password?
+          </Link>
+        </div>
+        <input
+          name="password"
+          type="password"
+          autoComplete="current-password"
+          required
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="••••••••"
+          className="mt-2 block w-full rounded-md border border-base-700 bg-base-950 px-3.5 py-2.5 text-[15px] text-white placeholder:text-ink-400 outline-none transition-colors focus:border-amber-500"
+        />
+      </div>
 
       <button
         type="submit"

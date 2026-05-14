@@ -36,7 +36,7 @@ export function RegisterForm() {
 
     setSubmitting(true);
     try {
-      await register({ username: username.trim(), password, email: email.trim() || undefined });
+      await register({ username: username.trim(), password, email: email.trim() });
       toast.success('Account created.');
       router.replace('/projects');
     } catch (err) {
@@ -59,10 +59,10 @@ export function RegisterForm() {
       />
       <Field
         label="Email"
-        hint="optional"
         name="email"
         type="email"
         autoComplete="email"
+        required
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         placeholder="jane@firm.com"

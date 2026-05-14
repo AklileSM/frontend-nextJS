@@ -27,9 +27,10 @@ type AuthContextValue = {
   register: (params: {
     username: string;
     password: string;
-    email?: string;
+    email: string;
   }) => Promise<void>;
   logout: () => void;
+  refreshUser: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -45,6 +46,7 @@ const fallbackAuthContext: AuthContextValue = {
   login: missingAuthProvider,
   register: missingAuthProvider,
   logout: () => {},
+  refreshUser: missingAuthProvider,
 };
 
 /**
@@ -78,6 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           id: me.id,
           username: me.username,
           email: me.email,
+          email_verified: me.email_verified ?? false,
           is_admin: me.is_admin ?? false,
         });
       } catch {
@@ -102,6 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         id: data.user.id,
         username: data.user.username,
         email: data.user.email,
+        email_verified: data.user.email_verified ?? false,
         is_admin: data.user.is_admin ?? false,
       });
     },
@@ -116,7 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }: {
       username: string;
       password: string;
-      email?: string;
+      email: string;
     }) => {
       const data = await apiRegister(username, password, email);
       setAccessToken(data.access_token);
@@ -124,11 +128,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         id: data.user.id,
         username: data.user.username,
         email: data.user.email,
+        email_verified: data.user.email_verified ?? false,
         is_admin: data.user.is_admin ?? false,
       });
     },
     [],
   );
+
+  const refreshUser = useCallback(async () => {
+    try {
+      const me = await apiFetchCurrentUser();
+      setUser({
+        id: me.id,
+        username: me.username,
+        email: me.email,
+        email_verified: me.email_verified ?? false,
+        is_admin: me.is_admin ?? false,
+      });
+    } catch {
+      // Session expired — leave state as-is; the 401 handler will redirect.
+    }
+  }, []);
 
   const logout = useCallback(() => {
     clearAccessToken();
@@ -143,8 +163,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login,
       register,
       logout,
+      refreshUser,
     }),
-    [user, isLoading, login, register, logout],
+    [user, isLoading, login, register, logout, refreshUser],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
