@@ -107,6 +107,95 @@ After upload, point clouds are converted to Potree format asynchronously. The fi
 | `components/explorer/` | File grid, thumbnails, date/room filters, upload zone |
 | `components/compare/` | Side-by-side 360° comparison viewer and panel |
 
+## Testing
+
+No test runner is configured. The project is currently verified manually.
+
+**To add tests**, install Vitest and Testing Library:
+
+```bash
+npm install -D vitest @vitejs/plugin-react jsdom @testing-library/react @testing-library/user-event
+```
+
+Add to `package.json`:
+```json
+"scripts": {
+  "test": "vitest run",
+  "test:watch": "vitest"
+}
+```
+
+**What is worth unit-testing:**
+
+| Target | Why |
+|--------|-----|
+| `auth/authSession.ts` | localStorage token read/write/legacy migration |
+| `services/apiClient.ts`  `parseApiError` | Pydantic array vs string normalization |
+| `services/apiClient.ts`  upload path selection | Direct vs chunked fallback logic |
+| Pure helpers in `services/dateFormat.ts`, `lib/` | No DOM dependencies |
+| Form validation logic in auth pages | Edge cases (empty username, email format) |
+
+**What to skip in jsdom:**
+
+Three.js, Potree, and PDF.js all require a real WebGL/Canvas context unavailable in jsdom. Test the hooks and data-fetching layer separately from the canvas components.
+
+**Integration / E2E:**
+
+[Playwright](https://playwright.dev/) is the recommended choice for full flow tests (login → upload → view file). No Playwright config exists yet.
+
+## Performance and bundle
+
+### Production build
+
+```bash
+npm run build   # compiles and outputs to .next/
+npm run start   # serve the production build locally
+```
+
+### Bundle analysis
+
+Install the analyzer and set an env var before building:
+
+```bash
+npm install -D @next/bundle-analyzer
+ANALYZE=true npm run build
+```
+
+Add to `next.config.mjs`:
+
+```js
+import bundleAnalyzer from '@next/bundle-analyzer';
+const withBundleAnalyzer = bundleAnalyzer({ enabled: process.env.ANALYZE === 'true' });
+export default withBundleAnalyzer(nextConfig);
+```
+
+The three heaviest dependencies are Three.js (`~600 KB gz`), PDF.js (`~400 KB gz`), and jsPDF (`~200 KB gz`). Each is only used by a specific viewer page.
+
+### Lazy-loading viewers
+
+All viewer components should be imported with `next/dynamic` to avoid bundling Three.js or PDF.js into the main chunk:
+
+```tsx
+// Good — loads only when the page renders
+import dynamic from 'next/dynamic';
+const PanoramaViewer = dynamic(() => import('@/components/viewers/PanoramaViewer'), {
+  ssr: false,            // Three.js requires browser APIs
+  loading: () => <Spinner />,
+});
+```
+
+The `ssr: false` flag is required for any component that references `window`, `document`, or WebGL APIs.
+
+### Image optimization
+
+Next.js `<Image>` is used for thumbnails. The `remotePatterns` in `next.config.mjs` currently allows only `localhost:3002`. To serve images from a production backend, add its hostname there.
+
+Thumbnails are already pre-sized at 400×300 px by the backend. Do not re-scale them with CSS alone, use the `width` and `height` props on `<Image>` to avoid layout shifts.
+
+### Proxy body limit
+
+The Next.js proxy buffers uploads before forwarding them. The limit is set to `128 MB` via `NEXT_PROXY_MAX_BODY`. If you raise the backend chunk size above 64 MB, raise this value proportionally. Under-sizing it causes silent upload truncation with no client-side error.
+
 ## next.config.mjs explained
 
 Three things happen in `next.config.mjs` that are easy to miss:
