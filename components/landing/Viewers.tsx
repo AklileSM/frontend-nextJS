@@ -41,7 +41,7 @@ const viewers = [
     label: '05 / PDF',
     title: 'Report viewer',
     body:
-      'Field-report PDFs already carried back from site open in the in-browser PDF viewer with the user\'s auth token attached, so private files stream through the same access path as everything else — no public links.',
+      'Field-report PDFs already carried back from site open in the in-browser PDF viewer with the user\'s auth token attached, so private files stream through the same access path as everything else, no public links.',
     accepts: '.pdf',
     visual: <PdfVisual />,
   },
