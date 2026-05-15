@@ -20,12 +20,12 @@ export function AuthShell({ title, subtitle, altLink, children }: Props) {
       style={{ backgroundColor: '#020617', color: '#fff' }}
     >
       <aside
-        className="relative hidden flex-col justify-between overflow-hidden border-r border-base-800 bg-base-900/30 px-12 py-10 lg:flex"
+        className="relative hidden flex-col overflow-hidden border-r border-base-800 bg-base-900/30 px-12 py-10 lg:flex"
       >
         <BackgroundGrid />
         <Logo />
 
-        <div className="relative max-w-[42ch]">
+        <div className="relative my-auto max-w-[42ch]">
           <p className="font-mono text-[12px] uppercase tracking-[0.22em] text-amber-500">
             Site documentation
           </p>
