@@ -12,7 +12,7 @@ const matrix: Record<'owner' | 'editor' | 'viewer', Record<Capability, boolean>>
 };
 
 const roles: Array<{ key: 'owner' | 'editor' | 'viewer'; name: string; sub: string }> = [
-  { key: 'owner', name: 'Owner', sub: 'Full control — uploads, rooms, members, and project settings' },
+  { key: 'owner', name: 'Owner', sub: 'Full control, uploads, rooms, members, and project settings' },
   { key: 'editor', name: 'Editor', sub: 'Uploads and deletes captures, and manages rooms' },
   { key: 'viewer', name: 'Viewer', sub: 'Read-only access to captures and reports' },
 ];
