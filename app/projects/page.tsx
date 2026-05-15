@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
-import { Plus, MapPin, Settings, FolderOpen, ChevronRight, Camera, ScanLine, FileText, ArrowRight } from 'lucide-react';
+import { Plus, MapPin, FolderOpen, ChevronRight, Camera, ScanLine, FileText, ArrowRight } from 'lucide-react';
 import { listProjects } from '@/services/apiClient';
 import { useAuth } from '@/context/AuthContext';
 import { StandaloneShell } from '@/components/layout/StandaloneShell';
@@ -206,16 +206,7 @@ function ProjectCard({ project, isAdmin, userId }: { project: ApiProject; isAdmi
       </Link>
 
       {/* Settings gear — admins and project owners */}
-      {canManage && (
-        <Link
-          href={`/projects/${project.slug}/settings`}
-          aria-label={`Settings for ${project.name}`}
-          onClick={(e) => e.stopPropagation()}
-          className="absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-md text-ink-600 opacity-0 transition-all hover:bg-base-800 hover:text-white group-hover:opacity-100"
-        >
-          <Settings size={13} />
-        </Link>
-      )}
+      
     </motion.div>
   );
 }
