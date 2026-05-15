@@ -49,10 +49,7 @@ export function DataModel() {
         </Reveal>
       </div>
 
-      <p className="mx-auto mt-10 max-w-[68ch] text-center font-mono text-[12px] leading-[1.7] text-ink-300">
-        Wireframes only — both views render with real thumbnails when you sign in. Tabs at the top
-        of each view filter the grid to images, videos, point clouds, or PDFs.
-      </p>
+      
     </Section>
   );
 }

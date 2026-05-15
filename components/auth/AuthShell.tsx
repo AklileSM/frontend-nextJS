@@ -39,11 +39,11 @@ export function AuthShell({ title, subtitle, altLink, children }: Props) {
         </div>
       </aside>
 
-      <main className="flex flex-col px-6 py-10 sm:px-12 lg:px-16 xl:px-24">
+      <main className="flex min-h-screen flex-col justify-center px-6 py-10 sm:px-12 lg:px-16 xl:px-24">
         <div className="mb-10 lg:hidden">
           <Logo />
         </div>
-        <div className="my-auto w-full max-w-[440px]">
+        <div className="w-full max-w-[440px]">
           <h1 className="font-display text-[36px] font-semibold leading-[1.1] tracking-[-0.018em] text-white sm:text-[42px]">
             {title}
           </h1>
