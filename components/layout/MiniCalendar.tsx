@@ -34,13 +34,18 @@ function activateMonths(counts: DateCounts): Set<string> {
   return set;
 }
 
-const slideVariants = {
-  enterForward:  { x: 24, opacity: 0 },
-  enterBackward: { x: -24, opacity: 0 },
-  center:        { x: 0,  opacity: 1 },
-  exitForward:   { x: -24, opacity: 0 },
-  exitBackward:  { x: 24,  opacity: 0 },
-};
+// Explicit initial/animate/exit values (not shared named variants). When this
+// component shares a page with other AnimatePresences (e.g. the annotation
+// form modal), framer-motion can occasionally leave variant lookups in a
+// transient state and a new child mounts stuck at its `initial` — manifests
+// as empty day cells / empty months grid after a modal closes.
+function enterFrom(direction: number) {
+  return { x: direction > 0 ? 24 : -24, opacity: 0 };
+}
+function exitTo(direction: number) {
+  return { x: direction > 0 ? -24 : 24, opacity: 0 };
+}
+const SLIDE_CENTER = { x: 0, opacity: 1 } as const;
 
 export function MiniCalendar({ projectId }: { projectId?: string }) {
   const { getDateForScope, setDateForScope, filesVersion } = useSelectedDate();
@@ -90,7 +95,11 @@ export function MiniCalendar({ projectId }: { projectId?: string }) {
         const dates = Object.keys(next).sort();
         if (dates.length) {
           const latest = parseISO(dates[dates.length - 1]);
-          setCursor(new Date(latest.getFullYear(), latest.getMonth(), 1));
+          // parseISO returns Invalid Date on a malformed string; using it
+          // would seed the cursor with NaN and break every subsequent render.
+          if (!Number.isNaN(latest.getTime())) {
+            setCursor(new Date(latest.getFullYear(), latest.getMonth(), 1));
+          }
         }
       })
       .finally(() => { if (!cancelled) setLoading(false); });
@@ -157,15 +166,13 @@ export function MiniCalendar({ projectId }: { projectId?: string }) {
 
       {/* ── Animated view area ── */}
       <div className="relative mt-3 overflow-hidden">
-        <AnimatePresence mode="wait" initial={false} custom={direction}>
+        <AnimatePresence initial={false}>
           {view === 'days' ? (
             <motion.div
               key={`days-${format(cursor, 'yyyy-MM')}`}
-              custom={direction}
-              variants={slideVariants}
-              initial={direction > 0 ? 'enterForward' : 'enterBackward'}
-              animate="center"
-              exit={direction > 0 ? 'exitForward' : 'exitBackward'}
+              initial={enterFrom(direction)}
+              animate={SLIDE_CENTER}
+              exit={exitTo(direction)}
               transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
             >
               {/* Weekday headers */}
@@ -220,11 +227,9 @@ export function MiniCalendar({ projectId }: { projectId?: string }) {
           ) : (
             <motion.div
               key={`months-${cursor.getFullYear()}`}
-              custom={direction}
-              variants={slideVariants}
-              initial={direction > 0 ? 'enterForward' : 'enterBackward'}
-              animate="center"
-              exit={direction > 0 ? 'exitForward' : 'exitBackward'}
+              initial={enterFrom(direction)}
+              animate={SLIDE_CENTER}
+              exit={exitTo(direction)}
               transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
               className="grid grid-cols-3 gap-1 px-0.5 py-1"
             >
