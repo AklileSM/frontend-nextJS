@@ -73,29 +73,44 @@ export default function ProfilePage() {
     }
   }, []);
 
-  const load = async () => {
-    setLoading(true);
-    try {
-      const [r, vd, cd, ps] = await Promise.all([
-        listReports(),
-        listViewerFieldDrafts(),
-        listComparisonDrafts(),
-        listProjects(),
-      ]);
-      setReports(r);
-      setViewerDrafts(vd);
-      setComparisonDrafts(cd);
-      setProjects(ps);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Could not load profile data.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Reports/drafts are scoped to the project the user is currently in (same
+  // rule as the Files tab). When projectSlug is null we still load the
+  // projects list so the hint can render, but skip the per-project queries.
   useEffect(() => {
-    void load();
-  }, []);
+    let cancelled = false;
+    setLoading(true);
+    const calls = projectSlug
+      ? Promise.all([
+          listReports({ projectSlug }),
+          listViewerFieldDrafts({ projectSlug }),
+          listComparisonDrafts({ projectSlug }),
+          listProjects(),
+        ])
+      : Promise.all([
+          Promise.resolve([] as ApiReport[]),
+          Promise.resolve([] as ApiViewerFieldDraft[]),
+          Promise.resolve([] as ApiComparisonDraft[]),
+          listProjects(),
+        ]);
+    calls
+      .then(([r, vd, cd, ps]) => {
+        if (cancelled) return;
+        setReports(r);
+        setViewerDrafts(vd);
+        setComparisonDrafts(cd);
+        setProjects(ps);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        toast.error(err instanceof Error ? err.message : 'Could not load profile data.');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectSlug]);
 
   // Lazy-load uploads only when the Files tab is open and we know the project.
   const loadMyUploads = useCallback(
@@ -365,33 +380,45 @@ export default function ProfilePage() {
           </div>
         ) : tab === 'reports' ? (
           <div className="mt-6 space-y-2">
-            {reports.map((r) => (
-              <article key={r.id} className="flex items-center gap-3 rounded-md border border-base-800 bg-base-900/40 px-4 py-3">
-                <div className="flex h-8 w-8 shrink-0 overflow-hidden rounded border border-base-700 bg-base-900">
-                  {r.screenshots[0] ? (
-                    <img src={r.screenshots[0]} alt="" className="h-full w-full object-cover" />
-                  ) : (
-                    <span className="flex h-full w-full items-center justify-center text-ink-600">
-                      <FileText size={15} />
-                    </span>
-                  )}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13px] font-medium text-white">{r.label ?? 'Report'}</p>
-                  <p className="mt-0.5 text-[11px] text-ink-400">
-                    {formatTimestamp(r.created_at)}{r.flags.length > 0 ? ` · ${r.flags.join(', ')}` : ''}
+            {!projectSlug ? (
+              <p className="text-[13px] text-ink-300">
+                Open a project from the projects page to see the reports you filed there.
+              </p>
+            ) : (
+              <>
+                {reports.map((r) => (
+                  <article key={r.id} className="flex items-center gap-3 rounded-md border border-base-800 bg-base-900/40 px-4 py-3">
+                    <div className="flex h-8 w-8 shrink-0 overflow-hidden rounded border border-base-700 bg-base-900">
+                      {r.screenshots[0] ? (
+                        <img src={r.screenshots[0]} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <span className="flex h-full w-full items-center justify-center text-ink-600">
+                          <FileText size={15} />
+                        </span>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[13px] font-medium text-white">{r.label ?? 'Report'}</p>
+                      <p className="mt-0.5 text-[11px] text-ink-400">
+                        {formatTimestamp(r.created_at)}{r.flags.length > 0 ? ` · ${r.flags.join(', ')}` : ''}
+                      </p>
+                    </div>
+                    <MoreMenu
+                      items={[
+                        { label: 'Open', onClick: () => void onOpen(r) },
+                        { label: 'Download', onClick: () => void onDownload(r) },
+                        { label: 'Delete', onClick: () => setPendingDeleteReportId(r.id), danger: true },
+                      ]}
+                    />
+                  </article>
+                ))}
+                {reports.length === 0 && (
+                  <p className="text-[13px] text-ink-300">
+                    No reports{currentProject ? ` in ${currentProject.name}` : ''} yet.
                   </p>
-                </div>
-                <MoreMenu
-                  items={[
-                    { label: 'Open', onClick: () => void onOpen(r) },
-                    { label: 'Download', onClick: () => void onDownload(r) },
-                    { label: 'Delete', onClick: () => setPendingDeleteReportId(r.id), danger: true },
-                  ]}
-                />
-              </article>
-            ))}
-            {reports.length === 0 && <p className="text-[13px] text-ink-300">No reports yet.</p>}
+                )}
+              </>
+            )}
           </div>
         ) : tab === 'drafts' ? (
           <div className="mt-6 grid grid-cols-[180px_1fr] gap-6">
@@ -404,43 +431,52 @@ export default function ProfilePage() {
               onChange={setDraftSide}
             />
             <div className="space-y-2">
-              {draftRows.map((d) => {
-                const icon =
-                  d.viewerKind === 'interactive_360' ? <Globe size={15} /> :
-                  d.viewerKind === 'static_pcd' || d.viewerKind === 'point-cloud' ? <ScanLine size={15} /> :
-                  d.kind === 'comparison' ? <ArrowLeftRight size={15} /> :
-                  <ImageIcon size={15} />;
-                const typeLabel =
-                  d.viewerKind === 'interactive_360' ? 'Panorama' :
-                  d.viewerKind === 'static_pcd' || d.viewerKind === 'point-cloud' ? 'Point cloud' :
-                  d.kind === 'comparison' ? 'Comparison' :
-                  'Image';
-                return (
-                  <article key={`${d.kind}-${d.id}`} className="flex items-center gap-3 rounded-md border border-base-800 bg-base-900/40 px-4 py-3">
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-base-700 bg-base-900 text-ink-400">
-                      {icon}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[13px] font-medium text-white">
-                        {d.label ?? `${typeLabel} draft`}
-                      </p>
-                      <p className="mt-0.5 text-[11px] text-ink-400">
-                        {typeLabel} · {formatTimestamp(d.createdAt)}{d.flags.length > 0 ? ` · ${d.flags.join(', ')}` : ''}
-                      </p>
-                    </div>
-                    <Link
-                      href={d.href}
-                      className="shrink-0 rounded-md border border-base-700 px-3 py-1.5 text-[12px] text-white transition-colors hover:border-ink-300"
-                    >
-                      Continue
-                    </Link>
-                  </article>
-                );
-              })}
-              {draftRows.length === 0 && (
+              {!projectSlug ? (
                 <p className="text-[13px] text-ink-300">
-                  {draftSide === 'viewer' ? 'No drafts yet.' : 'No comparison drafts yet.'}
+                  Open a project from the projects page to see the drafts you started there.
                 </p>
+              ) : (
+                <>
+                  {draftRows.map((d) => {
+                    const icon =
+                      d.viewerKind === 'interactive_360' ? <Globe size={15} /> :
+                      d.viewerKind === 'static_pcd' || d.viewerKind === 'point-cloud' ? <ScanLine size={15} /> :
+                      d.kind === 'comparison' ? <ArrowLeftRight size={15} /> :
+                      <ImageIcon size={15} />;
+                    const typeLabel =
+                      d.viewerKind === 'interactive_360' ? 'Panorama' :
+                      d.viewerKind === 'static_pcd' || d.viewerKind === 'point-cloud' ? 'Point cloud' :
+                      d.kind === 'comparison' ? 'Comparison' :
+                      'Image';
+                    return (
+                      <article key={`${d.kind}-${d.id}`} className="flex items-center gap-3 rounded-md border border-base-800 bg-base-900/40 px-4 py-3">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-base-700 bg-base-900 text-ink-400">
+                          {icon}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[13px] font-medium text-white">
+                            {d.label ?? `${typeLabel} draft`}
+                          </p>
+                          <p className="mt-0.5 text-[11px] text-ink-400">
+                            {typeLabel} · {formatTimestamp(d.createdAt)}{d.flags.length > 0 ? ` · ${d.flags.join(', ')}` : ''}
+                          </p>
+                        </div>
+                        <Link
+                          href={d.href}
+                          className="shrink-0 rounded-md border border-base-700 px-3 py-1.5 text-[12px] text-white transition-colors hover:border-ink-300"
+                        >
+                          Continue
+                        </Link>
+                      </article>
+                    );
+                  })}
+                  {draftRows.length === 0 && (
+                    <p className="text-[13px] text-ink-300">
+                      {draftSide === 'viewer' ? 'No drafts' : 'No comparison drafts'}
+                      {currentProject ? ` in ${currentProject.name}` : ''} yet.
+                    </p>
+                  )}
+                </>
               )}
             </div>
           </div>

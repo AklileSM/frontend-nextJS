@@ -746,8 +746,9 @@ function normalizeAnnotation(
   };
 }
 
-export function listReports(): Promise<ApiReport[]> {
-  return getJson<ApiReport[]>('/reports');
+export function listReports(opts?: { projectSlug?: string }): Promise<ApiReport[]> {
+  const qs = opts?.projectSlug ? `?project_slug=${encodeURIComponent(opts.projectSlug)}` : '';
+  return getJson<ApiReport[]>(`/reports${qs}`);
 }
 
 export async function deleteReport(reportId: string): Promise<void> {
@@ -793,8 +794,9 @@ export async function createReportWithPdf(params: {
   }
 }
 
-export function listViewerFieldDrafts(): Promise<ApiViewerFieldDraft[]> {
-  return getJson<ApiViewerFieldDraft[]>('/reports/viewer-drafts');
+export function listViewerFieldDrafts(opts?: { projectSlug?: string }): Promise<ApiViewerFieldDraft[]> {
+  const qs = opts?.projectSlug ? `?project_slug=${encodeURIComponent(opts.projectSlug)}` : '';
+  return getJson<ApiViewerFieldDraft[]>(`/reports/viewer-drafts${qs}`);
 }
 
 export function getViewerFieldDraft(draftId: string): Promise<ApiViewerFieldDraftDetail> {
@@ -917,8 +919,9 @@ export async function publishViewerFieldDraft(params: {
   return response.json() as Promise<ApiReport>;
 }
 
-export function listComparisonDrafts(): Promise<ApiComparisonDraft[]> {
-  return getJson<ApiComparisonDraft[]>('/reports/comparison-drafts');
+export function listComparisonDrafts(opts?: { projectSlug?: string }): Promise<ApiComparisonDraft[]> {
+  const qs = opts?.projectSlug ? `?project_slug=${encodeURIComponent(opts.projectSlug)}` : '';
+  return getJson<ApiComparisonDraft[]>(`/reports/comparison-drafts${qs}`);
 }
 
 export function getComparisonDraft(draftId: string): Promise<ApiComparisonDraftDetail> {
