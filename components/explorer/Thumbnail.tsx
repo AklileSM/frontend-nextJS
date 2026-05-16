@@ -109,7 +109,9 @@ export function Thumbnail({ file, roomSlug, projectSlug = '', date, origin, isAd
         {/* Conversion status badge */}
         {isPointcloud && conversionStatus && conversionStatus !== 'ready' && (
           <span className="absolute left-2 top-2 rounded-sm bg-base-950/85 px-1.5 py-0.5 font-mono text-[9px] font-medium tracking-widest text-amber-300">
-            {conversionStatus === 'processing' ? 'PROCESSING' : conversionStatus.toUpperCase()}
+            {conversionStatus === 'processing' || conversionStatus === 'uploading' || conversionStatus === 'pending'
+              ? 'PROCESSING'
+              : conversionStatus.toUpperCase()}
           </span>
         )}
 

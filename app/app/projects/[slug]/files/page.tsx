@@ -122,12 +122,19 @@ export default function FileExplorerPage() {
     }
     // Track pending ones for next poll
     for (const f of allClouds) {
-      if (f.conversion_status === 'pending' || f.conversion_status === 'processing') {
+      if (
+        f.conversion_status === 'uploading' ||
+        f.conversion_status === 'pending' ||
+        f.conversion_status === 'processing'
+      ) {
         knownPendingRef.current.add(f.id);
       }
     }
     const hasPending = allClouds.some(
-      (f) => f.conversion_status === 'pending' || f.conversion_status === 'processing',
+      (f) =>
+        f.conversion_status === 'uploading' ||
+        f.conversion_status === 'pending' ||
+        f.conversion_status === 'processing',
     );
     if (!hasPending) return;
     const id = setInterval(() => setReloadToken((t) => t + 1), 5000);

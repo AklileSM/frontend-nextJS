@@ -190,12 +190,19 @@ function Inner() {
       }
     }
     for (const f of allClouds) {
-      if (f.conversion_status === 'pending' || f.conversion_status === 'processing') {
+      if (
+        f.conversion_status === 'uploading' ||
+        f.conversion_status === 'pending' ||
+        f.conversion_status === 'processing'
+      ) {
         knownPendingRef.current.add(f.id);
       }
     }
     const hasPendingConversion = allClouds.some(
-      (f) => f.conversion_status === 'pending' || f.conversion_status === 'processing',
+      (f) =>
+        f.conversion_status === 'uploading' ||
+        f.conversion_status === 'pending' ||
+        f.conversion_status === 'processing',
     );
     if (!hasPendingConversion) return;
     const id = setInterval(() => setReloadToken((t) => t + 1), 5000);
