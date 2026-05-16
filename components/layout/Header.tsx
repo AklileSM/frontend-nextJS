@@ -9,6 +9,7 @@ import { useSidebar } from './SidebarContext';
 import { ProfileMenu } from '@/components/app/ProfileMenu';
 import { listProjects } from '@/services/apiClient';
 import type { ApiProject } from '@/types/api';
+import { GlobalSearch } from './GlobalSearch';
 
 function backFallbackFor(pathname: string, lastProjectSlug: string | null): string | null {
   const parts = pathname.split('/').filter(Boolean);
@@ -95,6 +96,8 @@ export function Header() {
       )}
 
       <Breadcrumb projects={projects} />
+
+      <GlobalSearch projectSlug={currentSlug} />
 
       <div className="ml-auto flex items-center gap-2">
         <ProjectSwitcher projects={projects} currentSlug={currentSlug} />

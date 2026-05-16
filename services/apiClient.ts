@@ -357,6 +357,11 @@ export function listMyUploads(opts?: { projectSlug?: string; mediaType?: 'image'
   return getJson<ApiMyUpload[]>(`/files/my-uploads${qs ? `?${qs}` : ''}`);
 }
 
+export function searchFiles(q: string, projectSlug: string, signal?: AbortSignal): Promise<ApiMyUpload[]> {
+  const params = new URLSearchParams({ q, project_slug: projectSlug });
+  return getJson<ApiMyUpload[]>(`/files/search?${params.toString()}`, { signal });
+}
+
 const POINTCLOUD_CHUNK_SIZE = 64 * 1024 * 1024;
 const POINTCLOUD_UPLOAD_CONCURRENCY = 5;
 const POINTCLOUD_CHUNK_MAX_RETRIES = 3;
