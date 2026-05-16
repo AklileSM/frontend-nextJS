@@ -49,15 +49,17 @@ export function ConfirmDialog({
   return createPortal(
     <AnimatePresence>
       {open && (
-        <>
-          <motion.div
-            key="bd"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
+        <motion.div
+          key="shell"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+        >
+          <div
+            className="absolute inset-0 bg-base-950/75 backdrop-blur-sm"
             onClick={busy ? undefined : onCancel}
-            className="fixed inset-0 z-50 bg-base-950/75 backdrop-blur-sm"
           />
           <motion.div
             key="md"
@@ -67,7 +69,7 @@ export function ConfirmDialog({
             transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
             role="dialog"
             aria-modal="true"
-            className="fixed left-1/2 top-1/2 z-50 w-[440px] max-w-[calc(100vw-32px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-base-700 bg-base-900 shadow-2xl shadow-black/60"
+            className="relative z-10 w-[440px] max-w-[calc(100vw-32px)] rounded-lg border border-base-700 bg-base-900 shadow-2xl shadow-black/60"
           >
             <div className="flex items-start gap-4 p-6">
               <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-amber-500/15 text-amber-500">
@@ -102,7 +104,7 @@ export function ConfirmDialog({
               </button>
             </div>
           </motion.div>
-        </>
+        </motion.div>
       )}
     </AnimatePresence>,
     document.body,
