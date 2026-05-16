@@ -3,17 +3,18 @@
 import Link from 'next/link';
 import { Canvas, useLoader, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { ReportBuilder } from '@/components/reports/ReportBuilder';
 import { useViewerContext } from './useViewerContext';
 import { backHrefFor } from '@/components/explorer/viewerContext';
 import { BackSide, SRGBColorSpace, TextureLoader } from 'three';
 
-function PanoramaSphere({ src }: { src: string }) {
+function PanoramaSphere({ src, onLoad }: { src: string; onLoad: () => void }) {
   const { gl } = useThree();
   const texture = useLoader(TextureLoader, src);
   texture.colorSpace = SRGBColorSpace;
   texture.anisotropy = gl.capabilities.getMaxAnisotropy();
+  useEffect(() => { onLoad(); }, [onLoad]);
   return (
     <mesh>
       <sphereGeometry args={[500, 60, 40]} />
@@ -26,13 +27,15 @@ export function PanoramaViewer() {
   const { ctx, loading, fallbackHref } = useViewerContext();
   const [aiDescription, setAiDescription] = useState('');
   const [analyzing, setAnalyzing] = useState(false);
-  const [imageReady, setImageReady] = useState(false);
-  const [imageError, setImageError] = useState<string | null>(null);
-  const [panoramaSrc, setPanoramaSrc] = useState('');
+  const [sphereVisible, setSphereVisible] = useState(false);
 
   const imageSrc = ctx?.file.full_src || ctx?.file.src || '';
 
   const backHref = useMemo(() => (ctx ? backHrefFor(ctx) : fallbackHref), [ctx, fallbackHref]);
+
+  useEffect(() => {
+    setSphereVisible(false);
+  }, [imageSrc]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -41,25 +44,6 @@ export function PanoramaViewer() {
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, []);
-
-  useEffect(() => {
-    if (!ctx) return;
-    if (ctx.file.type !== 'image') {
-      setImageReady(false);
-      setImageError('Panorama viewer only supports image files.');
-      return;
-    }
-    setImageReady(false);
-    setImageError(null);
-    const img = new Image();
-    img.onload = () => {
-      setPanoramaSrc(imageSrc);
-      setImageReady(true);
-    };
-    img.onerror = () =>
-      setImageError('Could not load this image as a panorama. Try opening it in Static viewer.');
-    img.src = imageSrc;
-  }, [ctx, imageSrc]);
 
   if (loading) return <div className="p-6 text-ink-300">Loading viewer…</div>;
   if (!ctx) return (
@@ -94,28 +78,21 @@ export function PanoramaViewer() {
           
         </div>
 
-        <div className="h-[70vh] overflow-hidden rounded-md border border-base-800 bg-black/30">
-          {imageReady && !imageError ? (
-            <Canvas camera={{ position: [0, 0, 20], fov: 70 }}>
-              <PanoramaSphere src={panoramaSrc || imageSrc} />
-              <OrbitControls enablePan={true} enableZoom={false} enableDamping={true} dampingFactor={0.3} />
-            </Canvas>
-          ) : (
-            <div className="flex h-full w-full items-center justify-center p-6 text-center text-[13px] text-ink-300">
-              {imageError ?? 'Loading panorama image...'}
+        <div className="relative h-[70vh] overflow-hidden rounded-md border border-base-800 bg-black/30">
+          {!sphereVisible && (
+            <div className="absolute inset-0 flex items-center justify-center text-[13px] text-ink-300">
+              Loading panorama image…
             </div>
           )}
+          {imageSrc && (
+            <Canvas camera={{ position: [0, 0, 20], fov: 70 }}>
+              <Suspense fallback={null}>
+                <PanoramaSphere src={imageSrc} onLoad={() => setSphereVisible(true)} />
+              </Suspense>
+              <OrbitControls enablePan={true} enableZoom={false} enableDamping={true} dampingFactor={0.3} />
+            </Canvas>
+          )}
         </div>
-        {imageError && (
-          <div className="rounded-md border border-base-800 bg-base-950/60 p-3 text-[12px] text-ink-300">
-            <p>{imageError}</p>
-            <img
-              src={imageSrc}
-              alt={ctx.file.file_name}
-              className="mt-3 max-h-40 w-full rounded border border-base-800 object-contain"
-            />
-          </div>
-        )}
 
         {aiDescription && (
           <div className="rounded-md border border-base-800 bg-base-950/60 p-3 text-[13px] text-ink-200">
