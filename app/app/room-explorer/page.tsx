@@ -104,11 +104,18 @@ function Inner() {
     }
   }, [activeSlug]);
 
-  // Load files for the active room
+  // Clear stale data immediately on room change so we don't briefly render
+  // the previous room's files under the new header.
+  useEffect(() => {
+    setResponse(null);
+  }, [activeSlug]);
+
+  // Load files for the active room. On poll-triggered reloads (reloadToken bump)
+  // we leave the existing response in place until the new data arrives — that
+  // keeps the thumbnails mounted, avoiding the framer-motion re-animation blink.
   useEffect(() => {
     if (!activeSlug) return;
     let cancelled = false;
-    setResponse(null);
     getExplorerByRoom(activeSlug).then((r) => {
       if (!cancelled) setResponse(r);
     });

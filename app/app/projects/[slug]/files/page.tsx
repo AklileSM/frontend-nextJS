@@ -67,10 +67,15 @@ export default function FileExplorerPage() {
     return () => { cancelled = true; };
   }, [slug]);
 
+  // Clear stale data on date/project change. Skipped on poll-triggered reloads
+  // so the existing thumbnails stay mounted and don't re-animate every tick.
+  useEffect(() => {
+    setResponse(null);
+  }, [date, project]);
+
   useEffect(() => {
     if (!project || !date) return;
     let cancelled = false;
-    setResponse(null);
     getExplorerByDate(date).then((r) => { if (!cancelled) setResponse(r); });
     return () => { cancelled = true; };
   }, [date, project, reloadToken]);
