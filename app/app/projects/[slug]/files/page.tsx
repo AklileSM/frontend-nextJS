@@ -251,13 +251,17 @@ export default function FileExplorerPage() {
         </div>
       </motion.section>
 
-      {canUpload && showUploader && (
+      {canUpload && (
+        // Always mounted while the user has upload permission so in-flight
+        // uploads survive a manual "Close uploader" — the panel collapses to
+        // height:0 instead of being unmounted. The Uploader's auto-close on
+        // batch completion calls back into setShowUploader.
         <motion.div
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: 'auto' }}
-          exit={{ opacity: 0, height: 0 }}
+          initial={false}
+          animate={{ opacity: showUploader ? 1 : 0, height: showUploader ? 'auto' : 0 }}
           transition={{ duration: 0.2 }}
           className="mt-6 overflow-hidden"
+          aria-hidden={!showUploader}
         >
           <Uploader
             rooms={rooms}
@@ -266,6 +270,8 @@ export default function FileExplorerPage() {
               setReloadToken((t) => t + 1);
               setTab(TYPE_TO_TAB[type]);
             }}
+            onClose={() => setShowUploader(false)}
+            visible={showUploader}
           />
         </motion.div>
       )}
@@ -409,7 +415,7 @@ const TYPE_TO_TAB: Record<ApiMediaFile['type'], MediaTab> = {
   pdf: 'pdfs',
 };
 
-function Uploader({ rooms, captureDate, onUploaded }: { rooms: ApiRoom[]; captureDate: string; onUploaded: (type: ApiMediaFile['type']) => void }) {
+function Uploader({ rooms, captureDate, onUploaded, onClose, visible }: { rooms: ApiRoom[]; captureDate: string; onUploaded: (type: ApiMediaFile['type']) => void; onClose?: () => void; visible?: boolean }) {
   const [roomId, setRoomId] = useState(rooms[0]?.id ?? '');
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
@@ -473,7 +479,7 @@ function Uploader({ rooms, captureDate, onUploaded }: { rooms: ApiRoom[]; captur
           />
         </div>
       </div>
-      <UploadZone roomId={roomId} roomSlug={selectedRoom.slug} captureDate={uploadDate} onUploaded={onUploaded} />
+      <UploadZone roomId={roomId} roomSlug={selectedRoom.slug} captureDate={uploadDate} onUploaded={onUploaded} onClose={onClose} visible={visible} />
     </div>
   );
 }
