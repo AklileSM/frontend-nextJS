@@ -336,8 +336,12 @@ export async function retryPointcloudConversion(fileId: string): Promise<void> {
   }
 }
 
-export function listMyUploads(): Promise<ApiMyUpload[]> {
-  return getJson<ApiMyUpload[]>('/files/my-uploads');
+export function listMyUploads(opts?: { projectSlug?: string; mediaType?: 'image' | 'video' | 'pointcloud' | 'pdf' }): Promise<ApiMyUpload[]> {
+  const params = new URLSearchParams();
+  if (opts?.projectSlug) params.set('project_slug', opts.projectSlug);
+  if (opts?.mediaType) params.set('media_type', opts.mediaType);
+  const qs = params.toString();
+  return getJson<ApiMyUpload[]>(`/files/my-uploads${qs ? `?${qs}` : ''}`);
 }
 
 const POINTCLOUD_CHUNK_SIZE = 64 * 1024 * 1024;
