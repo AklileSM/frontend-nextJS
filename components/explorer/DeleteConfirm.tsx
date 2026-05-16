@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { ApiMediaFile } from '@/types/api';
 
 type Props = {
@@ -32,7 +33,7 @@ export function DeleteConfirm({ file, onConfirm, onCancel }: Props) {
     }
   };
 
-  return (
+  return createPortal(
     <AnimatePresence>
       {file && (
         <>
@@ -94,6 +95,7 @@ export function DeleteConfirm({ file, onConfirm, onCancel }: Props) {
           </motion.div>
         </>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }

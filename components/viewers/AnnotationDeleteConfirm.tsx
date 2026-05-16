@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { ApiAnnotation } from '@/types/api';
 
 type Props = {
@@ -35,7 +36,7 @@ export function AnnotationDeleteConfirm({ annotation, onConfirm, onCancel }: Pro
   const preview =
     annotation && annotation.text.length > 120 ? `${annotation.text.slice(0, 120)}…` : (annotation?.text ?? '');
 
-  return (
+  return createPortal(
     <AnimatePresence>
       {annotation && (
         <motion.div
@@ -107,6 +108,7 @@ export function AnnotationDeleteConfirm({ annotation, onConfirm, onCancel }: Pro
           </motion.div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }

@@ -64,15 +64,6 @@ html, body {
   color: var(--pc-muted);
 }
 
-/* small amber rule before the label */
-.pc-dock-header span::before {
-  content: '';
-  display: inline-block;
-  width: 20px;
-  height: 1px;
-  background: var(--pc-accent);
-}
-
 .pc-dock-header button {
   width: 28px;
   height: 26px;
