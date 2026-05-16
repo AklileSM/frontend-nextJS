@@ -1,7 +1,7 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { Box, CloudUpload, FileText, Image as ImageIcon, Loader2, Video, X } from 'lucide-react';
+import { AlertTriangle, Box, CloudUpload, FileText, Image as ImageIcon, Loader2, Video, X } from 'lucide-react';
 import {
   useCallback,
   useEffect,
@@ -12,7 +12,8 @@ import {
   type ChangeEvent,
 } from 'react';
 import { toast } from 'sonner';
-import { uploadSingleFile } from '@/services/apiClient';
+import { precheckUploadHash, uploadSingleFile } from '@/services/apiClient';
+import { sha256OfFile } from '@/lib/hashFile';
 import type { ApiMediaFile } from '@/types/api';
 
 type Props = {
@@ -39,6 +40,11 @@ type Job = {
   progress: number;
   state: 'staging' | 'pending' | 'uploading' | 'done' | 'error' | 'cancelled';
   error?: string;
+  // Client-side dedupe: we hash the file in the browser and ping the backend
+  // before sending any chunks. 'checking' = hash in flight; 'duplicate' = the
+  // backend already has this SHA-256 (the user can't upload it again).
+  dedupe?: 'checking' | 'ok' | 'duplicate' | 'error';
+  duplicateInfo?: { roomName: string | null; captureDate: string | null; displayName: string | null };
 };
 
 function detectMediaType(file: File): ApiMediaFile['type'] {
@@ -81,9 +87,15 @@ function FileTile({
   const [imgFailed, setImgFailed] = useState(false);
   const showImage = !imgFailed && type === 'image' && !!job.thumbUrl;
   const isUploading = job.state === 'uploading' || job.state === 'pending';
+  const isDuplicate = job.dedupe === 'duplicate';
+  const isChecking = job.dedupe === 'checking';
 
   return (
-    <div className="group relative overflow-hidden rounded-lg border border-base-800 bg-base-900">
+    <div
+      className={`group relative overflow-hidden rounded-lg border bg-base-900 ${
+        isDuplicate ? 'border-red-500/60' : 'border-base-800'
+      }`}
+    >
       <div className={`relative aspect-[4/3] bg-gradient-to-br ${meta.gradient}`}>
         {showImage ? (
           <img
@@ -135,10 +147,30 @@ function FileTile({
           </span>
         )}
 
+        {/* Dedupe badge only shows in the staging phase (no progress bar). */}
+        {!showProgress && isChecking && (
+          <div className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-sm bg-base-950/85 px-1.5 py-0.5 font-mono text-[9px] font-medium tracking-widest text-ink-200">
+            <Loader2 size={10} className="animate-spin" aria-hidden />
+            CHECKING
+          </div>
+        )}
+        {!showProgress && isDuplicate && (
+          <div className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-sm bg-red-600/90 px-1.5 py-0.5 font-mono text-[9px] font-medium tracking-widest text-white">
+            <AlertTriangle size={10} aria-hidden />
+            DUPLICATE
+          </div>
+        )}
+
         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-base-950/95 via-base-950/50 to-transparent px-2.5 pb-2 pt-8">
           <p className="truncate text-[11.5px] font-medium leading-snug text-white" title={job.file.name}>
             {job.file.name}
           </p>
+          {isDuplicate && job.duplicateInfo && (
+            <p className="mt-0.5 truncate font-mono text-[10px] text-red-300" title="Already uploaded">
+              Already in {job.duplicateInfo.roomName ?? 'another room'}
+              {job.duplicateInfo.captureDate ? ` · ${job.duplicateInfo.captureDate}` : ''}
+            </p>
+          )}
         </div>
       </div>
 
@@ -265,13 +297,64 @@ export function UploadZone({ roomId, roomSlug, captureDate, onUploaded, onClose,
       thumbUrl: makeThumbUrl(file),
       progress: 0,
       state: 'staging',
+      dedupe: 'checking',
     }));
     setStaged((prev) => [...prev, ...fresh]);
+
+    // Hash + dedupe-check each file in parallel. We can't block the modal
+    // on the hash — a 2 GB LAS takes 10–20s — but we mark the tile as
+    // 'checking' so the Upload button can wait for it.
+    for (const job of fresh) {
+      void runDedupeCheck(job);
+    }
+  };
+
+  const runDedupeCheck = async (job: Job) => {
+    try {
+      const hash = await sha256OfFile(job.file);
+      const result = await precheckUploadHash(hash);
+      setStaged((prev) =>
+        prev.map((j) =>
+          j.id === job.id
+            ? result.duplicate
+              ? {
+                  ...j,
+                  dedupe: 'duplicate' as const,
+                  duplicateInfo: {
+                    roomName: result.room_name ?? null,
+                    captureDate: result.capture_date ?? null,
+                    displayName: result.display_name ?? null,
+                  },
+                }
+              : { ...j, dedupe: 'ok' as const }
+            : j,
+        ),
+      );
+    } catch {
+      // Hashing or the precheck call failed. Don't block the upload — fall
+      // back to the server-side duplicate check (which still runs in the
+      // background finalize thread). Mark as 'error' for visibility.
+      setStaged((prev) =>
+        prev.map((j) => (j.id === job.id ? { ...j, dedupe: 'error' as const } : j)),
+      );
+    }
   };
 
   const startUpload = async () => {
     if (!staged.length) return;
-    const batch: Job[] = staged.map((j) => ({ ...j, state: 'pending' }));
+    // Drop duplicates entirely — the precheck has already told us the server
+    // has these. Drop tiles still in 'checking' too: the Upload button is
+    // disabled while any are pending, so this is a defensive filter.
+    const skipped = staged.filter((j) => j.dedupe === 'duplicate' || j.dedupe === 'checking');
+    const accepted = staged.filter((j) => j.dedupe !== 'duplicate' && j.dedupe !== 'checking');
+    skipped.forEach((j) => j.thumbUrl && URL.revokeObjectURL(j.thumbUrl));
+    if (!accepted.length) {
+      setStaged([]);
+      toast.error('Nothing to upload — every file is already in the project.');
+      return;
+    }
+
+    const batch: Job[] = accepted.map((j) => ({ ...j, state: 'pending' }));
     setStaged([]);
     setJobs(batch);
 
@@ -346,6 +429,16 @@ export function UploadZone({ roomId, roomSlug, captureDate, onUploaded, onClose,
     if (staged.length > 0) return 'staging';
     return 'idle';
   }, [jobs, staged]);
+
+  const stagingChecking = useMemo(
+    () => staged.filter((j) => j.dedupe === 'checking').length,
+    [staged],
+  );
+  const stagingDuplicates = useMemo(
+    () => staged.filter((j) => j.dedupe === 'duplicate').length,
+    [staged],
+  );
+  const stagingUploadable = staged.length - stagingChecking - stagingDuplicates;
 
   return (
     <div className="space-y-3">
@@ -422,6 +515,12 @@ export function UploadZone({ roomId, roomSlug, captureDate, onUploaded, onClose,
                   <p className="mt-0.5 font-mono text-[11px] text-ink-300">
                     {staged.length} file{staged.length === 1 ? '' : 's'} · <span className="text-white">{roomSlug}</span> ·{' '}
                     <span className="text-white">{captureDate}</span>
+                    {stagingDuplicates > 0 && (
+                      <>
+                        {' · '}
+                        <span className="text-red-300">{stagingDuplicates} duplicate{stagingDuplicates === 1 ? '' : 's'} skipped</span>
+                      </>
+                    )}
                   </p>
                 </div>
                 <button
@@ -475,10 +574,13 @@ export function UploadZone({ roomId, roomSlug, captureDate, onUploaded, onClose,
                 <button
                   type="button"
                   onClick={startUpload}
-                  disabled={!staged.length}
-                  className="rounded-md bg-amber-500 px-4 py-1.5 text-[13px] font-semibold text-base-950 hover:bg-amber-400 disabled:opacity-40"
+                  disabled={!staged.length || stagingChecking > 0 || stagingUploadable === 0}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-amber-500 px-4 py-1.5 text-[13px] font-semibold text-base-950 hover:bg-amber-400 disabled:opacity-40"
                 >
-                  Upload {staged.length}
+                  {stagingChecking > 0 && <Loader2 size={12} className="animate-spin" aria-hidden />}
+                  {stagingChecking > 0
+                    ? `Checking ${stagingChecking}…`
+                    : `Upload ${stagingUploadable}`}
                 </button>
               </div>
             </motion.div>

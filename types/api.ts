@@ -146,6 +146,13 @@ export interface ApiConversionStatus {
   error?: string | null;
 }
 
+export interface ApiPrecheckHash {
+  duplicate: boolean;
+  room_name?: string | null;
+  capture_date?: string | null;
+  display_name?: string | null;
+}
+
 export interface ApiReport {
   id: string;
   file_id: string;

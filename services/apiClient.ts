@@ -21,6 +21,7 @@ import type {
   ApiComparisonDraftDetail,
   ApiConversionStatus,
   ApiMyUpload,
+  ApiPrecheckHash,
   ApiProject,
   ApiReport,
   ApiRoom,
@@ -334,6 +335,18 @@ export async function retryPointcloudConversion(fileId: string): Promise<void> {
   if (!response.ok) {
     throw new Error(await parseApiError(response));
   }
+}
+
+export async function precheckUploadHash(sha256Hash: string): Promise<ApiPrecheckHash> {
+  const response = await apiFetch('/upload/precheck-hash', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sha256_hash: sha256Hash }),
+  }, true);
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
+  return response.json() as Promise<ApiPrecheckHash>;
 }
 
 export function listMyUploads(opts?: { projectSlug?: string; mediaType?: 'image' | 'video' | 'pointcloud' | 'pdf' }): Promise<ApiMyUpload[]> {
