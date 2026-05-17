@@ -5,9 +5,11 @@ import { Check } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
+import { getAccessToken } from '@/auth/authSession';
 import {
   buildFieldObservationPdf,
   fieldObservationReportReference,
+  type PdfAnnotation,
 } from '@/lib/engineeringReportPdf';
 import { flagsFromObservationBooleans } from '@/lib/observationReportFlags';
 import {
@@ -75,6 +77,28 @@ function triggerDownload(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
+/** Resolve an annotation's backend attachment URL to a base64 data URL that
+ *  jsPDF.addImage can consume directly. Returns null on any failure so the
+ *  PDF still renders (without that one image) instead of crashing. */
+async function fetchAttachmentAsDataUrl(url: string): Promise<string | null> {
+  try {
+    const token = getAccessToken();
+    const res = await fetch(url, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : null);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
+
 function CheckboxField({
   checked,
   onChange,
@@ -135,8 +159,29 @@ export function ReportBuilder({ file, viewerKind, aiDescription, state, viewerCo
     [safetyConcern, qualityConcern, scheduleDelayed],
   );
 
-  const buildObservationPdf = () => {
+  const buildObservationPdf = async () => {
     const ref = fieldObservationReportReference();
+
+    // Pre-fetch each annotation's attachment to a data URL. jsPDF.addImage
+    // is synchronous, so we resolve all network IO upfront and feed the
+    // builder static base64 strings. Failures are silent — the renderer
+    // falls back to an italic "could not be embedded" note.
+    const enrichedAnnotations: PdfAnnotation[] = await Promise.all(
+      annotations.map(async (a, i) => {
+        const linkedIdx = a.linked_annotation_id
+          ? annotations.findIndex((x) => x.id === a.linked_annotation_id)
+          : -1;
+        const dataUrl = a.attachment_url ? await fetchAttachmentAsDataUrl(a.attachment_url) : null;
+        return {
+          index: i + 1,
+          text: a.text,
+          flag: a.flag ?? null,
+          linkedIndex: linkedIdx >= 0 ? linkedIdx + 1 : null,
+          attachmentDataUrl: dataUrl,
+        };
+      }),
+    );
+
     const doc = buildFieldObservationPdf({
       documentTitle,
       assessmentMethodSubtitle: assessmentSubtitle(viewerKind),
@@ -157,7 +202,7 @@ export function ReportBuilder({ file, viewerKind, aiDescription, state, viewerCo
         engineerCommentsBody: manualObservations || '',
         includeAnnotations,
         annotationsHeading: 'Image annotations',
-        annotations: annotations.map((a, i) => ({ index: i + 1, text: a.text })),
+        annotations: enrichedAnnotations,
       },
       flags: {
         scheduleDelayed,
@@ -212,7 +257,7 @@ export function ReportBuilder({ file, viewerKind, aiDescription, state, viewerCo
     if (publishing) return;
     setPublishing(true);
     try {
-      const { doc, ref } = buildObservationPdf();
+      const { doc, ref } = await buildObservationPdf();
       const pdfBlob = doc.output('blob');
       const filename = `FieldObservation_${ref}.pdf`;
       if (draftId) {

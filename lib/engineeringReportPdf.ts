@@ -16,6 +16,22 @@ export type FieldObservationFlags = {
   safetyConcern: boolean;
 };
 
+export type PdfAnnotationFlag = 'safety' | 'quality' | 'delayed';
+
+export type PdfAnnotation = {
+  index: number;
+  text: string;
+  /** Optional category. Drives the colored pill next to the index. */
+  flag?: PdfAnnotationFlag | null;
+  /** 1-based index of the linked annotation (same file). Rendered as
+   *  "See also: annotation #N" under the note. */
+  linkedIndex?: number | null;
+  /** Pre-fetched data URL of the attachment image. The caller is
+   *  responsible for resolving the network URL to base64 before invoking
+   *  buildFieldObservationPdf, because jsPDF.addImage is synchronous. */
+  attachmentDataUrl?: string | null;
+};
+
 export type FieldObservationPdfInput = {
   /** Main title under org line, e.g. "FIELD OBSERVATION REPORT" */
   documentTitle: string;
@@ -38,11 +54,20 @@ export type FieldObservationPdfInput = {
     engineerCommentsBody: string;
     includeAnnotations: boolean;
     annotationsHeading?: string;
-    annotations: { index: number; text: string }[];
+    annotations: PdfAnnotation[];
   };
   flags: FieldObservationFlags;
   /** PNG data URLs from canvas */
   annexScreenshots?: string[];
+};
+
+// Per-flag pill colors used in the PDF. Tuned so the white label text
+// stays legible on the fill — these are the same hues as the on-screen
+// chips in StaticViewer but darkened slightly for print.
+const FLAG_PDF_META: Record<PdfAnnotationFlag, { label: string; fill: [number, number, number] }> = {
+  safety:  { label: 'SAFETY',  fill: [239, 68, 68] },   // red-500
+  quality: { label: 'QUALITY', fill: [217, 119, 6] },   // amber-600 (darker for white text contrast)
+  delayed: { label: 'DELAYED', fill: [14, 165, 233] },  // sky-500
 };
 
 function drawFooters(doc: jsPDF): void {
@@ -246,15 +271,89 @@ export function buildFieldObservationPdf(input: FieldObservationPdfInput): jsPDF
         doc.setFontSize(10);
         doc.setTextColor(28);
         doc.text(`${ann.index}.`, PAGE.margin, state.y);
+
+        // Optional category pill, drawn to the right of the index number.
+        // Width is measured at the page font size so it adapts if the label
+        // length ever changes.
+        let textStartX = PAGE.margin + 8;
+        if (ann.flag) {
+          const meta = FLAG_PDF_META[ann.flag];
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(7);
+          const labelW = doc.getTextWidth(meta.label);
+          const pillW = labelW + 3.6;
+          const pillH = 3.6;
+          const pillX = PAGE.margin + 5.5;
+          const pillY = state.y - 3.1;
+          doc.setFillColor(meta.fill[0], meta.fill[1], meta.fill[2]);
+          // 1.4mm radius rounded rect — tight pill at this size.
+          doc.roundedRect(pillX, pillY, pillW, pillH, 1, 1, 'F');
+          doc.setTextColor(255);
+          doc.text(meta.label, pillX + 1.8, pillY + 2.6);
+          textStartX = pillX + pillW + 2;
+          // Restore body font for the note text below.
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(10);
+          doc.setTextColor(28);
+        }
+
         doc.setFont('helvetica', 'normal');
-        const lines = doc.splitTextToSize(ann.text.trim() || '—', CONTENT_W - 8);
-        doc.text(lines[0] ?? '—', PAGE.margin + 8, state.y);
+        const wrapWidth = CONTENT_W - (textStartX - PAGE.margin);
+        const lines = doc.splitTextToSize(ann.text.trim() || '—', wrapWidth);
+        doc.text(lines[0] ?? '—', textStartX, state.y);
         state.y += BODY_LH;
         for (let i = 1; i < lines.length; i++) {
           ensureSpace(BODY_LH);
           doc.text(lines[i], PAGE.margin + 8, state.y);
           state.y += BODY_LH;
         }
+
+        // "See also: annotation #N" line under the note, italic muted text.
+        if (ann.linkedIndex && ann.linkedIndex > 0) {
+          ensureSpace(BODY_LH);
+          doc.setFont('helvetica', 'italic');
+          doc.setFontSize(9);
+          doc.setTextColor(90);
+          doc.text(`See also: annotation #${ann.linkedIndex}`, PAGE.margin + 8, state.y);
+          state.y += BODY_LH;
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(10);
+          doc.setTextColor(28);
+        }
+
+        // Embedded attachment image. addImage is synchronous and reads from
+        // the data URL prepared upstream; we cap the height so a tall image
+        // doesn't dominate the page, preserving aspect ratio against width.
+        if (ann.attachmentDataUrl) {
+          const maxW = Math.min(CONTENT_W - 8, 110);
+          const maxH = 60;
+          try {
+            const props = doc.getImageProperties(ann.attachmentDataUrl);
+            const ratio = props.width / props.height || 1;
+            let w = maxW;
+            let h = w / ratio;
+            if (h > maxH) {
+              h = maxH;
+              w = h * ratio;
+            }
+            ensureSpace(h + 3);
+            doc.addImage(ann.attachmentDataUrl, PAGE.margin + 8, state.y, w, h);
+            state.y += h + 2;
+          } catch {
+            // Unsupported format or decode error — fall back to a text note
+            // so the reader at least knows an attachment was associated.
+            ensureSpace(BODY_LH);
+            doc.setFont('helvetica', 'italic');
+            doc.setFontSize(9);
+            doc.setTextColor(90);
+            doc.text('(attachment image could not be embedded)', PAGE.margin + 8, state.y);
+            state.y += BODY_LH;
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(10);
+            doc.setTextColor(28);
+          }
+        }
+
         state.y += 2;
       }
     }
