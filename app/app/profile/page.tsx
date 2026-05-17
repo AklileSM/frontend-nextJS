@@ -13,6 +13,8 @@ import { Tabs } from '@/components/ui/Tabs';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { MoreMenu } from '@/components/ui/MoreMenu';
 import { setViewerContext } from '@/components/explorer/viewerContext';
+import { ActivityFeed } from '@/components/home/ActivityFeed';
+import { useMyProjectRole } from '@/hooks/useMyProjectRole';
 import {
   deleteFileAsset,
   deleteReport,
@@ -35,7 +37,7 @@ import type {
 export const dynamic = 'force-dynamic';
 
 const SIDEBAR_SLUG_KEY = 'sidebar.lastProjectSlug';
-type TopTab = 'reports' | 'drafts' | 'files';
+type TopTab = 'reports' | 'drafts' | 'files' | 'activity';
 type DraftSide = 'viewer' | 'comparison';
 type FileSide = 'image' | 'video' | 'pdf';
 
@@ -65,6 +67,11 @@ export default function ProfilePage() {
     [projectSlug, projects],
   );
 
+  // Same predicate the backend's GET /activity uses: owner / editor / admin.
+  // Viewers don't get an Activity tab.
+  const { canUpload } = useMyProjectRole(currentProject?.id);
+  const showActivity = canUpload && !!projectSlug;
+
   useEffect(() => {
     try {
       setProjectSlug(sessionStorage.getItem(SIDEBAR_SLUG_KEY));
@@ -72,6 +79,13 @@ export default function ProfilePage() {
       /* ignore */
     }
   }, []);
+
+  // If the user's role no longer permits Activity (or they leave the
+  // project context entirely) while they're sitting on the Activity tab,
+  // bounce them back to Reports.
+  useEffect(() => {
+    if (tab === 'activity' && !showActivity) setTab('reports');
+  }, [tab, showActivity]);
 
   // Reports/drafts are scoped to the project the user is currently in (same
   // rule as the Files tab). When projectSlug is null we still load the
@@ -350,6 +364,9 @@ export default function ProfilePage() {
               { id: 'reports', label: `Reports (${reports.length})` },
               { id: 'drafts',  label: `Drafts (${viewerDraftRows.length + comparisonDraftRows.length})` },
               { id: 'files',   label: 'Files' },
+              // Activity is appended only when the current project + role
+              // grant access. Matches the backend's 403 rule on /activity.
+              ...(showActivity ? [{ id: 'activity' as TopTab, label: 'Activity' }] : []),
             ]}
             active={tab}
             onChange={setTab}
@@ -480,8 +497,7 @@ export default function ProfilePage() {
               )}
             </div>
           </div>
-        ) : (
-          // tab === 'files'
+        ) : tab === 'files' ? (
           <div className="mt-6 grid grid-cols-[180px_1fr] gap-6">
             <SideRail
               tabs={[
@@ -556,6 +572,19 @@ export default function ProfilePage() {
                 </>
               )}
             </div>
+          </div>
+        ) : (
+          // tab === 'activity'. Only reachable when showActivity is true,
+          // which already requires a projectSlug — but we guard once more
+          // here so a stale URL or race can't render the feed without one.
+          <div className="mt-6">
+            {projectSlug ? (
+              <ActivityFeed projectSlug={projectSlug} limit={100} />
+            ) : (
+              <p className="text-[13px] text-ink-300">
+                Open a project from the projects page to see its activity.
+              </p>
+            )}
           </div>
         )}
       </motion.section>
