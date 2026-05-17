@@ -1,4 +1,6 @@
-# UX & Workflow Audit — A6-Stern Frontend
+# UX & Workflow Audit — A6-Stern Frontend (2026 Q2)
+
+> **Historical document.** This is a point-in-time audit from 2026-05-12, kept as a changelog of what was fixed in that pass. Every item is marked ✅ shipped — this is not a current to-do list. For the latest documentation, see the docs at the root of `frontend-next/`.
 
 _Generated 2026-05-12. Organized by severity: Critical → High → Medium → Low → Flow improvements._
 

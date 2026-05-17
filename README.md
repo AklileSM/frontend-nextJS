@@ -1,8 +1,28 @@
 # A6-Stern Frontend
 
+> **New here?** Read [`deployment/PROJECT_OVERVIEW.md`](../deployment/PROJECT_OVERVIEW.md) first — it's the cross-repo front page with a topic-based map of every doc in the project.
+
 Next.js application for the A6-Stern construction documentation platform. Provides file browsing, 360° panorama and 3D point cloud viewers, side-by-side image comparison, annotation tools, and PDF report generation.
 
 Works alongside the `backend` and `deployment` repos.
+
+## Documentation map
+
+This README covers setup, route inventory, and the high-level state model. Deeper topics live in companion docs:
+
+| Doc | Covers |
+|---|---|
+| [STYLING.md](STYLING.md) | Color tokens, typography, common UI patterns, framer-motion conventions |
+| [VIEWERS.md](VIEWERS.md) | Static / panorama / point cloud / PDF / compare viewers; viewer-context handoff |
+| [EXPLORER.md](EXPLORER.md) | File grid, thumbnails, upload zone, calendar, room filter, bulk ops |
+| [REPORTS.md](REPORTS.md) | ReportBuilder, draft lifecycle, PDF generation, comparison flow |
+| [ANNOTATIONS.md](ANNOTATIONS.md) | Annotation pins, coordinate system, attachments, linked annotations |
+| [ADMIN.md](ADMIN.md) | `/app/admin/users` and `/app/admin/projects` pages, role gating |
+| [PROJECT_SETTINGS.md](PROJECT_SETTINGS.md) | Per-project settings: members, rooms, floorplan, danger zone |
+| [AUTH_FLOWS.md](AUTH_FLOWS.md) | Register, email verification, forgot/reset password, token storage |
+| [API_CLIENT.md](API_CLIENT.md) | How to add an endpoint, error handling, upload patterns |
+| [TESTING.md](TESTING.md) | Current state (no tests) + Vitest / Playwright starter recipe |
+| [docs/changelog-2026q2.md](docs/changelog-2026q2.md) | Historical UX audit changelog |
 
 ## Prerequisites
 
