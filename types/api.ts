@@ -205,5 +205,15 @@ export interface ApiAnnotation {
   x: number;
   y: number;
   text: string;
+  // Optional category. The UI uses this to color the pin and render a
+  // chip in the details modal. Same taxonomy as report flags.
+  flag?: AnnotationFlag | null;
+  // Same-file pointer to another annotation. Frontend resolves to the
+  // annotation's index ("see #4") at render time.
+  linked_annotation_id?: string | null;
+  // Backend-served attachment URL when an image is attached. Null otherwise.
+  attachment_url?: string | null;
   created_at: string;
 }
+
+export type AnnotationFlag = 'safety' | 'quality' | 'delayed';

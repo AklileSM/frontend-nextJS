@@ -1,7 +1,7 @@
 'use client';
 
 import { AnimatePresence, motion } from 'framer-motion';
-import { AlertTriangle, Loader2 } from 'lucide-react';
+import { AlertTriangle, Loader2, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { ApiAnnotation } from '@/types/api';
@@ -66,18 +66,23 @@ export function AnnotationDeleteConfirm({ annotation, onConfirm, onCancel }: Pro
             aria-modal="true"
             className="relative z-10 w-full max-w-[440px] rounded-lg border border-base-700 bg-base-900 shadow-2xl shadow-black/60"
           >
-            <div className="flex items-start gap-4 p-6">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={onCancel}
+              aria-label="Close"
+              className="absolute right-2 top-2 z-10 inline-flex h-8 w-8 items-center justify-center rounded-md text-ink-300 transition-colors hover:bg-base-800 hover:text-white disabled:opacity-50"
+            >
+              <X size={16} />
+            </button>
+            <div className="flex items-start gap-4 p-6 pr-12">
               <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-amber-500/15 text-amber-500">
                 <AlertTriangle size={18} />
               </span>
               <div className="min-w-0 flex-1">
                 <h3 className="font-display text-[18px] font-semibold text-white">Delete this annotation?</h3>
                 <p className="mt-2 text-[13px] leading-[1.6] text-ink-200">
-                  This will remove the marker at{' '}
-                  <code className="rounded bg-base-800 px-1.5 py-0.5 font-mono text-[12px] text-ink-100">
-                    x={annotation.x.toFixed(3)} · y={annotation.y.toFixed(3)}
-                  </code>
-                  . The note below will be deleted permanently.
+                  The note below will be deleted permanently.
                 </p>
                 {preview ? (
                   <p className="mt-2 rounded-md border border-base-800 bg-base-950/80 px-2.5 py-2 text-[12px] text-ink-200">
@@ -87,14 +92,6 @@ export function AnnotationDeleteConfirm({ annotation, onConfirm, onCancel }: Pro
               </div>
             </div>
             <div className="flex items-center justify-end gap-2 border-t border-base-800 px-5 py-3">
-              <button
-                type="button"
-                disabled={busy}
-                onClick={onCancel}
-                className="rounded-md border border-base-700 px-3.5 py-1.5 text-[13px] font-medium text-white transition-colors hover:border-ink-300 disabled:opacity-50"
-              >
-                Cancel
-              </button>
               <button
                 type="button"
                 disabled={busy}

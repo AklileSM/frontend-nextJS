@@ -1,7 +1,7 @@
 'use client';
 
 import { AnimatePresence, motion } from 'framer-motion';
-import { AlertTriangle, Loader2 } from 'lucide-react';
+import { AlertTriangle, Loader2, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 
@@ -10,6 +10,9 @@ type Props = {
   title: string;
   body: string;
   confirmLabel?: string;
+  // cancelLabel retained for API compatibility but no longer rendered as a
+  // footer button — dismissal is the × in the top-right corner, Escape, or
+  // a backdrop click.
   cancelLabel?: string;
   danger?: boolean;
   onConfirm: () => Promise<void> | void;
@@ -21,6 +24,7 @@ export function ConfirmDialog({
   title,
   body,
   confirmLabel = 'Confirm',
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   cancelLabel = 'Cancel',
   danger = false,
   onConfirm,
@@ -71,7 +75,16 @@ export function ConfirmDialog({
             aria-modal="true"
             className="relative z-10 w-[440px] max-w-[calc(100vw-32px)] rounded-lg border border-base-700 bg-base-900 shadow-2xl shadow-black/60"
           >
-            <div className="flex items-start gap-4 p-6">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={onCancel}
+              aria-label="Close"
+              className="absolute right-2 top-2 z-10 inline-flex h-8 w-8 items-center justify-center rounded-md text-ink-300 transition-colors hover:bg-base-800 hover:text-white disabled:opacity-50"
+            >
+              <X size={16} />
+            </button>
+            <div className="flex items-start gap-4 p-6 pr-12">
               <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-amber-500/15 text-amber-500">
                 <AlertTriangle size={18} />
               </span>
@@ -81,14 +94,6 @@ export function ConfirmDialog({
               </div>
             </div>
             <div className="flex items-center justify-end gap-2 border-t border-base-800 px-5 py-3">
-              <button
-                type="button"
-                disabled={busy}
-                onClick={onCancel}
-                className="rounded-md border border-base-700 px-3.5 py-1.5 text-[13px] font-medium text-white transition-colors hover:border-ink-300 disabled:opacity-50"
-              >
-                {cancelLabel}
-              </button>
               <button
                 type="button"
                 disabled={busy}

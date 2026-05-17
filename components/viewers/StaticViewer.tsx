@@ -4,26 +4,48 @@ import { AnimatePresence, motion } from 'framer-motion';
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Maximize2 } from 'lucide-react';
+import { Maximize2, Paperclip, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   analyzeImage,
   createAnnotation,
   deleteAnnotation,
+  deleteAnnotationAttachment,
   listAnnotations,
   updateAnnotation,
+  uploadAnnotationAttachment,
 } from '@/services/apiClient';
 import { ReportBuilder } from '@/components/reports/ReportBuilder';
 import { AnnotationDeleteConfirm } from '@/components/viewers/AnnotationDeleteConfirm';
-import type { ApiAnnotation } from '@/types/api';
+import type { ApiAnnotation, AnnotationFlag } from '@/types/api';
 import { useViewerContext } from './useViewerContext';
 import { backHrefFor } from '@/components/explorer/viewerContext';
+
+// Per-flag visual treatment. Pin color flows from this; details modal uses
+// `chip` for the small badge. Keep additions in sync with the backend
+// _ALLOWED_FLAGS taxonomy and lib/observationReportFlags.ts.
+const FLAG_META: Record<AnnotationFlag, { label: string; pin: string; chip: string; ring: string }> = {
+  safety:  { label: 'Safety',  pin: 'bg-red-500 border-red-200 text-white',        chip: 'bg-red-500/15 text-red-300',     ring: 'ring-red-400/40'    },
+  quality: { label: 'Quality', pin: 'bg-amber-400 border-amber-100 text-base-950', chip: 'bg-amber-500/15 text-amber-300', ring: 'ring-amber-400/40'  },
+  delayed: { label: 'Delayed', pin: 'bg-sky-500 border-sky-200 text-white',        chip: 'bg-sky-500/15 text-sky-300',     ring: 'ring-sky-400/40'    },
+};
+const FLAG_ORDER: AnnotationFlag[] = ['safety', 'quality', 'delayed'];
+const UNFLAGGED_PIN = 'bg-base-950 border-amber-400 text-amber-300';
+const UNFLAGGED_RING = 'ring-amber-400/40';
 
 type AnnotationFormState = {
   mode: 'create' | 'edit';
   annotationId?: string;
   pin: { x: number; y: number };
   text: string;
+  flag: AnnotationFlag | null;
+  linkedAnnotationId: string | null;
+  // The user-selected file for upload. Cleared after a successful save.
+  newAttachment: File | null;
+  // Set in edit mode when the annotation already has an attachment in MinIO.
+  existingAttachmentUrl: string | null;
+  // Edit-mode flag set when the user wants to drop an existing attachment.
+  removeExistingAttachment: boolean;
 };
 
 export function StaticViewer() {
@@ -95,28 +117,58 @@ export function StaticViewer() {
     if (!ctx || !annotationForm || !annotationForm.text.trim() || savingAnnotation) return;
     setSavingAnnotation(true);
     try {
+      // 1) Save the row (create or update) with the new flag/link fields.
+      let saved: ApiAnnotation;
       if (annotationForm.mode === 'create') {
-        const ann = await createAnnotation({
+        saved = await createAnnotation({
           fileId: ctx.file.id,
           x: annotationForm.pin.x,
           y: annotationForm.pin.y,
           text: annotationForm.text.trim(),
+          flag: annotationForm.flag ?? null,
+          linkedAnnotationId: annotationForm.linkedAnnotationId ?? null,
         });
-        setAnnotations((prev) => [ann, ...prev]);
-        setSelectedAnnotationId(ann.id);
-        setPlacingAnnotation(false);
-        toast.success('Annotation added.');
       } else if (annotationForm.annotationId) {
-        const updated = await updateAnnotation({
+        saved = await updateAnnotation({
           annotationId: annotationForm.annotationId,
           x: annotationForm.pin.x,
           y: annotationForm.pin.y,
           text: annotationForm.text.trim(),
+          flag: annotationForm.flag ?? null,
+          linkedAnnotationId: annotationForm.linkedAnnotationId ?? null,
+          clearLink: annotationForm.linkedAnnotationId === null,
         });
-        setAnnotations((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
-        setSelectedAnnotationId(updated.id);
+      } else {
+        return;
+      }
+
+      // 2) Attachment changes run as separate calls — multipart upload for
+      //    new files, DELETE to drop an existing one. Failures here surface
+      //    as a toast but don't roll back the row save.
+      if (annotationForm.removeExistingAttachment && !annotationForm.newAttachment) {
+        try {
+          saved = await deleteAnnotationAttachment(saved.id);
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : 'Could not remove attachment.');
+        }
+      }
+      if (annotationForm.newAttachment) {
+        try {
+          saved = await uploadAnnotationAttachment(saved.id, annotationForm.newAttachment);
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : 'Could not upload attachment.');
+        }
+      }
+
+      if (annotationForm.mode === 'create') {
+        setAnnotations((prev) => [saved, ...prev]);
+        setPlacingAnnotation(false);
+        toast.success('Annotation added.');
+      } else {
+        setAnnotations((prev) => prev.map((a) => (a.id === saved.id ? saved : a)));
         toast.success('Annotation updated.');
       }
+      setSelectedAnnotationId(saved.id);
       setAnnotationForm(null);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not save annotation.');
@@ -139,7 +191,16 @@ export function StaticViewer() {
       if (rect.width <= 0 || rect.height <= 0) return;
       const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
       const y = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
-      setAnnotationForm({ mode: 'create', pin: { x, y }, text: '' });
+      setAnnotationForm({
+        mode: 'create',
+        pin: { x, y },
+        text: '',
+        flag: null,
+        linkedAnnotationId: null,
+        newAttachment: null,
+        existingAttachmentUrl: null,
+        removeExistingAttachment: false,
+      });
     }
   };
 
@@ -184,6 +245,11 @@ export function StaticViewer() {
       annotationId: a.id,
       pin: { x: a.x, y: a.y },
       text: a.text,
+      flag: a.flag ?? null,
+      linkedAnnotationId: a.linked_annotation_id ?? null,
+      newAttachment: null,
+      existingAttachmentUrl: a.attachment_url ?? null,
+      removeExistingAttachment: false,
     });
   };
 
@@ -320,6 +386,11 @@ export function StaticViewer() {
                           annotationForm.pin
                             ? annotationForm.pin.y
                             : a.y;
+                        // Pin color comes from the flag taxonomy; unflagged
+                        // annotations fall back to the original amber treatment.
+                        const flagMeta = a.flag ? FLAG_META[a.flag] : null;
+                        const pinColor = flagMeta ? flagMeta.pin : UNFLAGGED_PIN;
+                        const ringColor = flagMeta ? flagMeta.ring : UNFLAGGED_RING;
                         return (
                           <button
                             key={a.id}
@@ -337,10 +408,10 @@ export function StaticViewer() {
                               });
                             }}
                             title={a.text}
-                            className={`absolute z-10 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 text-[10px] font-semibold transition-all duration-150 ${
+                            className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-full border-2 text-[10px] font-semibold transition-all duration-150 ${pinColor} ${
                               active
-                                ? 'z-20 h-7 w-7 border-amber-100 bg-amber-400 text-base-950 shadow-[0_0_0_3px_rgba(251,191,36,0.45)] ring-2 ring-amber-200/90 hover:scale-110 hover:shadow-[0_0_16px_rgba(251,191,36,0.55)]'
-                                : 'h-5 w-5 border-amber-400 bg-base-950 text-amber-300 hover:z-30 hover:scale-125 hover:border-amber-200 hover:bg-amber-500/25 hover:text-amber-50 hover:shadow-[0_0_14px_rgba(251,191,36,0.4)]'
+                                ? `z-20 h-7 w-7 shadow-lg ring-2 ${ringColor} hover:scale-110`
+                                : 'z-10 h-5 w-5 hover:z-30 hover:scale-125'
                             }`}
                             style={{ left: `${markerX * 100}%`, top: `${markerY * 100}%` }}
                           >
@@ -425,44 +496,197 @@ export function StaticViewer() {
               role="dialog"
               aria-modal="true"
               aria-labelledby="annotation-form-title"
-              className="relative z-10 w-full max-w-[480px] rounded-lg border border-base-700 bg-base-900 shadow-2xl shadow-black/60"
+              className="relative z-10 w-full max-w-[520px] max-h-[85vh] overflow-hidden rounded-lg border border-base-700 bg-base-900 shadow-2xl shadow-black/60 flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="border-b border-base-800 px-5 py-4">
+              {/* × corner replaces the previous bottom Cancel button. Escape
+                  and backdrop-click still dismiss, so dismissal has three
+                  equally valid affordances. */}
+              <button
+                type="button"
+                disabled={savingAnnotation}
+                onClick={() => setAnnotationForm(null)}
+                aria-label="Close"
+                className="absolute right-2 top-2 z-20 inline-flex h-8 w-8 items-center justify-center rounded-md text-ink-300 transition-colors hover:bg-base-800 hover:text-white disabled:opacity-50"
+              >
+                <X size={16} />
+              </button>
+
+              <div className="border-b border-base-800 px-5 py-4 pr-12">
                 <h2 id="annotation-form-title" className="font-display text-[18px] font-semibold text-white">
                   {annotationForm.mode === 'create' ? 'New annotation' : 'Edit annotation'}
                 </h2>
-                <p className="mt-1 font-mono text-[11px] text-ink-300">
-                  x={annotationForm.pin.x.toFixed(3)} · y={annotationForm.pin.y.toFixed(3)}
-                </p>
                 {annotationForm.mode === 'edit' && (
-                  <p className="mt-2 text-[12px] text-ink-300">Click the image to move this marker.</p>
+                  <p className="mt-1 text-[12px] text-ink-300">Click the image to move this marker.</p>
                 )}
               </div>
-              <div className="px-5 py-4">
-                <label htmlFor="annotation-form-text" className="sr-only">
-                  Annotation text
-                </label>
-                <textarea
-                  id="annotation-form-text"
-                  value={annotationForm.text}
-                  onChange={(e) =>
-                    setAnnotationForm((prev) => (prev ? { ...prev, text: e.target.value } : null))
-                  }
-                  placeholder="Describe what you observed at this point..."
-                  rows={5}
-                  className="w-full rounded-md border border-base-700 bg-base-950 px-3 py-2 text-[13px] text-white outline-none focus:border-amber-500"
-                />
+
+              <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+                <div>
+                  <label htmlFor="annotation-form-text" className="block font-mono text-[10px] uppercase tracking-[0.18em] text-ink-300">
+                    Note
+                  </label>
+                  <textarea
+                    id="annotation-form-text"
+                    value={annotationForm.text}
+                    onChange={(e) =>
+                      setAnnotationForm((prev) => (prev ? { ...prev, text: e.target.value } : null))
+                    }
+                    placeholder="Describe what you observed at this point..."
+                    rows={5}
+                    className="mt-1.5 w-full rounded-md border border-base-700 bg-base-950 px-3 py-2 text-[13px] text-white outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                {/* Flag picker — categorises the annotation and drives the
+                    pin color. None is allowed (the original neutral pin). */}
+                <div>
+                  <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-300">Category</p>
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setAnnotationForm((prev) => (prev ? { ...prev, flag: null } : null))
+                      }
+                      className={`rounded-full border px-3 py-1 text-[12px] font-medium transition-colors ${
+                        annotationForm.flag === null
+                          ? 'border-amber-500 bg-amber-500/10 text-amber-300'
+                          : 'border-base-700 bg-base-950 text-ink-300 hover:border-ink-300'
+                      }`}
+                    >
+                      None
+                    </button>
+                    {FLAG_ORDER.map((f) => {
+                      const meta = FLAG_META[f];
+                      const active = annotationForm.flag === f;
+                      return (
+                        <button
+                          key={f}
+                          type="button"
+                          onClick={() =>
+                            setAnnotationForm((prev) => (prev ? { ...prev, flag: f } : null))
+                          }
+                          className={`rounded-full border px-3 py-1 text-[12px] font-medium transition-colors ${
+                            active
+                              ? `${meta.chip} border-transparent`
+                              : 'border-base-700 bg-base-950 text-ink-300 hover:border-ink-300'
+                          }`}
+                        >
+                          {meta.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Same-file link picker. The list is built from the page-level
+                    annotations array, excluding the one being edited. */}
+                {(() => {
+                  const linkable = annotations.filter((a) => a.id !== annotationForm.annotationId);
+                  if (!linkable.length) return null;
+                  return (
+                    <div>
+                      <label htmlFor="annotation-form-link" className="block font-mono text-[10px] uppercase tracking-[0.18em] text-ink-300">
+                        Related annotation (optional)
+                      </label>
+                      <select
+                        id="annotation-form-link"
+                        value={annotationForm.linkedAnnotationId ?? ''}
+                        onChange={(e) =>
+                          setAnnotationForm((prev) =>
+                            prev ? { ...prev, linkedAnnotationId: e.target.value || null } : null,
+                          )
+                        }
+                        className="mt-1.5 w-full rounded-md border border-base-700 bg-base-950 px-3 py-2 text-[13px] text-white outline-none focus:border-amber-500"
+                      >
+                        <option value="">— none —</option>
+                        {linkable.map((a) => {
+                          // Use the page-wide index (1-based) so the label
+                          // matches the number on the pin.
+                          const idx = annotations.findIndex((x) => x.id === a.id);
+                          const preview = (a.text || '').slice(0, 50);
+                          return (
+                            <option key={a.id} value={a.id}>
+                              #{idx + 1}{preview ? ` — ${preview}` : ''}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+                  );
+                })()}
+
+                {/* Image attachment. New uploads + drop-existing tracked separately. */}
+                <div>
+                  <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-300">Attachment</p>
+                  {(() => {
+                    const showExisting =
+                      annotationForm.existingAttachmentUrl &&
+                      !annotationForm.removeExistingAttachment &&
+                      !annotationForm.newAttachment;
+                    const previewSrc = annotationForm.newAttachment
+                      ? URL.createObjectURL(annotationForm.newAttachment)
+                      : showExisting
+                        ? annotationForm.existingAttachmentUrl
+                        : null;
+                    return (
+                      <div className="mt-1.5 space-y-2">
+                        {previewSrc && (
+                          <div className="relative inline-block">
+                            <img
+                              src={previewSrc}
+                              alt="Attachment preview"
+                              className="max-h-32 rounded-md border border-base-700 object-cover"
+                            />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setAnnotationForm((prev) =>
+                                  prev
+                                    ? {
+                                        ...prev,
+                                        newAttachment: null,
+                                        removeExistingAttachment: !!prev.existingAttachmentUrl,
+                                      }
+                                    : null,
+                                )
+                              }
+                              aria-label="Remove attachment"
+                              className="absolute right-1 top-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-base-950/85 text-ink-200 hover:bg-red-600 hover:text-white"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        )}
+                        <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-base-700 bg-base-950 px-3 py-1.5 text-[12px] text-white hover:border-ink-300">
+                          <Paperclip size={13} />
+                          {previewSrc ? 'Replace image' : 'Attach image'}
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp,image/gif"
+                            className="hidden"
+                            onChange={(e) => {
+                              const f = e.target.files?.[0] ?? null;
+                              setAnnotationForm((prev) =>
+                                prev
+                                  ? {
+                                      ...prev,
+                                      newAttachment: f,
+                                      removeExistingAttachment: false,
+                                    }
+                                  : null,
+                              );
+                              e.target.value = '';
+                            }}
+                          />
+                        </label>
+                      </div>
+                    );
+                  })()}
+                </div>
               </div>
+
               <div className="flex items-center justify-end gap-2 border-t border-base-800 px-5 py-3">
-                <button
-                  type="button"
-                  disabled={savingAnnotation}
-                  onClick={() => setAnnotationForm(null)}
-                  className="rounded-md border border-base-700 px-3.5 py-1.5 text-[13px] font-medium text-white transition-colors hover:border-ink-300 hover:bg-base-800 disabled:opacity-50"
-                >
-                  Cancel
-                </button>
                 <button
                   type="button"
                   disabled={!annotationForm.text.trim() || savingAnnotation}
@@ -506,28 +730,83 @@ export function StaticViewer() {
               role="dialog"
               aria-modal="true"
               aria-labelledby="annotation-details-title"
-              className="relative z-10 w-full max-w-[480px] rounded-lg border border-base-700 bg-base-900 shadow-2xl shadow-black/60"
+              className="relative z-10 w-full max-w-[520px] max-h-[85vh] overflow-hidden rounded-lg border border-base-700 bg-base-900 shadow-2xl shadow-black/60 flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="border-b border-base-800 px-5 py-4">
-                <h2 id="annotation-details-title" className="font-display text-[18px] font-semibold text-white">
-                  Annotation {detailsAnnotationIndex + 1}
-                </h2>
-                <p className="mt-1 font-mono text-[11px] text-ink-300">
-                  x={detailsAnnotation.x.toFixed(3)} · y={detailsAnnotation.y.toFixed(3)}
-                </p>
+              {/* × corner — replaces the previous footer Close button. */}
+              <button
+                type="button"
+                onClick={() => setDetailsForId(null)}
+                aria-label="Close"
+                className="absolute right-2 top-2 z-20 inline-flex h-8 w-8 items-center justify-center rounded-md text-ink-300 transition-colors hover:bg-base-800 hover:text-white"
+              >
+                <X size={16} />
+              </button>
+
+              <div className="border-b border-base-800 px-5 py-4 pr-12">
+                <div className="flex items-center gap-2">
+                  <h2 id="annotation-details-title" className="font-display text-[18px] font-semibold text-white">
+                    Annotation {detailsAnnotationIndex + 1}
+                  </h2>
+                  {detailsAnnotation.flag && (
+                    <span
+                      className={`rounded-full px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] ${FLAG_META[detailsAnnotation.flag].chip}`}
+                    >
+                      {FLAG_META[detailsAnnotation.flag].label}
+                    </span>
+                  )}
+                </div>
               </div>
-              <div className="max-h-[min(50vh,360px)] overflow-y-auto px-5 py-4 text-[13px] leading-relaxed text-ink-200">
-                {detailsAnnotation.text}
+
+              <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4 text-[13px] leading-relaxed text-ink-200">
+                <p className="whitespace-pre-wrap">{detailsAnnotation.text}</p>
+
+                {/* Linked annotation reference, resolved to the pin number on
+                    the image. Null after the linked row got deleted (the FK
+                    set it null on the backend); we don't render the line. */}
+                {detailsAnnotation.linked_annotation_id && (() => {
+                  const linkedIdx = annotations.findIndex((a) => a.id === detailsAnnotation.linked_annotation_id);
+                  if (linkedIdx < 0) return null;
+                  return (
+                    <p className="text-[12px] text-ink-300">
+                      Related:{' '}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const linked = annotations[linkedIdx];
+                          if (!linked) return;
+                          setSelectedAnnotationId(linked.id);
+                          setDetailsForId(linked.id);
+                        }}
+                        className="font-medium text-amber-300 underline-offset-2 hover:underline"
+                      >
+                        annotation #{linkedIdx + 1}
+                      </button>
+                    </p>
+                  );
+                })()}
+
+                {detailsAnnotation.attachment_url && (
+                  <div>
+                    <p className="mb-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-ink-300">
+                      Attachment
+                    </p>
+                    <a
+                      href={detailsAnnotation.attachment_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <img
+                        src={detailsAnnotation.attachment_url}
+                        alt="Annotation attachment"
+                        className="max-h-64 rounded-md border border-base-700 object-cover"
+                      />
+                    </a>
+                  </div>
+                )}
               </div>
+
               <div className="flex flex-wrap items-center justify-end gap-2 border-t border-base-800 px-5 py-3">
-                <button
-                  type="button"
-                  onClick={() => setDetailsForId(null)}
-                  className="rounded-md border border-base-700 px-3.5 py-1.5 text-[13px] font-medium text-white transition-colors hover:border-ink-300 hover:bg-base-800"
-                >
-                  Close
-                </button>
                 <button
                   type="button"
                   onClick={() => openEditForm(detailsAnnotation)}

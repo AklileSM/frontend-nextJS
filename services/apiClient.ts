@@ -692,16 +692,19 @@ export async function uploadSingleFile(params: {
   return response.json() as Promise<UploadSingleResponse>;
 }
 
+type RawAnnotation = {
+  id: string;
+  file_id: string;
+  annotation_type: string;
+  data: Record<string, unknown>;
+  flag?: string | null;
+  linked_annotation_id?: string | null;
+  attachment_url?: string | null;
+  created_at: string;
+};
+
 export function listAnnotations(fileId: string): Promise<ApiAnnotation[]> {
-  return getJson<
-    Array<{
-      id: string;
-      file_id: string;
-      annotation_type: string;
-      data: Record<string, unknown>;
-      created_at: string;
-    }>
-  >(`/annotations/file/${encodeURIComponent(fileId)}`).then((items) =>
+  return getJson<RawAnnotation[]>(`/annotations/file/${encodeURIComponent(fileId)}`).then((items) =>
     items.map((item) => normalizeAnnotation(item)),
   );
 }
@@ -711,14 +714,10 @@ export function createAnnotation(params: {
   x: number;
   y: number;
   text: string;
+  flag?: string | null;
+  linkedAnnotationId?: string | null;
 }): Promise<ApiAnnotation> {
-  return getJson<{
-    id: string;
-    file_id: string;
-    annotation_type: string;
-    data: Record<string, unknown>;
-    created_at: string;
-  }>('/annotations', {
+  return getJson<RawAnnotation>('/annotations', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -729,6 +728,8 @@ export function createAnnotation(params: {
         y: params.y,
         text: params.text,
       },
+      flag: params.flag ?? null,
+      linked_annotation_id: params.linkedAnnotationId ?? null,
     }),
   }).then((item) => normalizeAnnotation(item, { x: params.x, y: params.y, text: params.text }));
 }
@@ -738,14 +739,13 @@ export function updateAnnotation(params: {
   x: number;
   y: number;
   text: string;
+  flag?: string | null;
+  // Pass `null` to leave the link unchanged, the new id to set it, or set
+  // `clearLink: true` below to explicitly remove it.
+  linkedAnnotationId?: string | null;
+  clearLink?: boolean;
 }): Promise<ApiAnnotation> {
-  return getJson<{
-    id: string;
-    file_id: string;
-    annotation_type: string;
-    data: Record<string, unknown>;
-    created_at: string;
-  }>(`/annotations/${encodeURIComponent(params.annotationId)}`, {
+  return getJson<RawAnnotation>(`/annotations/${encodeURIComponent(params.annotationId)}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -754,8 +754,35 @@ export function updateAnnotation(params: {
         y: params.y,
         text: params.text,
       },
+      flag: params.flag ?? null,
+      linked_annotation_id: params.linkedAnnotationId ?? null,
+      clear_link: params.clearLink ?? false,
     }),
   }).then((item) => normalizeAnnotation(item, { x: params.x, y: params.y, text: params.text }));
+}
+
+export async function uploadAnnotationAttachment(annotationId: string, file: File): Promise<ApiAnnotation> {
+  const form = new FormData();
+  form.append('file', file);
+  const response = await apiFetch(
+    `/annotations/${encodeURIComponent(annotationId)}/attachment`,
+    { method: 'POST', body: form },
+    true,
+  );
+  if (!response.ok) throw new Error(await parseApiError(response));
+  const item = (await response.json()) as RawAnnotation;
+  return normalizeAnnotation(item);
+}
+
+export async function deleteAnnotationAttachment(annotationId: string): Promise<ApiAnnotation> {
+  const response = await apiFetch(
+    `/annotations/${encodeURIComponent(annotationId)}/attachment`,
+    { method: 'DELETE' },
+    true,
+  );
+  if (!response.ok) throw new Error(await parseApiError(response));
+  const item = (await response.json()) as RawAnnotation;
+  return normalizeAnnotation(item);
 }
 
 export async function deleteAnnotation(annotationId: string): Promise<void> {
@@ -766,12 +793,7 @@ export async function deleteAnnotation(annotationId: string): Promise<void> {
 }
 
 function normalizeAnnotation(
-  item: {
-    id: string;
-    file_id: string;
-    data: Record<string, unknown>;
-    created_at: string;
-  },
+  item: RawAnnotation,
   fallback?: { x: number; y: number; text: string },
 ): ApiAnnotation {
   const data = item.data || {};
@@ -780,12 +802,19 @@ function normalizeAnnotation(
   const textRaw = data.text;
   const x = typeof xRaw === 'number' ? xRaw : Number(xRaw ?? fallback?.x ?? 0);
   const y = typeof yRaw === 'number' ? yRaw : Number(yRaw ?? fallback?.y ?? 0);
+  const flag = item.flag;
   return {
     id: item.id,
     file_id: item.file_id,
     x: Number.isFinite(x) ? x : (fallback?.x ?? 0),
     y: Number.isFinite(y) ? y : (fallback?.y ?? 0),
     text: typeof textRaw === 'string' ? textRaw : (fallback?.text ?? ''),
+    flag:
+      flag === 'safety' || flag === 'quality' || flag === 'delayed'
+        ? flag
+        : null,
+    linked_annotation_id: item.linked_annotation_id ?? null,
+    attachment_url: item.attachment_url ?? null,
     created_at: item.created_at,
   };
 }
