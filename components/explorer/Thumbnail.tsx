@@ -2,9 +2,9 @@
 
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { Trash2, FileText, Image as ImageIcon, Box, Video } from 'lucide-react';
+import { Check, Trash2, FileText, Image as ImageIcon, Box, Video } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
-import { useState } from 'react';
+import { useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { toast } from 'sonner';
 import { setViewerContext, viewerHrefFor } from './viewerContext';
 import type { ApiMediaFile } from '@/types/api';
@@ -18,6 +18,11 @@ type Props = {
   isAdmin: boolean;
   onDelete: (file: ApiMediaFile) => void;
   index?: number;
+  // Multi-select. `selected` controls the visual; `onToggleSelect` is
+  // called for shift/ctrl/cmd clicks (range vs toggle). A plain click
+  // still opens the file in the viewer.
+  selected?: boolean;
+  onToggleSelect?: (file: ApiMediaFile, opts: { range: boolean; toggle: boolean }) => void;
 };
 
 const TYPE_META: Record<
@@ -30,7 +35,18 @@ const TYPE_META: Record<
   pdf:        { label: 'PDF', gradient: 'from-base-700/60 via-base-800 to-base-900',        tint: 'text-ink-200',    Icon: FileText  },
 };
 
-export function Thumbnail({ file, roomSlug, projectSlug = '', date, origin, isAdmin, onDelete, index = 0 }: Props) {
+export function Thumbnail({
+  file,
+  roomSlug,
+  projectSlug = '',
+  date,
+  origin,
+  isAdmin,
+  onDelete,
+  index = 0,
+  selected = false,
+  onToggleSelect,
+}: Props) {
   const router = useRouter();
   const meta = TYPE_META[file.type];
   const [pending, setPending] = useState(false);
@@ -54,16 +70,50 @@ export function Thumbnail({ file, roomSlug, projectSlug = '', date, origin, isAd
     router.push(viewerHrefFor(file));
   };
 
+  const handleClick = (e: ReactMouseEvent<HTMLDivElement>) => {
+    // Shift = range select, Ctrl/Cmd = toggle. Either modifier shifts us
+    // into "selection mode" and a plain click toggles inside that mode.
+    const range = e.shiftKey;
+    const toggle = e.ctrlKey || e.metaKey;
+    if (onToggleSelect && (range || toggle)) {
+      e.preventDefault();
+      onToggleSelect(file, { range, toggle });
+      return;
+    }
+    // When something is already selected, treat plain click as a toggle so
+    // the user can extend the selection without holding a modifier.
+    if (onToggleSelect && selected) {
+      onToggleSelect(file, { range: false, toggle: true });
+      return;
+    }
+    open();
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, delay: Math.min(index * 0.04, 0.48), ease: [0.22, 1, 0.36, 1] }}
       whileHover={{ y: -3 }}
-      onClick={open}
-      className="group relative cursor-pointer overflow-hidden rounded-lg border border-base-800 bg-base-900 transition-colors hover:border-amber-500/40"
+      onClick={handleClick}
+      aria-selected={selected}
+      className={`group relative cursor-pointer overflow-hidden rounded-lg border bg-base-900 transition-colors ${
+        selected
+          ? 'border-amber-500 ring-2 ring-amber-500/40'
+          : 'border-base-800 hover:border-amber-500/40'
+      }`}
     >
       <div className={`relative aspect-[4/3] bg-gradient-to-br ${meta.gradient}`}>
+
+        {/* Selection check — top-right when this tile is in the active batch. */}
+        {selected && (
+          <span
+            aria-hidden
+            className="absolute right-2 top-2 z-10 inline-flex h-6 w-6 items-center justify-center rounded-full bg-amber-500 text-base-950 shadow-md"
+          >
+            <Check size={14} strokeWidth={3} />
+          </span>
+        )}
 
         {/* Real thumbnail */}
         {showThumbnail && (

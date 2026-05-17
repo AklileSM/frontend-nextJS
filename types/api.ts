@@ -153,6 +153,11 @@ export interface ApiPrecheckHash {
   display_name?: string | null;
 }
 
+export interface ApiBulkActionResult {
+  affected: number;
+  skipped: number;
+}
+
 export interface ApiReport {
   id: string;
   file_id: string;

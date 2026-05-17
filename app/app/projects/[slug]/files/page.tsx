@@ -7,6 +7,8 @@ import { toast } from 'sonner';
 import { Upload, X, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import {
+  bulkDeleteFiles,
+  bulkDownloadFiles,
   deleteFileAsset,
   getExplorerByDate,
   listProjects,
@@ -16,10 +18,12 @@ import { useAuth } from '@/context/AuthContext';
 import { useSelectedDate } from '@/context/SelectedDateContext';
 import { useMyProjectRole } from '@/hooks/useMyProjectRole';
 import { RoomFilterMenu } from '@/components/explorer/RoomFilterMenu';
+import { BulkActionBar } from '@/components/explorer/BulkActionBar';
 import { FileGrid } from '@/components/explorer/FileGrid';
 import { MediaTabs, type MediaTab } from '@/components/explorer/MediaTabs';
 import { UploadZone } from '@/components/explorer/UploadZone';
 import { DeleteConfirm } from '@/components/explorer/DeleteConfirm';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Calendar, Filter } from 'lucide-react';
 import type {
@@ -48,6 +52,12 @@ export default function FileExplorerPage() {
   const [roomFilter, setRoomFilter] = useState<Set<string> | null>(null);
   const [visibleCount, setVisibleCount] = useState(10);
   const [hiddenFileIds, setHiddenFileIds] = useState<Set<string>>(new Set());
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkConfirmDelete, setBulkConfirmDelete] = useState(false);
+  // Anchor for shift-range selection — the last file the user clicked.
+  // Stored in a ref so re-renders don't reset it.
+  const selectionAnchorRef = useRef<string | null>(null);
   const knownPendingRef = useRef<Set<string>>(new Set());
   const deleteControllers = useRef<Map<string, { controller: AbortController; done: boolean }>>(new Map());
 
@@ -82,6 +92,14 @@ export default function FileExplorerPage() {
 
   useEffect(() => { setRoomFilter(null); setVisibleCount(10); }, [date]);
 
+  // Clear selection whenever the user changes context — tab switch, date
+  // change, or new project. Stale selections from a hidden tab would be
+  // invisible but still in scope for bulk actions, which is surprising.
+  useEffect(() => {
+    setSelectedIds(new Set());
+    selectionAnchorRef.current = null;
+  }, [tab, date, project, roomFilter]);
+
   const roomsWithFiles = useMemo(() => {
     if (!response) return [] as ApiRoom[];
     return rooms.filter((room) => {
@@ -114,6 +132,100 @@ export default function FileExplorerPage() {
     }
     return result;
   }, [response, visibleRooms]);
+
+  // Flat, ordered list of every file currently rendered on this page — used
+  // as the index space for shift-range selection.
+  const flatVisibleFiles = useMemo<ApiMediaFile[]>(() => {
+    if (!response) return [];
+    const out: ApiMediaFile[] = [];
+    for (const room of visibleRooms.slice(0, visibleCount)) {
+      const group = pickGroup(response.rooms, room);
+      if (!group) continue;
+      for (const f of filesForTab(group, tab)) {
+        if (!hiddenFileIds.has(f.id)) out.push(f);
+      }
+    }
+    return out;
+  }, [response, visibleRooms, visibleCount, tab, hiddenFileIds]);
+
+  const onToggleSelect = useCallback(
+    (file: ApiMediaFile, opts: { range: boolean; toggle: boolean }) => {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        if (opts.range && selectionAnchorRef.current) {
+          const ids = flatVisibleFiles.map((f) => f.id);
+          const a = ids.indexOf(selectionAnchorRef.current);
+          const b = ids.indexOf(file.id);
+          if (a >= 0 && b >= 0) {
+            const [lo, hi] = a < b ? [a, b] : [b, a];
+            // Range select extends the selection rather than replacing it,
+            // mirroring how every desktop file manager behaves.
+            for (let i = lo; i <= hi; i++) next.add(ids[i]);
+            return next;
+          }
+        }
+        if (next.has(file.id)) next.delete(file.id);
+        else next.add(file.id);
+        selectionAnchorRef.current = file.id;
+        return next;
+      });
+    },
+    [flatVisibleFiles],
+  );
+
+  const clearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+    selectionAnchorRef.current = null;
+  }, []);
+
+  const runBulkDelete = useCallback(async () => {
+    const ids = Array.from(selectedIds);
+    if (!ids.length) return;
+    setBulkBusy(true);
+    try {
+      const result = await bulkDeleteFiles(ids);
+      // Optimistically remove the affected rows so the user doesn't see them
+      // until the next reload — same trick the single-file delete uses.
+      setHiddenFileIds((prev) => new Set([...prev, ...ids]));
+      clearSelection();
+      setReloadToken((t) => t + 1);
+      bumpFilesVersion();
+      const msg = result.skipped > 0
+        ? `Deleted ${result.affected} · skipped ${result.skipped}.`
+        : `Deleted ${result.affected} file${result.affected === 1 ? '' : 's'}.`;
+      toast.success(msg);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Bulk delete failed.');
+    } finally {
+      setBulkBusy(false);
+      setBulkConfirmDelete(false);
+    }
+  }, [selectedIds, bumpFilesVersion, clearSelection]);
+
+  const runBulkDownload = useCallback(async () => {
+    const ids = Array.from(selectedIds);
+    if (!ids.length) return;
+    setBulkBusy(true);
+    try {
+      const { blob, affected, skipped } = await bulkDownloadFiles(ids);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `files-${affected}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+      if (skipped > 0) {
+        toast.warning(`Downloaded ${affected} · skipped ${skipped} (not downloadable).`);
+      } else {
+        toast.success(`Zip ready (${affected} file${affected === 1 ? '' : 's'}).`);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Bulk download failed.');
+    } finally {
+      setBulkBusy(false);
+    }
+  }, [selectedIds]);
+
 
   useEffect(() => {
     if (!response) return;
@@ -303,6 +415,8 @@ export default function FileExplorerPage() {
                 files={files}
                 canDelete={canDelete}
                 onDelete={setPendingDelete}
+                selectedIds={selectedIds}
+                onToggleSelect={canDelete ? onToggleSelect : undefined}
               />
             );
           })}
@@ -327,6 +441,26 @@ export default function FileExplorerPage() {
         onConfirm={handleDeleteConfirm}
         onCancel={() => setPendingDelete(null)}
       />
+
+      <ConfirmDialog
+        open={bulkConfirmDelete}
+        title={`Delete ${selectedIds.size} file${selectedIds.size === 1 ? '' : 's'}?`}
+        body="The selected files will be permanently removed. This cannot be undone."
+        confirmLabel={`Delete ${selectedIds.size}`}
+        danger
+        onConfirm={runBulkDelete}
+        onCancel={() => setBulkConfirmDelete(false)}
+      />
+
+      {canDelete && (
+        <BulkActionBar
+          count={selectedIds.size}
+          busy={bulkBusy}
+          onDelete={() => setBulkConfirmDelete(true)}
+          onDownload={runBulkDownload}
+          onClear={clearSelection}
+        />
+      )}
     </div>
   );
 }
@@ -369,9 +503,12 @@ const TYPE_PILLS = [
 
 function RoomSection({
   roomName, roomSlug, projectSlug, date, group, files, canDelete, onDelete,
+  selectedIds, onToggleSelect,
 }: {
   roomName: string; roomSlug: string; projectSlug: string; date: string;
   group: ApiRoomMediaGroup; files: ApiMediaFile[]; canDelete: boolean; onDelete: (f: ApiMediaFile) => void;
+  selectedIds?: ReadonlySet<string>;
+  onToggleSelect?: (file: ApiMediaFile, opts: { range: boolean; toggle: boolean }) => void;
 }) {
   return (
     <section>
@@ -403,6 +540,8 @@ function RoomSection({
         origin="project"
         isAdmin={canDelete}
         onDelete={onDelete}
+        selectedIds={selectedIds}
+        onToggleSelect={onToggleSelect}
       />
     </section>
   );

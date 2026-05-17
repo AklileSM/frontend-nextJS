@@ -5,13 +5,22 @@ import { useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { format, parseISO } from 'date-fns';
-import { deleteFileAsset, getExplorerByRoom, listProjects, listRooms } from '@/services/apiClient';
+import {
+  bulkDeleteFiles,
+  bulkDownloadFiles,
+  deleteFileAsset,
+  getExplorerByRoom,
+  listProjects,
+  listRooms,
+} from '@/services/apiClient';
 import { useAuth } from '@/context/AuthContext';
+import { BulkActionBar } from '@/components/explorer/BulkActionBar';
 import { FileGrid } from '@/components/explorer/FileGrid';
 import { MediaTabs, type MediaTab } from '@/components/explorer/MediaTabs';
 import { DateFilterMenu } from '@/components/explorer/DateFilterMenu';
 import { DeleteConfirm } from '@/components/explorer/DeleteConfirm';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Calendar, Filter } from 'lucide-react';
 import type {
   ApiMediaFile,
@@ -50,6 +59,10 @@ function Inner() {
   const [pendingDelete, setPendingDelete] = useState<ApiMediaFile | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
   const [hiddenFileIds, setHiddenFileIds] = useState<Set<string>>(new Set());
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkConfirmDelete, setBulkConfirmDelete] = useState(false);
+  const selectionAnchorRef = useRef<string | null>(null);
   const cancelDeleteRefs = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   // null = "default" — treat as all dates checked. Once the user touches the
   // filter we store the explicit selection so empty (none-selected) is honored.
@@ -216,6 +229,100 @@ function Inner() {
     return () => clearInterval(id);
   }, [response, datesEntries]);
 
+  // Clear selection on tab / room / date-filter change — stale selections in
+  // an off-screen tab are confusing once you bulk-act on them.
+  useEffect(() => {
+    setSelectedIds(new Set());
+    selectionAnchorRef.current = null;
+  }, [tab, activeSlug, dateFilter]);
+
+  // Flat, ordered list of files currently rendered (active tab × visible
+  // dates, in render order). Backs shift-range selection.
+  const flatVisibleFiles = useMemo<ApiMediaFile[]>(() => {
+    const out: ApiMediaFile[] = [];
+    for (const [, group] of datesEntries) {
+      for (const f of group[tab]) {
+        if (!hiddenFileIds.has(f.id)) out.push(f);
+      }
+    }
+    return out;
+  }, [datesEntries, tab, hiddenFileIds]);
+
+  const onToggleSelect = useCallback(
+    (file: ApiMediaFile, opts: { range: boolean; toggle: boolean }) => {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        if (opts.range && selectionAnchorRef.current) {
+          const ids = flatVisibleFiles.map((f) => f.id);
+          const a = ids.indexOf(selectionAnchorRef.current);
+          const b = ids.indexOf(file.id);
+          if (a >= 0 && b >= 0) {
+            const [lo, hi] = a < b ? [a, b] : [b, a];
+            for (let i = lo; i <= hi; i++) next.add(ids[i]);
+            return next;
+          }
+        }
+        if (next.has(file.id)) next.delete(file.id);
+        else next.add(file.id);
+        selectionAnchorRef.current = file.id;
+        return next;
+      });
+    },
+    [flatVisibleFiles],
+  );
+
+  const clearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+    selectionAnchorRef.current = null;
+  }, []);
+
+  const runBulkDelete = useCallback(async () => {
+    const ids = Array.from(selectedIds);
+    if (!ids.length) return;
+    setBulkBusy(true);
+    try {
+      const result = await bulkDeleteFiles(ids);
+      setHiddenFileIds((prev) => new Set([...prev, ...ids]));
+      clearSelection();
+      setReloadToken((t) => t + 1);
+      toast.success(
+        result.skipped > 0
+          ? `Deleted ${result.affected} · skipped ${result.skipped}.`
+          : `Deleted ${result.affected} file${result.affected === 1 ? '' : 's'}.`,
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Bulk delete failed.');
+    } finally {
+      setBulkBusy(false);
+      setBulkConfirmDelete(false);
+    }
+  }, [selectedIds, clearSelection]);
+
+  const runBulkDownload = useCallback(async () => {
+    const ids = Array.from(selectedIds);
+    if (!ids.length) return;
+    setBulkBusy(true);
+    try {
+      const { blob, affected, skipped } = await bulkDownloadFiles(ids);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `files-${affected}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+      if (skipped > 0) {
+        toast.warning(`Downloaded ${affected} · skipped ${skipped} (not downloadable).`);
+      } else {
+        toast.success(`Zip ready (${affected} file${affected === 1 ? '' : 's'}).`);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Bulk download failed.');
+    } finally {
+      setBulkBusy(false);
+    }
+  }, [selectedIds]);
+
+
   const handleDeleteConfirm = useCallback(async () => {
     if (!pendingDelete) return;
     const file = pendingDelete;
@@ -292,6 +399,8 @@ function Inner() {
                 files={files}
                 isAdmin={user?.is_admin ?? false}
                 onDelete={setPendingDelete}
+                selectedIds={selectedIds}
+                onToggleSelect={user?.is_admin ? onToggleSelect : undefined}
               />
             );
           })}
@@ -307,6 +416,26 @@ function Inner() {
         onConfirm={handleDeleteConfirm}
         onCancel={() => setPendingDelete(null)}
       />
+
+      <ConfirmDialog
+        open={bulkConfirmDelete}
+        title={`Delete ${selectedIds.size} file${selectedIds.size === 1 ? '' : 's'}?`}
+        body="The selected files will be permanently removed. This cannot be undone."
+        confirmLabel={`Delete ${selectedIds.size}`}
+        danger
+        onConfirm={runBulkDelete}
+        onCancel={() => setBulkConfirmDelete(false)}
+      />
+
+      {user?.is_admin && (
+        <BulkActionBar
+          count={selectedIds.size}
+          busy={bulkBusy}
+          onDelete={() => setBulkConfirmDelete(true)}
+          onDownload={runBulkDownload}
+          onClear={clearSelection}
+        />
+      )}
     </div>
   );
 }
@@ -343,6 +472,8 @@ function DateSection({
   files,
   isAdmin,
   onDelete,
+  selectedIds,
+  onToggleSelect,
 }: {
   date: string;
   group: ApiRoomMediaGroup;
@@ -351,6 +482,8 @@ function DateSection({
   files: ApiMediaFile[];
   isAdmin: boolean;
   onDelete: (file: ApiMediaFile) => void;
+  selectedIds?: ReadonlySet<string>;
+  onToggleSelect?: (file: ApiMediaFile, opts: { range: boolean; toggle: boolean }) => void;
 }) {
   return (
     <section>
@@ -384,6 +517,8 @@ function DateSection({
         origin="room"
         isAdmin={isAdmin}
         onDelete={onDelete}
+        selectedIds={selectedIds}
+        onToggleSelect={onToggleSelect}
       />
     </section>
   );

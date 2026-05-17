@@ -20,6 +20,7 @@ import type {
   ApiComparisonDraft,
   ApiComparisonDraftDetail,
   ApiConversionStatus,
+  ApiBulkActionResult,
   ApiMyUpload,
   ApiPrecheckHash,
   ApiProject,
@@ -324,6 +325,31 @@ export async function deleteFileAsset(fileId: string, signal?: AbortSignal): Pro
   if (!response.ok) {
     throw new Error(await parseApiError(response));
   }
+}
+
+export async function bulkDeleteFiles(ids: string[]): Promise<ApiBulkActionResult> {
+  const response = await apiFetch('/files/bulk-delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids }),
+  }, true);
+  if (!response.ok) throw new Error(await parseApiError(response));
+  return response.json() as Promise<ApiBulkActionResult>;
+}
+
+export async function bulkDownloadFiles(ids: string[]): Promise<{ blob: Blob; affected: number; skipped: number }> {
+  const response = await apiFetch('/files/bulk-download', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids }),
+  }, true);
+  if (!response.ok) throw new Error(await parseApiError(response));
+  const blob = await response.blob();
+  return {
+    blob,
+    affected: Number(response.headers.get('X-Bulk-Affected') ?? 0),
+    skipped: Number(response.headers.get('X-Bulk-Skipped') ?? 0),
+  };
 }
 
 export function getConversionStatus(fileId: string): Promise<ApiConversionStatus> {
