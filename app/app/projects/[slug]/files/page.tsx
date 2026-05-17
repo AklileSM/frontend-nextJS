@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Upload, X, ArrowLeft } from 'lucide-react';
+import { CheckSquare, Upload, X, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import {
   bulkDeleteFiles,
@@ -52,6 +52,7 @@ export default function FileExplorerPage() {
   const [roomFilter, setRoomFilter] = useState<Set<string> | null>(null);
   const [visibleCount, setVisibleCount] = useState(10);
   const [hiddenFileIds, setHiddenFileIds] = useState<Set<string>>(new Set());
+  const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkConfirmDelete, setBulkConfirmDelete] = useState(false);
@@ -99,6 +100,15 @@ export default function FileExplorerPage() {
     setSelectedIds(new Set());
     selectionAnchorRef.current = null;
   }, [tab, date, project, roomFilter]);
+
+  // Leaving selection mode always wipes the batch — keeping a stale
+  // selection around while plain clicks open files would be confusing.
+  useEffect(() => {
+    if (!selectionMode) {
+      setSelectedIds(new Set());
+      selectionAnchorRef.current = null;
+    }
+  }, [selectionMode]);
 
   const roomsWithFiles = useMemo(() => {
     if (!response) return [] as ApiRoom[];
@@ -149,7 +159,7 @@ export default function FileExplorerPage() {
   }, [response, visibleRooms, visibleCount, tab, hiddenFileIds]);
 
   const onToggleSelect = useCallback(
-    (file: ApiMediaFile, opts: { range: boolean; toggle: boolean }) => {
+    (file: ApiMediaFile, opts: { range: boolean }) => {
       setSelectedIds((prev) => {
         const next = new Set(prev);
         if (opts.range && selectionAnchorRef.current) {
@@ -174,6 +184,7 @@ export default function FileExplorerPage() {
   );
 
   const clearSelection = useCallback(() => {
+    setSelectionMode(false);
     setSelectedIds(new Set());
     selectionAnchorRef.current = null;
   }, []);
@@ -346,6 +357,21 @@ export default function FileExplorerPage() {
             selected={effectiveSelected}
             onChange={setRoomFilter}
           />
+          {canDelete && (
+            <button
+              type="button"
+              onClick={() => setSelectionMode((v) => !v)}
+              aria-pressed={selectionMode}
+              className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors ${
+                selectionMode
+                  ? 'border border-amber-500 bg-amber-500/10 text-amber-300'
+                  : 'border border-base-700 bg-base-900/40 text-ink-300 hover:border-ink-300 hover:text-white'
+              }`}
+            >
+              <CheckSquare size={14} />
+              {selectionMode ? 'Done' : 'Select'}
+            </button>
+          )}
           {canUpload && (
             <button
               type="button"
@@ -415,6 +441,7 @@ export default function FileExplorerPage() {
                 files={files}
                 canDelete={canDelete}
                 onDelete={setPendingDelete}
+                selectionMode={selectionMode}
                 selectedIds={selectedIds}
                 onToggleSelect={canDelete ? onToggleSelect : undefined}
               />
@@ -503,12 +530,13 @@ const TYPE_PILLS = [
 
 function RoomSection({
   roomName, roomSlug, projectSlug, date, group, files, canDelete, onDelete,
-  selectedIds, onToggleSelect,
+  selectionMode, selectedIds, onToggleSelect,
 }: {
   roomName: string; roomSlug: string; projectSlug: string; date: string;
   group: ApiRoomMediaGroup; files: ApiMediaFile[]; canDelete: boolean; onDelete: (f: ApiMediaFile) => void;
+  selectionMode?: boolean;
   selectedIds?: ReadonlySet<string>;
-  onToggleSelect?: (file: ApiMediaFile, opts: { range: boolean; toggle: boolean }) => void;
+  onToggleSelect?: (file: ApiMediaFile, opts: { range: boolean }) => void;
 }) {
   return (
     <section>
@@ -540,6 +568,7 @@ function RoomSection({
         origin="project"
         isAdmin={canDelete}
         onDelete={onDelete}
+        selectionMode={selectionMode}
         selectedIds={selectedIds}
         onToggleSelect={onToggleSelect}
       />

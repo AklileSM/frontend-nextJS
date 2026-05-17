@@ -13,8 +13,9 @@ type Props = {
   onDelete: (file: ApiMediaFile) => void;
   // Multi-select wiring. Selection lives on the page so it can span across
   // multiple FileGrid instances (rooms × dates × media types).
+  selectionMode?: boolean;
   selectedIds?: ReadonlySet<string>;
-  onToggleSelect?: (file: ApiMediaFile, opts: { range: boolean; toggle: boolean }) => void;
+  onToggleSelect?: (file: ApiMediaFile, opts: { range: boolean }) => void;
 };
 
 export function FileGrid({
@@ -25,6 +26,7 @@ export function FileGrid({
   origin,
   isAdmin,
   onDelete,
+  selectionMode = false,
   selectedIds,
   onToggleSelect,
 }: Props) {
@@ -43,6 +45,7 @@ export function FileGrid({
           isAdmin={isAdmin}
           onDelete={onDelete}
           index={i}
+          selectionMode={selectionMode}
           selected={selectedIds?.has(file.id) ?? false}
           onToggleSelect={onToggleSelect}
         />

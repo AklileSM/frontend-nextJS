@@ -18,11 +18,12 @@ type Props = {
   isAdmin: boolean;
   onDelete: (file: ApiMediaFile) => void;
   index?: number;
-  // Multi-select. `selected` controls the visual; `onToggleSelect` is
-  // called for shift/ctrl/cmd clicks (range vs toggle). A plain click
-  // still opens the file in the viewer.
+  // Multi-select. `selectionMode` (toggled by the explorer's "Select" button)
+  // turns plain click into a toggle; shift-click then extends a range from
+  // the anchor. When `selectionMode` is false, plain click opens the file.
+  selectionMode?: boolean;
   selected?: boolean;
-  onToggleSelect?: (file: ApiMediaFile, opts: { range: boolean; toggle: boolean }) => void;
+  onToggleSelect?: (file: ApiMediaFile, opts: { range: boolean }) => void;
 };
 
 const TYPE_META: Record<
@@ -44,6 +45,7 @@ export function Thumbnail({
   isAdmin,
   onDelete,
   index = 0,
+  selectionMode = false,
   selected = false,
   onToggleSelect,
 }: Props) {
@@ -71,19 +73,11 @@ export function Thumbnail({
   };
 
   const handleClick = (e: ReactMouseEvent<HTMLDivElement>) => {
-    // Shift = range select, Ctrl/Cmd = toggle. Either modifier shifts us
-    // into "selection mode" and a plain click toggles inside that mode.
-    const range = e.shiftKey;
-    const toggle = e.ctrlKey || e.metaKey;
-    if (onToggleSelect && (range || toggle)) {
+    if (selectionMode && onToggleSelect) {
+      // In selection mode every tile click adds/removes from the batch;
+      // shift extends a range from the previous anchor.
       e.preventDefault();
-      onToggleSelect(file, { range, toggle });
-      return;
-    }
-    // When something is already selected, treat plain click as a toggle so
-    // the user can extend the selection without holding a modifier.
-    if (onToggleSelect && selected) {
-      onToggleSelect(file, { range: false, toggle: true });
+      onToggleSelect(file, { range: e.shiftKey });
       return;
     }
     open();

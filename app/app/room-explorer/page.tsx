@@ -21,7 +21,7 @@ import { DateFilterMenu } from '@/components/explorer/DateFilterMenu';
 import { DeleteConfirm } from '@/components/explorer/DeleteConfirm';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import { Calendar, Filter } from 'lucide-react';
+import { Calendar, CheckSquare, Filter } from 'lucide-react';
 import type {
   ApiMediaFile,
   ApiProject,
@@ -59,6 +59,7 @@ function Inner() {
   const [pendingDelete, setPendingDelete] = useState<ApiMediaFile | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
   const [hiddenFileIds, setHiddenFileIds] = useState<Set<string>>(new Set());
+  const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkConfirmDelete, setBulkConfirmDelete] = useState(false);
@@ -236,6 +237,14 @@ function Inner() {
     selectionAnchorRef.current = null;
   }, [tab, activeSlug, dateFilter]);
 
+  // Leaving selection mode wipes the batch so plain clicks open files cleanly.
+  useEffect(() => {
+    if (!selectionMode) {
+      setSelectedIds(new Set());
+      selectionAnchorRef.current = null;
+    }
+  }, [selectionMode]);
+
   // Flat, ordered list of files currently rendered (active tab × visible
   // dates, in render order). Backs shift-range selection.
   const flatVisibleFiles = useMemo<ApiMediaFile[]>(() => {
@@ -249,7 +258,7 @@ function Inner() {
   }, [datesEntries, tab, hiddenFileIds]);
 
   const onToggleSelect = useCallback(
-    (file: ApiMediaFile, opts: { range: boolean; toggle: boolean }) => {
+    (file: ApiMediaFile, opts: { range: boolean }) => {
       setSelectedIds((prev) => {
         const next = new Set(prev);
         if (opts.range && selectionAnchorRef.current) {
@@ -272,6 +281,7 @@ function Inner() {
   );
 
   const clearSelection = useCallback(() => {
+    setSelectionMode(false);
     setSelectedIds(new Set());
     selectionAnchorRef.current = null;
   }, []);
@@ -376,7 +386,24 @@ function Inner() {
           </p>
         </div>
 
-        <DateFilterMenu dates={allDates} selected={effectiveSelected} onChange={setDateFilter} />
+        <div className="flex flex-wrap items-center gap-2">
+          <DateFilterMenu dates={allDates} selected={effectiveSelected} onChange={setDateFilter} />
+          {user?.is_admin && (
+            <button
+              type="button"
+              onClick={() => setSelectionMode((v) => !v)}
+              aria-pressed={selectionMode}
+              className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors ${
+                selectionMode
+                  ? 'border border-amber-500 bg-amber-500/10 text-amber-300'
+                  : 'border border-base-700 bg-base-900/40 text-ink-300 hover:border-ink-300 hover:text-white'
+              }`}
+            >
+              <CheckSquare size={14} />
+              {selectionMode ? 'Done' : 'Select'}
+            </button>
+          )}
+        </div>
       </motion.section>
 
       <div className="mt-8">
@@ -399,6 +426,7 @@ function Inner() {
                 files={files}
                 isAdmin={user?.is_admin ?? false}
                 onDelete={setPendingDelete}
+                selectionMode={selectionMode}
                 selectedIds={selectedIds}
                 onToggleSelect={user?.is_admin ? onToggleSelect : undefined}
               />
@@ -472,6 +500,7 @@ function DateSection({
   files,
   isAdmin,
   onDelete,
+  selectionMode,
   selectedIds,
   onToggleSelect,
 }: {
@@ -482,8 +511,9 @@ function DateSection({
   files: ApiMediaFile[];
   isAdmin: boolean;
   onDelete: (file: ApiMediaFile) => void;
+  selectionMode?: boolean;
   selectedIds?: ReadonlySet<string>;
-  onToggleSelect?: (file: ApiMediaFile, opts: { range: boolean; toggle: boolean }) => void;
+  onToggleSelect?: (file: ApiMediaFile, opts: { range: boolean }) => void;
 }) {
   return (
     <section>
@@ -517,6 +547,7 @@ function DateSection({
         origin="room"
         isAdmin={isAdmin}
         onDelete={onDelete}
+        selectionMode={selectionMode}
         selectedIds={selectedIds}
         onToggleSelect={onToggleSelect}
       />
