@@ -18,10 +18,11 @@ type Props = {
   isAdmin: boolean;
   onDelete: (file: ApiMediaFile) => void;
   index?: number;
-  // Multi-select. `selectionMode` (toggled by the explorer's "Select" button)
-  // turns plain click into a toggle; shift-click then extends a range from
-  // the anchor. When `selectionMode` is false, plain click opens the file.
-  selectionMode?: boolean;
+  // Multi-select. Each tile owns a checkbox in its corner. When `batchActive`
+  // is true (at least one tile in the page-level batch), the checkbox stays
+  // visible and a plain tile-body click also toggles selection — otherwise
+  // the checkbox shows on hover only and the tile body opens the file.
+  batchActive?: boolean;
   selected?: boolean;
   onToggleSelect?: (file: ApiMediaFile, opts: { range: boolean }) => void;
 };
@@ -45,7 +46,7 @@ export function Thumbnail({
   isAdmin,
   onDelete,
   index = 0,
-  selectionMode = false,
+  batchActive = false,
   selected = false,
   onToggleSelect,
 }: Props) {
@@ -72,10 +73,11 @@ export function Thumbnail({
     router.push(viewerHrefFor(file));
   };
 
-  const handleClick = (e: ReactMouseEvent<HTMLDivElement>) => {
-    if (selectionMode && onToggleSelect) {
-      // In selection mode every tile click adds/removes from the batch;
-      // shift extends a range from the previous anchor.
+  const handleTileClick = (e: ReactMouseEvent<HTMLDivElement>) => {
+    // While a batch is in progress, the whole tile is a selection target —
+    // plain click toggles, shift-click range-extends. Only when no batch is
+    // active does the body click open the file in the viewer.
+    if (batchActive && onToggleSelect) {
       e.preventDefault();
       onToggleSelect(file, { range: e.shiftKey });
       return;
@@ -83,13 +85,27 @@ export function Thumbnail({
     open();
   };
 
+  const handleCheckboxClick = (e: ReactMouseEvent<HTMLButtonElement>) => {
+    // The corner checkbox always toggles, regardless of batch state — that's
+    // how the first selection is bootstrapped. Stop propagation so the tile
+    // body's onClick doesn't also fire and double-toggle.
+    if (!onToggleSelect) return;
+    e.stopPropagation();
+    e.preventDefault();
+    onToggleSelect(file, { range: e.shiftKey });
+  };
+
+  // Corner checkbox visibility: always on while a batch is active or this
+  // tile is already in the batch; otherwise it fades in on hover.
+  const checkboxVisible = batchActive || selected;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, delay: Math.min(index * 0.04, 0.48), ease: [0.22, 1, 0.36, 1] }}
       whileHover={{ y: -3 }}
-      onClick={handleClick}
+      onClick={handleTileClick}
       aria-selected={selected}
       className={`group relative cursor-pointer overflow-hidden rounded-lg border bg-base-900 transition-colors ${
         selected
@@ -99,14 +115,24 @@ export function Thumbnail({
     >
       <div className={`relative aspect-[4/3] bg-gradient-to-br ${meta.gradient}`}>
 
-        {/* Selection check — top-right when this tile is in the active batch. */}
-        {selected && (
-          <span
-            aria-hidden
-            className="absolute right-2 top-2 z-10 inline-flex h-6 w-6 items-center justify-center rounded-full bg-amber-500 text-base-950 shadow-md"
+        {/* Selection checkbox — corner widget. Hidden by default, fades in on
+            tile hover. Once a batch is active or this tile is selected, it
+            stays visible. Click toggles; shift-click range-extends. */}
+        {onToggleSelect && (
+          <button
+            type="button"
+            role="checkbox"
+            aria-checked={selected}
+            aria-label={selected ? `Deselect ${file.file_name}` : `Select ${file.file_name}`}
+            onClick={handleCheckboxClick}
+            className={`absolute left-2 top-2 z-10 inline-flex h-6 w-6 items-center justify-center rounded-full border-2 shadow-md transition-opacity ${
+              selected
+                ? 'border-amber-500 bg-amber-500 text-base-950'
+                : 'border-white/80 bg-base-950/60 text-transparent hover:border-amber-500 hover:bg-base-950/80'
+            } ${checkboxVisible ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
           >
-            <Check size={14} strokeWidth={3} />
-          </span>
+            <Check size={13} strokeWidth={3} />
+          </button>
         )}
 
         {/* Real thumbnail */}

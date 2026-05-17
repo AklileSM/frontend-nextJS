@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { CheckSquare, Upload, X, ArrowLeft } from 'lucide-react';
+import { Upload, X, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import {
   bulkDeleteFiles,
@@ -52,7 +52,6 @@ export default function FileExplorerPage() {
   const [roomFilter, setRoomFilter] = useState<Set<string> | null>(null);
   const [visibleCount, setVisibleCount] = useState(10);
   const [hiddenFileIds, setHiddenFileIds] = useState<Set<string>>(new Set());
-  const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkConfirmDelete, setBulkConfirmDelete] = useState(false);
@@ -101,14 +100,6 @@ export default function FileExplorerPage() {
     selectionAnchorRef.current = null;
   }, [tab, date, project, roomFilter]);
 
-  // Leaving selection mode always wipes the batch — keeping a stale
-  // selection around while plain clicks open files would be confusing.
-  useEffect(() => {
-    if (!selectionMode) {
-      setSelectedIds(new Set());
-      selectionAnchorRef.current = null;
-    }
-  }, [selectionMode]);
 
   const roomsWithFiles = useMemo(() => {
     if (!response) return [] as ApiRoom[];
@@ -184,7 +175,6 @@ export default function FileExplorerPage() {
   );
 
   const clearSelection = useCallback(() => {
-    setSelectionMode(false);
     setSelectedIds(new Set());
     selectionAnchorRef.current = null;
   }, []);
@@ -357,21 +347,6 @@ export default function FileExplorerPage() {
             selected={effectiveSelected}
             onChange={setRoomFilter}
           />
-          {canDelete && (
-            <button
-              type="button"
-              onClick={() => setSelectionMode((v) => !v)}
-              aria-pressed={selectionMode}
-              className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors ${
-                selectionMode
-                  ? 'border border-amber-500 bg-amber-500/10 text-amber-300'
-                  : 'border border-base-700 bg-base-900/40 text-ink-300 hover:border-ink-300 hover:text-white'
-              }`}
-            >
-              <CheckSquare size={14} />
-              {selectionMode ? 'Done' : 'Select'}
-            </button>
-          )}
           {canUpload && (
             <button
               type="button"
@@ -441,7 +416,7 @@ export default function FileExplorerPage() {
                 files={files}
                 canDelete={canDelete}
                 onDelete={setPendingDelete}
-                selectionMode={selectionMode}
+                batchActive={selectedIds.size > 0}
                 selectedIds={selectedIds}
                 onToggleSelect={canDelete ? onToggleSelect : undefined}
               />
@@ -530,11 +505,11 @@ const TYPE_PILLS = [
 
 function RoomSection({
   roomName, roomSlug, projectSlug, date, group, files, canDelete, onDelete,
-  selectionMode, selectedIds, onToggleSelect,
+  batchActive, selectedIds, onToggleSelect,
 }: {
   roomName: string; roomSlug: string; projectSlug: string; date: string;
   group: ApiRoomMediaGroup; files: ApiMediaFile[]; canDelete: boolean; onDelete: (f: ApiMediaFile) => void;
-  selectionMode?: boolean;
+  batchActive?: boolean;
   selectedIds?: ReadonlySet<string>;
   onToggleSelect?: (file: ApiMediaFile, opts: { range: boolean }) => void;
 }) {
@@ -568,7 +543,7 @@ function RoomSection({
         origin="project"
         isAdmin={canDelete}
         onDelete={onDelete}
-        selectionMode={selectionMode}
+        batchActive={batchActive}
         selectedIds={selectedIds}
         onToggleSelect={onToggleSelect}
       />
