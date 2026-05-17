@@ -23,6 +23,7 @@ import type {
   ApiBulkActionResult,
   ApiMyUpload,
   ApiPrecheckHash,
+  ApiProjectActivityEntry,
   ApiProject,
   ApiReport,
   ApiRoom,
@@ -381,6 +382,13 @@ export function listMyUploads(opts?: { projectSlug?: string; mediaType?: 'image'
   if (opts?.mediaType) params.set('media_type', opts.mediaType);
   const qs = params.toString();
   return getJson<ApiMyUpload[]>(`/files/my-uploads${qs ? `?${qs}` : ''}`);
+}
+
+export function getProjectActivity(projectSlug: string, opts?: { limit?: number }): Promise<ApiProjectActivityEntry[]> {
+  const params = new URLSearchParams();
+  if (opts?.limit) params.set('limit', String(opts.limit));
+  const qs = params.toString();
+  return getJson<ApiProjectActivityEntry[]>(`/projects/by-slug/${encodeURIComponent(projectSlug)}/activity${qs ? `?${qs}` : ''}`);
 }
 
 export function searchFiles(q: string, projectSlug: string, signal?: AbortSignal): Promise<ApiMyUpload[]> {

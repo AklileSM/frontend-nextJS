@@ -158,6 +158,24 @@ export interface ApiBulkActionResult {
   skipped: number;
 }
 
+export interface ApiProjectActivityEntry {
+  id: string;
+  project_id: string;
+  user_id: string | null;
+  username: string;
+  // Dotted action key (e.g. 'upload.image', 'annotation.create',
+  // 'report.publish', 'member.add', 'member.remove'). Kept as a string
+  // (not a union) so new actions on the backend don't break the type.
+  action: string;
+  target_type: string | null;
+  target_id: string | null;
+  // Free-form bag of display fields written by the backend per action.
+  // The feed component picks fields out of here by name; unknown actions
+  // fall back to a generic rendering.
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+}
+
 export interface ApiReport {
   id: string;
   file_id: string;

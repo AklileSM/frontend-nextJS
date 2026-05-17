@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { listProjects, listRooms } from '@/services/apiClient';
 import { useAuth } from '@/context/AuthContext';
 import { useMyProjectRole } from '@/hooks/useMyProjectRole';
+import { ActivityFeed } from '@/components/home/ActivityFeed';
 import { Floorplan } from '@/components/home/Floorplan';
 import { ChartAll } from '@/components/home/ChartAll';
 import { ChartLocation } from '@/components/home/ChartLocation';
@@ -17,10 +18,11 @@ import type { ApiProject, ApiRoom } from '@/types/api';
 
 export const dynamic = 'force-dynamic';
 
-type Tab = 'rooms' | 'calendar';
+type Tab = 'rooms' | 'calendar' | 'activity';
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'rooms', label: 'Data overview' },
   { id: 'calendar', label: 'Calendar' },
+  { id: 'activity', label: 'Activity' },
 ];
 
 export default function ProjectHomePage() {
@@ -172,10 +174,12 @@ export default function ProjectHomePage() {
                 >
                   {tab === 'rooms' ? (
                     <ChartLocation projectId={project.id} hoveredRoom={hoveredRoom} />
-                  ) : (
+                  ) : tab === 'calendar' ? (
                     <div className="-mx-2">
                       <MiniCalendar projectId={project.id} />
                     </div>
+                  ) : (
+                    <ActivityFeed projectSlug={slug} />
                   )}
                 </motion.div>
               </AnimatePresence>
