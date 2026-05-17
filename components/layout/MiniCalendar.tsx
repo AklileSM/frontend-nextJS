@@ -164,8 +164,14 @@ export function MiniCalendar({ projectId }: { projectId?: string }) {
         </button>
       </div>
 
-      {/* ── Animated view area ── */}
-      <div className="relative mt-3 overflow-hidden">
+      {/* ── Animated view area ──
+          Height is fixed and each motion.div is absolutely positioned so
+          the entering and exiting children overlay each other during the
+          slide transition. Without this, framer-motion's default sync mode
+          keeps both children in flow → the box doubles in height for ~180ms
+          → the header arrows bounce. The fixed height fits the 6-row day
+          grid; the shorter months grid centres inside it. */}
+      <div className="relative mt-3 h-[212px] overflow-hidden">
         <AnimatePresence initial={false}>
           {view === 'days' ? (
             <motion.div
@@ -174,6 +180,7 @@ export function MiniCalendar({ projectId }: { projectId?: string }) {
               animate={SLIDE_CENTER}
               exit={exitTo(direction)}
               transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+              className="absolute inset-0 w-full"
             >
               {/* Weekday headers */}
               <div className="grid grid-cols-7 gap-y-1 px-0.5">
@@ -231,12 +238,19 @@ export function MiniCalendar({ projectId }: { projectId?: string }) {
               animate={SLIDE_CENTER}
               exit={exitTo(direction)}
               transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-              className="grid grid-cols-3 gap-1 px-0.5 py-1"
+              className="absolute inset-0 grid w-full grid-cols-3 gap-1 px-0.5 py-1"
             >
               {MONTHS.map((name, idx) => {
                 const key = `${cursor.getFullYear()}-${String(idx + 1).padStart(2, '0')}`;
                 const hasData = activeMonths.has(key);
-                const isCurrent = cursor.getMonth() === idx;
+                // Anchor the "current" highlight to the user's selected
+                // date (or today if no selection). Anchoring it to the
+                // navigation cursor would make e.g. April light up amber
+                // in every year, since clicking the year-arrows only
+                // changes the cursor's year, not its month.
+                const anchor = selected ?? new Date();
+                const isCurrent =
+                  cursor.getFullYear() === anchor.getFullYear() && idx === anchor.getMonth();
                 return (
                   <button
                     key={name}

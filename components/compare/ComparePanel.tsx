@@ -261,7 +261,17 @@ function CompareCalendar({
                 {MONTH_NAMES.map((name, idx) => {
                   const key = `${cursor.getFullYear()}-${String(idx + 1).padStart(2, '0')}`;
                   const hasData = activeMonths.has(key);
-                  const isCurrent = cursor.getMonth() === idx;
+                  // Highlight only if (1) cursor is on today's year and
+                  // (2) the month is today's month and (3) that month
+                  // actually has data. Previously this was just
+                  // `cursor.getMonth() === idx`, which left April lit up
+                  // across every year you scrolled to — misleading
+                  // because most of those April rows had no captures.
+                  const today = new Date();
+                  const isCurrent =
+                    cursor.getFullYear() === today.getFullYear() &&
+                    idx === today.getMonth() &&
+                    hasData;
                   return (
                     <button
                       key={name}

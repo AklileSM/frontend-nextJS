@@ -151,16 +151,23 @@ function Inner() {
   }, [response]);
 
   // If a `?date=` deeplink is present and the date exists for this room, seed
-  // the filter to just that date the first time we have data. Once the user
-  // explicitly toggles the filter we never overwrite their selection.
-  const seededRef = useRef(false);
+  // the filter to just that date. We track the last (room|date) signature
+  // we've applied so:
+  //   - Clicking another date in the sidebar (URL changes, same page) re-seeds.
+  //   - Manually toggling the filter inside the page doesn't get clobbered on
+  //     the next render, because the signature is unchanged.
+  // The previous one-shot boolean only ever seeded on initial mount — meaning
+  // every subsequent sidebar date click silently no-op'd while staying on
+  // /app/room-explorer.
+  const lastSeededRef = useRef<string | null>(null);
   useEffect(() => {
-    if (seededRef.current) return;
-    if (!response || !seedDate) return;
+    if (!response || !seedDate || !activeSlug) return;
     if (!allDates.includes(seedDate)) return;
+    const sig = `${activeSlug}|${seedDate}`;
+    if (lastSeededRef.current === sig) return;
     setDateFilter(new Set([seedDate]));
-    seededRef.current = true;
-  }, [response, seedDate, allDates]);
+    lastSeededRef.current = sig;
+  }, [response, seedDate, allDates, activeSlug]);
 
   // After a room switch, restore whichever saved dates still exist in the new room.
   useEffect(() => {
