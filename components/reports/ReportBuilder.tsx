@@ -1,8 +1,9 @@
 'use client';
 
 import { AnimatePresence, motion } from 'framer-motion';
-import { Check } from 'lucide-react';
+import { Check, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { getAccessToken } from '@/auth/authSession';
@@ -75,6 +76,22 @@ function triggerDownload(blob: Blob, filename: string) {
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+/** Auto-generated report name used as both the DB label and the downloaded
+ *  PDF filename. Format: `<roomSlug>_<YYYY-MM-DD>_<HHMM>`. Minute precision
+ *  is plenty since the underlying MinIO object key is a UUID server-side —
+ *  this name only affects display, never storage.
+ */
+function buildReportName(roomSlug: string | undefined, captureDate: string | undefined): string {
+  const room = (roomSlug ?? 'report').trim() || 'report';
+  // ISO-shaped date if the caller already has one (always true via
+  // viewerContext.date); otherwise fall back to today.
+  const date = (captureDate ?? '').slice(0, 10) || new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const hhmm = `${pad(now.getHours())}${pad(now.getMinutes())}`;
+  return `${room}_${date}_${hhmm}`;
 }
 
 /** Resolve an annotation's backend attachment URL to a base64 data URL that
@@ -257,16 +274,20 @@ export function ReportBuilder({ file, viewerKind, aiDescription, state, viewerCo
     if (publishing) return;
     setPublishing(true);
     try {
-      const { doc, ref } = await buildObservationPdf();
+      const { doc } = await buildObservationPdf();
       const pdfBlob = doc.output('blob');
-      const filename = `FieldObservation_${ref}.pdf`;
+      // Auto-generated name based on the room + capture date + current
+      // minute. Used unchanged as the DB label (what shows up in the
+      // profile Reports list) and as the downloaded filename. No prompt.
+      const reportName = buildReportName(viewerContext?.roomSlug, viewerContext?.date);
+      const filename = `${reportName}.pdf`;
       if (draftId) {
         await publishViewerFieldDraft({
           draftId,
           pdfBlob,
           fileId: file.id,
           filename,
-          label: file.file_name,
+          label: reportName,
           aiDescription: includeVisualAssessment ? (aiDescription || null) : null,
           manualObservations: includeEngineerComments ? (manualObservations || null) : null,
           flags,
@@ -277,7 +298,7 @@ export function ReportBuilder({ file, viewerKind, aiDescription, state, viewerCo
           pdfBlob,
           fileId: file.id,
           filename,
-          label: file.file_name,
+          label: reportName,
           aiDescription: includeVisualAssessment ? (aiDescription || null) : null,
           manualObservations: includeEngineerComments ? (manualObservations || null) : null,
           flags,
@@ -337,82 +358,99 @@ export function ReportBuilder({ file, viewerKind, aiDescription, state, viewerCo
         {draftId && <p className="font-mono text-[11px] text-ink-400">Draft ID: {draftId}</p>}
       </aside>
 
-      <AnimatePresence>
-        {publishModalOpen && (
-          <>
-            <motion.div
-              key="publish-bd"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              onClick={publishing ? undefined : () => setPublishModalOpen(false)}
-              className="fixed inset-0 z-50 bg-base-950/75 backdrop-blur-sm"
-            />
-            <motion.div
-              key="publish-md"
-              initial={{ opacity: 0, scale: 0.96, y: 4 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: 4 }}
-              transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-              role="dialog"
-              aria-modal="true"
-              className="fixed left-1/2 top-1/2 z-50 w-[400px] max-w-[calc(100vw-32px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-base-700 bg-base-900 shadow-2xl shadow-black/60"
-            >
-              <div className="p-6">
-                <h3 className="font-display text-[18px] font-semibold text-white">Publish PDF</h3>
-                <p className="mt-1 text-[13px] text-ink-400">Choose which sections to include in the report.</p>
-                <div className="mt-4 space-y-2">
-                  <p className="text-[11px] font-medium uppercase tracking-wide text-ink-400">Include in PDF</p>
-                  <CheckboxField
-                    checked={includeVisualAssessment}
-                    onChange={setIncludeVisualAssessment}
-                    label="Visual / AI-assisted description"
-                  />
-                  <CheckboxField
-                    checked={includeEngineerComments}
-                    onChange={setIncludeEngineerComments}
-                    label="Author comments and site notes"
-                  />
-                  <CheckboxField
-                    checked={includeAnnotations}
-                    onChange={setIncludeAnnotations}
-                    label={
-                      <span>
-                        Image annotations
-                        {annotations.length > 0 && (
-                          <span className="ml-1 text-ink-400">({annotations.length})</span>
-                        )}
-                      </span>
-                    }
-                  />
-                  {neitherSelected && (
-                    <p className="text-[12px] text-amber-400">Select at least one section to publish.</p>
-                  )}
-                </div>
-              </div>
-              <div className="flex items-center justify-end gap-2 border-t border-base-800 px-5 py-3">
-                <button
-                  type="button"
-                  disabled={publishing}
-                  onClick={() => setPublishModalOpen(false)}
-                  className="rounded-md border border-base-700 px-3.5 py-1.5 text-[13px] font-medium text-white transition-colors hover:border-ink-300 disabled:opacity-50"
+      {/* Portal the publish modal into document.body so its `fixed`
+          positioning is relative to the viewport, not the transformed
+          page-content motion.div inside AppShell (which would otherwise
+          push the modal off-center). The other modals (ConfirmDialog,
+          DeleteConfirm, AnnotationDeleteConfirm) already do this. */}
+      {typeof document !== 'undefined' &&
+        createPortal(
+          <AnimatePresence>
+            {publishModalOpen && (
+              <motion.div
+                key="publish-shell"
+                className="fixed inset-0 z-50 flex items-center justify-center p-4"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.15 }}
+              >
+                <motion.div
+                  key="publish-bd"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  onClick={publishing ? undefined : () => setPublishModalOpen(false)}
+                  className="absolute inset-0 bg-base-950/75 backdrop-blur-sm"
+                />
+                <motion.div
+                  key="publish-md"
+                  initial={{ opacity: 0, scale: 0.96, y: 4 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.96, y: 4 }}
+                  transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+                  role="dialog"
+                  aria-modal="true"
+                  className="relative z-10 w-[400px] max-w-[calc(100vw-32px)] rounded-lg border border-base-700 bg-base-900 shadow-2xl shadow-black/60"
                 >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  disabled={publishing || neitherSelected}
-                  onClick={() => void onPublish()}
-                  className="inline-flex items-center gap-2 rounded-md bg-amber-500 px-3.5 py-1.5 text-[13px] font-semibold text-base-950 transition-colors hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {publishing ? 'Publishing…' : 'Publish PDF'}
-                </button>
-              </div>
-            </motion.div>
-          </>
+                  <button
+                    type="button"
+                    disabled={publishing}
+                    onClick={() => setPublishModalOpen(false)}
+                    aria-label="Close"
+                    className="absolute right-2 top-2 z-10 inline-flex h-8 w-8 items-center justify-center rounded-md text-ink-300 transition-colors hover:bg-base-800 hover:text-white disabled:opacity-50"
+                  >
+                    <X size={16} />
+                  </button>
+                  <div className="p-6 pr-12">
+                    <h3 className="font-display text-[18px] font-semibold text-white">Publish PDF</h3>
+                    <p className="mt-1 text-[13px] text-ink-400">Choose which sections to include in the report.</p>
+                    <div className="mt-4 space-y-2">
+                      <p className="text-[11px] font-medium uppercase tracking-wide text-ink-400">Include in PDF</p>
+                      <CheckboxField
+                        checked={includeVisualAssessment}
+                        onChange={setIncludeVisualAssessment}
+                        label="Visual / AI-assisted description"
+                      />
+                      <CheckboxField
+                        checked={includeEngineerComments}
+                        onChange={setIncludeEngineerComments}
+                        label="Author comments and site notes"
+                      />
+                      <CheckboxField
+                        checked={includeAnnotations}
+                        onChange={setIncludeAnnotations}
+                        label={
+                          <span>
+                            Image annotations
+                            {annotations.length > 0 && (
+                              <span className="ml-1 text-ink-400">({annotations.length})</span>
+                            )}
+                          </span>
+                        }
+                      />
+                      {neitherSelected && (
+                        <p className="text-[12px] text-amber-400">Select at least one section to publish.</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-end gap-2 border-t border-base-800 px-5 py-3">
+                    <button
+                      type="button"
+                      disabled={publishing || neitherSelected}
+                      onClick={() => void onPublish()}
+                      className="inline-flex items-center gap-2 rounded-md bg-amber-500 px-3.5 py-1.5 text-[13px] font-semibold text-base-950 transition-colors hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {publishing ? 'Publishing…' : 'Publish PDF'}
+                    </button>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>,
+          document.body,
         )}
-      </AnimatePresence>
     </>
   );
 }
