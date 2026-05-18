@@ -24,7 +24,7 @@ Components only ever call the **named exports**. They are typed functions that r
 
 ## Conventions
 
-- **Same-origin paths.** Every request goes to `/api/<path>` — no hardcoded backend URL, no `process.env.BACKEND_URL` in the browser bundle. The Next.js rewrite (`next.config.mjs`) routes it server-side.
+- **Same-origin paths.** Every request goes to `/api/<path>`, no hardcoded backend URL, no `process.env.BACKEND_URL` in the browser bundle. The Next.js rewrite (`next.config.mjs`) routes it server-side.
 - **Auth attached automatically.** `apiFetch` reads the JWT from `localStorage` via `getAccessToken()` and sets `Authorization: Bearer <token>`. Calls that must be unauthenticated (login, register) pass `withAuth=false`.
 - **Errors are strings.** Backend errors come back as `{"detail": "..."}` or, for 422, `{"detail": [{msg, loc, ...}]}`. Both are normalized to a single readable string by `parseApiError`. The caller catches `Error` and toasts the message.
 - **No retry by default.** Two exceptions:
@@ -86,7 +86,7 @@ If you need a request body type, prefix it `Api<Thing>CreateRequest` to stay con
 Pick the right wrapper:
 
 ```ts
-// JSON GET — most common
+// JSON GET, most common
 export function listThings(): Promise<ApiThing[]> {
   return getJson<ApiThing[]>('/things');
 }

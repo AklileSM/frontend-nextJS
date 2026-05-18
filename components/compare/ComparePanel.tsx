@@ -6,8 +6,8 @@
  * This file used to be ~1570 lines. Sub-components and shared types/helpers
  * were split out into `./panel/*`:
  *
- *   - panel/types.ts          — Side, PanelState, FileSelection, ...
- *   - panel/helpers.ts        — draftSavedDayKeyLocal, isPCDUrl, ...
+ *   - panel/types.ts         , Side, PanelState, FileSelection, ...
+ *   - panel/helpers.ts       , draftSavedDayKeyLocal, isPCDUrl, ...
  *   - panel/CompareCalendar.tsx
  *   - panel/PickerThumbnail.tsx
  *   - panel/PanelFileExplorer.tsx
@@ -21,7 +21,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { PDFDocument } from 'pdf-lib';
 import { toast } from 'sonner';
 import {
@@ -38,6 +38,8 @@ import { CompareCalendar } from './panel/CompareCalendar';
 import { PanelFileExplorer } from './panel/PanelFileExplorer';
 import { PublishModal } from './panel/PublishModal';
 import { isPCDUrl } from './panel/helpers';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { Modal } from '@/components/ui/Modal';
 import type {
   FileSelection,
   NoticeState,
@@ -68,6 +70,7 @@ import { flagsFromObservationBooleans } from '@/lib/observationReportFlags';
 import type { ApiComparisonDraft, ApiProject } from '@/types/api';
 
 export function ComparePanel() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const paramSlug = searchParams.get('project');
   const storageSlug = (() => {
@@ -95,7 +98,7 @@ export function ComparePanel() {
   const [lastLeftCameraState, setLastLeftCameraState] = useState<CameraSyncState | null>(null);
   const [lastRightCameraState, setLastRightCameraState] = useState<CameraSyncState | null>(null);
 
-  // Screenshot callbacks — stored via setState(() => fn) so functions are not called as lazy initializers
+  // Screenshot callbacks, stored via setState(() => fn) so functions are not called as lazy initializers
   const [leftTakeScreenshot, setLeftTakeScreenshot] = useState<(() => string | null) | null>(null);
   const [rightTakeScreenshot, setRightTakeScreenshot] = useState<(() => string | null) | null>(null);
 
@@ -771,55 +774,44 @@ export function ComparePanel() {
       )}
 
       {/* ── Screenshot modal ───────────────────────────────────────────────── */}
-      {isScreenshotModalOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
-          onClick={() => setIsScreenshotModalOpen(false)}
-        >
-          <div
-            className="w-full max-w-3xl space-y-4 rounded-xl border border-base-700 bg-base-900 p-6"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between">
-              <h2 className="font-display text-[18px] font-semibold text-white">Snapshots</h2>
-              <button type="button" onClick={() => setIsScreenshotModalOpen(false)} className="rounded p-1 text-ink-400 hover:text-white">
-                <X size={16} />
-              </button>
+      <Modal
+        open={isScreenshotModalOpen}
+        onClose={() => setIsScreenshotModalOpen(false)}
+        title="Snapshots"
+        size="xl"
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          {([['Left', leftScreenshot], ['Right', rightScreenshot]] as [string, string | null][]).map(([label, img]) => (
+            <div key={label} className="space-y-2">
+              <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-amber-500">{label}</p>
+              {img ? (
+                <>
+                  <img
+                    src={img}
+                    alt={`${label} snapshot`}
+                    className="max-h-[40vh] w-full cursor-pointer rounded-lg bg-black/30 object-contain"
+                    onClick={() => setExpandedImage(img)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const a = document.createElement('a');
+                      a.href = img;
+                      a.download = `${label.toLowerCase()}_snapshot.png`;
+                      a.click();
+                    }}
+                    className="rounded-md border border-base-700 px-3 py-1.5 text-[12px] text-white transition-colors hover:bg-base-800"
+                  >
+                    Download
+                  </button>
+                </>
+              ) : (
+                <p className="text-[12px] text-ink-500">No snapshot for this side.</p>
+              )}
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              {([['Left', leftScreenshot], ['Right', rightScreenshot]] as [string, string | null][]).map(([label, img]) => (
-                <div key={label} className="space-y-2">
-                  <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-amber-500">{label}</p>
-                  {img ? (
-                    <>
-                      <img
-                        src={img}
-                        alt={`${label} snapshot`}
-                        className="max-h-[40vh] w-full cursor-pointer rounded-lg bg-black/30 object-contain"
-                        onClick={() => setExpandedImage(img)}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const a = document.createElement('a');
-                          a.href = img;
-                          a.download = `${label.toLowerCase()}_snapshot.png`;
-                          a.click();
-                        }}
-                        className="rounded-md border border-base-700 px-3 py-1.5 text-[12px] text-white transition-colors hover:bg-base-800"
-                      >
-                        Download
-                      </button>
-                    </>
-                  ) : (
-                    <p className="text-[12px] text-ink-500">No snapshot for this side.</p>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
+          ))}
         </div>
-      )}
+      </Modal>
 
       {/* ── Expanded image ─────────────────────────────────────────────────── */}
       {expandedImage && (
@@ -853,67 +845,39 @@ export function ComparePanel() {
       />
 
       {/* ── Notice dialog ──────────────────────────────────────────────────── */}
-      {notice && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-          onClick={() => setNotice(null)}
-        >
-          <div
-            className="w-full max-w-sm space-y-3 rounded-xl border border-base-700 bg-base-900 p-6"
-            onClick={(e) => e.stopPropagation()}
+      <Modal
+        open={!!notice}
+        onClose={() => setNotice(null)}
+        title={notice?.title ?? ''}
+        size="sm"
+        footer={
+          <button
+            type="button"
+            onClick={() => setNotice(null)}
+            className="rounded-md bg-amber-500 px-3.5 py-1.5 text-[13px] font-semibold text-base-950 transition-colors hover:bg-amber-400"
           >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className={`font-display text-[16px] font-semibold ${notice.variant === 'error' ? 'text-red-400' : 'text-white'}`}>
-                  {notice.title}
-                </p>
-                <p className="mt-1 text-[13px] leading-relaxed text-ink-400">{notice.message}</p>
-              </div>
-              <button type="button" onClick={() => setNotice(null)} className="rounded p-1 text-ink-500 hover:text-white">
-                <X size={14} />
-              </button>
-            </div>
-            <button
-              type="button"
-              onClick={() => setNotice(null)}
-              className="w-full rounded-lg bg-base-800 px-3 py-2 text-[13px] font-medium text-white transition-colors hover:bg-base-700"
-            >
-              OK
-            </button>
-          </div>
-        </div>
-      )}
+            OK
+          </button>
+        }
+      >
+        <p className={`text-[13px] leading-[1.6] ${notice?.variant === 'error' ? 'text-red-300' : 'text-ink-200'}`}>
+          {notice?.message}
+        </p>
+      </Modal>
 
       {/* ── Back confirmation modal ────────────────────────────────────────── */}
-      {isBackModalOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-          onClick={() => setIsBackModalOpen(false)}
-        >
-          <div
-            className="w-full max-w-sm space-y-4 rounded-xl border border-base-700 bg-base-900 p-6"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <p className="font-display text-[16px] font-semibold text-white">Leave Compare?</p>
-            <p className="text-[13px] text-ink-400">Unsaved changes will be lost. Are you sure you want to leave?</p>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setIsBackModalOpen(false)}
-                className="flex-1 rounded-lg border border-base-700 px-3 py-2 text-[13px] text-white hover:bg-base-800"
-              >
-                Stay
-              </button>
-              <Link
-                href={project ? `/app/projects/${project.slug}` : '/projects'}
-                className="flex-1 rounded-lg bg-base-800 px-3 py-2 text-center text-[13px] font-medium text-white transition-colors hover:bg-base-700"
-              >
-                Leave
-              </Link>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={isBackModalOpen}
+        title="Leave Compare?"
+        body="Unsaved changes will be lost. Are you sure you want to leave?"
+        confirmLabel="Leave"
+        danger
+        onConfirm={() => {
+          setIsBackModalOpen(false);
+          router.push(project ? `/app/projects/${project.slug}` : '/projects');
+        }}
+        onCancel={() => setIsBackModalOpen(false)}
+      />
     </div>
   );
 }

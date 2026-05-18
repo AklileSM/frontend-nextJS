@@ -13,7 +13,7 @@ type Props = {
 
 // Multi-select dropdown that filters which rooms are visible on the date explorer.
 // `rooms` should already be limited to rooms that actually have files for the active
-// date — selecting/deselecting only affects which sections render below.
+// date, selecting/deselecting only affects which sections render below.
 export function RoomFilterMenu({ rooms, selected, onChange }: Props) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);

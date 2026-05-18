@@ -205,7 +205,7 @@ function ProjectCard({ project, isAdmin, userId }: { project: ApiProject; isAdmi
         </div>
       </Link>
 
-      {/* Settings gear — admins and project owners */}
+      {/* Settings gear, admins and project owners */}
       
     </motion.div>
   );

@@ -14,7 +14,7 @@ export function Hero() {
     offset: ['start start', 'end start'],
   });
 
-  // Text column: rises 60 px — slower, feels closer to camera
+  // Text column: rises 60 px, slower, feels closer to camera
   const rawTextY = useTransform(scrollYProgress, [0, 1], [0, -60]);
   // Diagram: rises 150 px faster + tips backward (rotateX) as it recedes
   const rawDiagramY = useTransform(scrollYProgress, [0, 1], [0, -150]);
@@ -44,7 +44,7 @@ export function Hero() {
             Construction · documentation
           </motion.p>
 
-          {/* h1: rotates in from tilted-back plane — clearly 3D, not a slide */}
+          {/* h1: rotates in from tilted-back plane, clearly 3D, not a slide */}
           <motion.h1
             initial={{ opacity: 0, y: 24, rotateX: 24 }}
             animate={{ opacity: 1, y: 0, rotateX: 0 }}
@@ -109,8 +109,8 @@ export function Hero() {
         </motion.div>
 
         {/* ── Diagram column: faster parallax + 3D entrance + scroll tilt ──
-              On load:  swings in on Y axis (rotateY -12 → 0) — facing the viewer
-              On scroll: tips backward (rotateX 0 → 7) + scales down — receding  */}
+              On load:  swings in on Y axis (rotateY -12 → 0), facing the viewer
+              On scroll: tips backward (rotateX 0 → 7) + scales down, receding  */}
         <motion.div
           style={{
             y: diagramY,

@@ -16,7 +16,7 @@ import {
   uploadAnnotationAttachment,
 } from '@/services/apiClient';
 import { ReportBuilder } from '@/components/reports/ReportBuilder';
-import { AnnotationDeleteConfirm } from '@/components/viewers/AnnotationDeleteConfirm';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import type { ApiAnnotation, AnnotationFlag } from '@/types/api';
 import { useViewerContext } from './useViewerContext';
 import { backHrefFor } from '@/components/explorer/viewerContext';
@@ -142,7 +142,7 @@ export function StaticViewer() {
         return;
       }
 
-      // 2) Attachment changes run as separate calls — multipart upload for
+      // 2) Attachment changes run as separate calls, multipart upload for
       //    new files, DELETE to drop an existing one. Failures here surface
       //    as a toast but don't roll back the row save.
       if (annotationForm.removeExistingAttachment && !annotationForm.newAttachment) {
@@ -258,7 +258,7 @@ export function StaticViewer() {
   if (loading) return <div className="p-6 text-ink-300">Loading viewer…</div>;
   if (!ctx) return (
     <div className="flex flex-col items-center justify-center gap-4 p-12 text-center">
-      <p className="text-[14px] text-ink-300">No file selected — open a file from the explorer.</p>
+      <p className="text-[14px] text-ink-300">No file selected, open a file from the explorer.</p>
       <Link href={fallbackHref} className="rounded-md bg-amber-500 px-4 py-2 text-[13px] font-semibold text-base-950 hover:bg-amber-400">
         Back to Explorer
       </Link>
@@ -538,7 +538,7 @@ export function StaticViewer() {
                   />
                 </div>
 
-                {/* Flag picker — categorises the annotation and drives the
+                {/* Flag picker, categorises the annotation and drives the
                     pin color. None is allowed (the original neutral pin). */}
                 <div>
                   <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-300">Category</p>
@@ -733,7 +733,7 @@ export function StaticViewer() {
               className="relative z-10 w-full max-w-[520px] max-h-[85vh] overflow-hidden rounded-lg border border-base-700 bg-base-900 shadow-2xl shadow-black/60 flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* × corner — replaces the previous footer Close button. */}
+              {/* × corner, replaces the previous footer Close button. */}
               <button
                 type="button"
                 onClick={() => setDetailsForId(null)}
@@ -830,8 +830,23 @@ export function StaticViewer() {
         )}
       </AnimatePresence>
 
-      <AnnotationDeleteConfirm
-        annotation={pendingDeleteAnnotation}
+      <ConfirmDialog
+        open={!!pendingDeleteAnnotation}
+        title="Delete this annotation?"
+        body={
+          <>
+            <p>The note below will be deleted permanently.</p>
+            {pendingDeleteAnnotation?.text ? (
+              <p className="mt-2 rounded-md border border-base-800 bg-base-950/80 px-2.5 py-2 text-[12px] text-ink-200">
+                {pendingDeleteAnnotation.text.length > 120
+                  ? `${pendingDeleteAnnotation.text.slice(0, 120)}…`
+                  : pendingDeleteAnnotation.text}
+              </p>
+            ) : null}
+          </>
+        }
+        confirmLabel="Delete annotation"
+        danger
         onConfirm={performDeleteAnnotation}
         onCancel={() => setPendingDeleteAnnotationId(null)}
       />

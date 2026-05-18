@@ -61,7 +61,7 @@ Defined in `FLAG_META` at the top of `components/viewers/StaticViewer.tsx`. The 
 
 ### Deleting
 
-`AnnotationDeleteConfirm` (a `ConfirmDialog` variant) intercepts the delete button. On confirm:
+A `ConfirmDialog` (the shared component in `components/ui/`) intercepts the delete button with a body that previews the annotation text. On confirm:
 
 - `deleteAnnotation(id)` removes the row.
 - `deleteAnnotationAttachment(id)` is not needed, the delete cascades on the backend.
@@ -100,7 +100,7 @@ Replacing an attachment is the same call, the backend drops the old object befor
 
 `attachment_url` from the API is a backend-proxied path like `/api/annotations/<id>/attachment`. It is **not** a presigned URL, so it doesn't expire and can be cached.
 
-Use it directly as an `<img>` src, but include the auth header if you fetch it programmatically (PDF generation does this — see below).
+Use it directly as an `<img>` src, but include the auth header if you fetch it programmatically (PDF generation does this, see below).
 
 ### Deletion
 
@@ -151,7 +151,7 @@ Annotations are **not** owner-scoped on the backend. Any authenticated user can 
 | Concern                                | File                                                                                                                                                                |
 | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Annotation overlay, form, sidebar list | `components/viewers/StaticViewer.tsx`                                                                                                                               |
-| Delete confirm modal                   | `components/viewers/AnnotationDeleteConfirm.tsx`                                                                                                                    |
+| Delete confirm modal                   | `components/ui/ConfirmDialog.tsx` (used inline from `StaticViewer.tsx`)                                                                                              |
 | Flag taxonomy + bridge to report flags | `lib/observationReportFlags.ts`                                                                                                                                     |
 | API client wrappers                    | `services/apiClient.ts` (`createAnnotation`, `updateAnnotation`, `deleteAnnotation`, `uploadAnnotationAttachment`, `deleteAnnotationAttachment`, `listAnnotations`) |
 | PDF render integration                 | `components/reports/ReportBuilder.tsx`, `lib/engineeringReportPdf.ts`                                                                                               |

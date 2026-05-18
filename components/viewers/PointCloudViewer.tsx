@@ -49,7 +49,7 @@ export function PointCloudViewer() {
   if (loading) return <div className="p-6 text-[13px] text-ink-300">Loading viewer…</div>;
   if (!ctx) return (
     <div className="flex flex-col items-center justify-center gap-4 p-12 text-center">
-      <p className="text-[14px] text-ink-300">No file selected — open a file from the explorer.</p>
+      <p className="text-[14px] text-ink-300">No file selected, open a file from the explorer.</p>
       <Link
         href={fallbackHref}
         className="rounded-md bg-amber-500 px-4 py-2 text-[13px] font-semibold text-base-950 transition-colors hover:bg-amber-400"
@@ -112,7 +112,7 @@ export function PointCloudViewer() {
             />
           ) : (
             <div className="flex h-full items-center justify-center text-[13px] text-ink-400">
-              No point cloud URL — open a file from the explorer.
+              No point cloud URL, open a file from the explorer.
             </div>
           )}
 

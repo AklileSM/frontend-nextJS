@@ -20,7 +20,7 @@ const interTight = Inter_Tight({
 
 export const metadata: Metadata = {
   title: 'SiteScope',
-  description: 'Field documentation for construction sites — every photo, panorama, and 3D scan organized by room and date.',
+  description: 'Field documentation for construction sites, every photo, panorama, and 3D scan organized by room and date.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

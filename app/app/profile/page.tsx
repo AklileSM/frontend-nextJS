@@ -575,7 +575,7 @@ export default function ProfilePage() {
           </div>
         ) : (
           // tab === 'activity'. Only reachable when showActivity is true,
-          // which already requires a projectSlug — but we guard once more
+          // which already requires a projectSlug, but we guard once more
           // here so a stale URL or race can't render the feed without one.
           <div className="mt-6">
             {projectSlug ? (

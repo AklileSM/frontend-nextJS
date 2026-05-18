@@ -81,7 +81,7 @@ export function PickerThumbnail({
           </span>
         )}
 
-        {/* Type badge — only when showing a real thumbnail */}
+        {/* Type badge, only when showing a real thumbnail */}
         {showThumb && (
           <span className="absolute right-1.5 top-1.5 rounded-sm bg-base-950/80 px-1.5 py-0.5 font-mono text-[9px] font-medium tracking-widest text-ink-200">
             {meta.label}

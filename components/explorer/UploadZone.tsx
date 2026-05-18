@@ -27,7 +27,7 @@ type Props = {
    *  survive a manual close. */
   onClose?: () => void;
   /** Whether the surrounding panel is currently visible to the user. When
-   *  false (parent collapsed), the staging modal is suppressed — the modal
+   *  false (parent collapsed), the staging modal is suppressed, the modal
    *  is fixed-positioned and would otherwise overlay the explorer even with
    *  the parent panel hidden. State is preserved either way. */
   visible?: boolean;
@@ -204,7 +204,7 @@ export function UploadZone({ roomId, roomSlug, captureDate, onUploaded, onClose,
   const inputRef = useRef<HTMLInputElement | null>(null);
   const stagingInputRef = useRef<HTMLInputElement | null>(null);
   const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
-  /** Pending jobs removed from the list before upload started — skip in the enqueue loop */
+  /** Pending jobs removed from the list before upload started, skip in the enqueue loop */
   const skippedJobIdsRef = useRef<Set<string>>(new Set());
 
   // Browser-level guard against accidental tab close while uploads are in flight.
@@ -219,7 +219,7 @@ export function UploadZone({ roomId, roomSlug, captureDate, onUploaded, onClose,
   }, [jobs]);
 
   // Auto-close when an active batch fully settles to 'done'. We only auto-close
-  // when every job succeeded — leave the panel open if anything errored so the
+  // when every job succeeded, leave the panel open if anything errored so the
   // user can see what went wrong.
   useEffect(() => {
     if (jobs.length === 0) return;
@@ -302,7 +302,7 @@ export function UploadZone({ roomId, roomSlug, captureDate, onUploaded, onClose,
     setStaged((prev) => [...prev, ...fresh]);
 
     // Hash + dedupe-check each file in parallel. We can't block the modal
-    // on the hash — a 2 GB LAS takes 10–20s — but we mark the tile as
+    // on the hash, a 2 GB LAS takes 10–20s, but we mark the tile as
     // 'checking' so the Upload button can wait for it.
     for (const job of fresh) {
       void runDedupeCheck(job);
@@ -331,7 +331,7 @@ export function UploadZone({ roomId, roomSlug, captureDate, onUploaded, onClose,
         ),
       );
     } catch {
-      // Hashing or the precheck call failed. Don't block the upload — fall
+      // Hashing or the precheck call failed. Don't block the upload, fall
       // back to the server-side duplicate check (which still runs in the
       // background finalize thread). Mark as 'error' for visibility.
       setStaged((prev) =>
@@ -342,7 +342,7 @@ export function UploadZone({ roomId, roomSlug, captureDate, onUploaded, onClose,
 
   const startUpload = async () => {
     if (!staged.length) return;
-    // Drop duplicates entirely — the precheck has already told us the server
+    // Drop duplicates entirely, the precheck has already told us the server
     // has these. Drop tiles still in 'checking' too: the Upload button is
     // disabled while any are pending, so this is a defensive filter.
     const skipped = staged.filter((j) => j.dedupe === 'duplicate' || j.dedupe === 'checking');
@@ -350,7 +350,7 @@ export function UploadZone({ roomId, roomSlug, captureDate, onUploaded, onClose,
     skipped.forEach((j) => j.thumbUrl && URL.revokeObjectURL(j.thumbUrl));
     if (!accepted.length) {
       setStaged([]);
-      toast.error('Nothing to upload — every file is already in the project.');
+      toast.error('Nothing to upload, every file is already in the project.');
       return;
     }
 
@@ -481,7 +481,7 @@ export function UploadZone({ roomId, roomSlug, captureDate, onUploaded, onClose,
         </div>
       )}
 
-      {/* Staging modal — appears as soon as files are dropped/picked, before
+      {/* Staging modal, appears as soon as files are dropped/picked, before
           any upload starts. Drag-drop / "Add more files" appends to the batch.
           Suppressed when the parent panel is collapsed so we don't render a
           fixed-position overlay on top of the explorer. */}
@@ -588,7 +588,7 @@ export function UploadZone({ roomId, roomSlug, captureDate, onUploaded, onClose,
         )}
       </AnimatePresence>
 
-      {/* Drop zone — only when no batch is staged or running */}
+      {/* Drop zone, only when no batch is staged or running */}
       {phase === 'idle' && (
         <motion.div
           onDragOver={(e) => {
@@ -631,7 +631,7 @@ export function UploadZone({ roomId, roomSlug, captureDate, onUploaded, onClose,
         </motion.div>
       )}
 
-      {/* Progress panel — only while a batch is running. Auto-closes when done. */}
+      {/* Progress panel, only while a batch is running. Auto-closes when done. */}
       {phase === 'uploading' && (
         <div className="rounded-lg border border-base-800 bg-base-900/40 p-3">
           <div className="mb-3 flex items-center justify-between">

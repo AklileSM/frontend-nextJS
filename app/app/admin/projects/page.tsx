@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { Trash2 } from 'lucide-react';
 import { listAdminProjects, deleteAdminProject } from '@/services/apiClient';
 import { formatIsoDate } from '@/services/dateFormat';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import type { ApiProject } from '@/types/api';
 
 export const dynamic = 'force-dynamic';
@@ -17,6 +18,7 @@ export default function AdminProjectsPage() {
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  const [pendingDelete, setPendingDelete] = useState<ApiProject | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -39,8 +41,13 @@ export default function AdminProjectsPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  const handleDelete = useCallback(async (project: ApiProject) => {
-    if (!confirm(`Delete project "${project.name}"? This cannot be undone.`)) return;
+  const handleDelete = useCallback((project: ApiProject) => {
+    setPendingDelete(project);
+  }, []);
+
+  const runDelete = useCallback(async () => {
+    const project = pendingDelete;
+    if (!project) return;
     setDeleting(project.id);
     try {
       await deleteAdminProject(project.id);
@@ -50,8 +57,9 @@ export default function AdminProjectsPage() {
       toast.error(err instanceof Error ? err.message : 'Delete failed');
     } finally {
       setDeleting(null);
+      setPendingDelete(null);
     }
-  }, []);
+  }, [pendingDelete]);
 
   const statusColor: Record<string, string> = {
     active: 'text-green-400',
@@ -175,6 +183,23 @@ export default function AdminProjectsPage() {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title="Delete this project?"
+        body={
+          <>
+            <code className="rounded bg-base-800 px-1.5 py-0.5 font-mono text-[12px] text-ink-100">
+              {pendingDelete?.name}
+            </code>{' '}
+            will be permanently deleted, along with its rooms, file rows, members, and activity history. This cannot be undone.
+          </>
+        }
+        confirmLabel="Delete project"
+        danger
+        onConfirm={runDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 }

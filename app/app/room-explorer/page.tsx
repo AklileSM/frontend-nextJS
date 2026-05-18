@@ -18,7 +18,6 @@ import { BulkActionBar } from '@/components/explorer/BulkActionBar';
 import { FileGrid } from '@/components/explorer/FileGrid';
 import { MediaTabs, type MediaTab } from '@/components/explorer/MediaTabs';
 import { DateFilterMenu } from '@/components/explorer/DateFilterMenu';
-import { DeleteConfirm } from '@/components/explorer/DeleteConfirm';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Calendar, Filter } from 'lucide-react';
@@ -64,7 +63,7 @@ function Inner() {
   const [bulkConfirmDelete, setBulkConfirmDelete] = useState(false);
   const selectionAnchorRef = useRef<string | null>(null);
   const cancelDeleteRefs = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
-  // null = "default" — treat as all dates checked. Once the user touches the
+  // null = "default", treat as all dates checked. Once the user touches the
   // filter we store the explicit selection so empty (none-selected) is honored.
   const [dateFilter, setDateFilter] = useState<Set<string> | null>(null);
   const knownPendingRef = useRef<Set<string>>(new Set());
@@ -75,7 +74,7 @@ function Inner() {
 
   const queryRoom = params.get('room');
   // ?date= is honored as a deeplink seed for the filter (e.g. from the sidebar
-  // calendar) — it initializes the filter to that single date.
+  // calendar), it initializes the filter to that single date.
   const seedDate = params.get('date');
 
   // Resolve current room slug: query param wins, otherwise localStorage, then first room.
@@ -124,7 +123,7 @@ function Inner() {
   }, [activeSlug]);
 
   // Load files for the active room. On poll-triggered reloads (reloadToken bump)
-  // we leave the existing response in place until the new data arrives — that
+  // we leave the existing response in place until the new data arrives, that
   // keeps the thumbnails mounted, avoiding the framer-motion re-animation blink.
   useEffect(() => {
     if (!activeSlug) return;
@@ -156,7 +155,7 @@ function Inner() {
   //   - Clicking another date in the sidebar (URL changes, same page) re-seeds.
   //   - Manually toggling the filter inside the page doesn't get clobbered on
   //     the next render, because the signature is unchanged.
-  // The previous one-shot boolean only ever seeded on initial mount — meaning
+  // The previous one-shot boolean only ever seeded on initial mount, meaning
   // every subsequent sidebar date click silently no-op'd while staying on
   // /app/room-explorer.
   const lastSeededRef = useRef<string | null>(null);
@@ -236,7 +235,7 @@ function Inner() {
     return () => clearInterval(id);
   }, [response, datesEntries]);
 
-  // Clear selection on tab / room / date-filter change — stale selections in
+  // Clear selection on tab / room / date-filter change, stale selections in
   // an off-screen tab are confusing once you bulk-act on them.
   useEffect(() => {
     setSelectedIds(new Set());
@@ -420,8 +419,19 @@ function Inner() {
         )}
       </div>
 
-      <DeleteConfirm
-        file={pendingDelete}
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title="Delete this file?"
+        body={
+          <>
+            <code className="rounded bg-base-800 px-1.5 py-0.5 font-mono text-[12px] text-ink-100">
+              {pendingDelete?.file_name}
+            </code>{' '}
+            will be removed from the project. Any reports already published from this file remain available.
+          </>
+        }
+        confirmLabel="Delete file"
+        danger
         onConfirm={handleDeleteConfirm}
         onCancel={() => setPendingDelete(null)}
       />

@@ -47,7 +47,7 @@ export function GlobalSearch({ projectSlug }: Props) {
   const abortRef = useRef<AbortController | null>(null);
 
   // Global '/' shortcut focuses the search input. Skip when the user is
-  // already typing in another input/textarea/contenteditable element — they
+  // already typing in another input/textarea/contenteditable element, they
   // probably mean a literal '/' there.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

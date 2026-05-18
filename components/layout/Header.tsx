@@ -13,7 +13,7 @@ import { GlobalSearch } from './GlobalSearch';
 
 function backFallbackFor(pathname: string, lastProjectSlug: string | null): string | null {
   const parts = pathname.split('/').filter(Boolean);
-  // /app root — no back button
+  // /app root, no back button
   if (parts.length <= 1) return null;
 
   if (parts[1] === 'projects') {

@@ -272,7 +272,7 @@ async function uploadPointcloudDirect(params: {
  *  - Tries `uploadPointcloudDirect` first (browser → MinIO presigned URL).
  *  - Falls back to `uploadPointcloudInChunks` on any non-abort error (e.g.
  *    presigned URLs not configured, CORS issue, network hiccup).
- *  - AbortError from either path is re-thrown immediately — no fallback.
+ *  - AbortError from either path is re-thrown immediately, no fallback.
  *
  * `onProgress` is called with 0–100. `signal` cancels the upload at any stage.
  */

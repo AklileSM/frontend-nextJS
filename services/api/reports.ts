@@ -1,6 +1,6 @@
 /** Published reports, viewer drafts, and comparison drafts.
  *
- *  Reports are creator-scoped — every list/get/delete call filters by the
+ *  Reports are creator-scoped, every list/get/delete call filters by the
  *  current user on the backend. PDFs are generated client-side and uploaded
  *  as finished blobs to the `with-pdf` / `publish` endpoints. */
 import { getAccessToken } from '@/auth/authSession';

@@ -29,7 +29,7 @@ export async function getExplorerByDateForProject(
     getJson<ExplorerByDateResponse>(`/files/explorer/date/${date}`),
     listProjectRooms(projectId),
   ]);
-  // The API may key rooms by name OR slug — accept either.
+  // The API may key rooms by name OR slug, accept either.
   const projectKeys = new Set<string>();
   for (const r of rooms) {
     projectKeys.add(r.slug);

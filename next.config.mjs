@@ -3,7 +3,7 @@
 // BACKEND_URL is resolved at build time AND read at runtime for SSR requests.
 // In Docker: set as a build arg so it is baked into the route manifest.
 // In local dev: set in .env.local or as a shell env var before `npm run dev`.
-// Changing it requires a rebuild — `docker compose up -d --build frontend-next`.
+// Changing it requires a rebuild, `docker compose up -d --build frontend-next`.
 const backendBase = process.env.BACKEND_URL || 'http://localhost:3002';
 
 // The Next.js proxy buffers the full request body before forwarding it.
@@ -40,7 +40,7 @@ const nextConfig = {
   async rewrites() {
     return [
       // All /api/* requests from the browser are rewritten server-side to the
-      // backend. The browser never sees the backend hostname — it always calls
+      // backend. The browser never sees the backend hostname, it always calls
       // the same origin as the frontend. This eliminates CORS entirely and lets
       // the backend use internal Docker DNS names (http://backend:3001).
       {

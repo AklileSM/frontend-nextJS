@@ -48,7 +48,7 @@ export function PanoramaViewer() {
   if (loading) return <div className="p-6 text-ink-300">Loading viewer…</div>;
   if (!ctx) return (
     <div className="flex flex-col items-center justify-center gap-4 p-12 text-center">
-      <p className="text-[14px] text-ink-300">No file selected — open a file from the explorer.</p>
+      <p className="text-[14px] text-ink-300">No file selected, open a file from the explorer.</p>
       <Link href={fallbackHref} className="rounded-md bg-amber-500 px-4 py-2 text-[13px] font-semibold text-base-950 hover:bg-amber-400">
         Back to Explorer
       </Link>

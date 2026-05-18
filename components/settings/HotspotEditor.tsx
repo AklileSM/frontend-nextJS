@@ -360,7 +360,7 @@ export function HotspotEditor({
   // ── Hint text ─────────────────────────────────────────────────────────────────
 
   const hint = redrawingRoomId
-    ? `Redrawing ${rooms.find((r) => r.id === redrawingRoomId)?.name ?? ''} — `
+    ? `Redrawing ${rooms.find((r) => r.id === redrawingRoomId)?.name ?? ''}, `
     : '';
 
   const modeHint =
@@ -369,7 +369,7 @@ export function HotspotEditor({
       : polyPoints.length === 0
       ? 'Click to start a polygon.'
       : polyPoints.length < 3
-      ? `${polyPoints.length} point${polyPoints.length > 1 ? 's' : ''} placed — keep clicking.`
+      ? `${polyPoints.length} point${polyPoints.length > 1 ? 's' : ''} placed, keep clicking.`
       : nearFirstVertex
       ? 'Click to close the polygon.'
       : 'Click the first point to close, or keep adding vertices.';
@@ -433,7 +433,7 @@ export function HotspotEditor({
         </p>
       )}
 
-      {/* Outer wrapper — relative but NOT overflow-hidden so popovers can escape */}
+      {/* Outer wrapper, relative but NOT overflow-hidden so popovers can escape */}
       <div className="relative select-none">
         <div className="overflow-hidden rounded-lg border border-base-800 bg-base-950">
           {/* eslint-disable-next-line @next/next/no-img-element */}

@@ -37,7 +37,7 @@ const containerVariants = {
   visible: { transition: { staggerChildren: 0.12 } },
 };
 
-// Eyebrow: slides in from left in 2D — provides contrast to the 3D heading
+// Eyebrow: slides in from left in 2D, provides contrast to the 3D heading
 const eyebrowVariants = {
   hidden: { opacity: 0, x: -18 },
   visible: {
@@ -136,7 +136,7 @@ export function Reveal({
   );
 }
 
-// Genuine scroll parallax — wrap decorative/background layers.
+// Genuine scroll parallax, wrap decorative/background layers.
 // Positive speed → drifts down relative to scroll (appears further away).
 // Negative speed → drifts up faster (appears closer / in front).
 export function ParallaxFloat({

@@ -62,7 +62,7 @@ export type FieldObservationPdfInput = {
 };
 
 // Per-flag pill colors used in the PDF. Tuned so the white label text
-// stays legible on the fill — these are the same hues as the on-screen
+// stays legible on the fill, these are the same hues as the on-screen
 // chips in StaticViewer but darkened slightly for print.
 const FLAG_PDF_META: Record<PdfAnnotationFlag, { label: string; fill: [number, number, number] }> = {
   safety:  { label: 'SAFETY',  fill: [239, 68, 68] },   // red-500
@@ -286,7 +286,7 @@ export function buildFieldObservationPdf(input: FieldObservationPdfInput): jsPDF
           const pillX = PAGE.margin + 5.5;
           const pillY = state.y - 3.1;
           doc.setFillColor(meta.fill[0], meta.fill[1], meta.fill[2]);
-          // 1.4mm radius rounded rect — tight pill at this size.
+          // 1.4mm radius rounded rect, tight pill at this size.
           doc.roundedRect(pillX, pillY, pillW, pillH, 1, 1, 'F');
           doc.setTextColor(255);
           doc.text(meta.label, pillX + 1.8, pillY + 2.6);
@@ -340,7 +340,7 @@ export function buildFieldObservationPdf(input: FieldObservationPdfInput): jsPDF
             doc.addImage(ann.attachmentDataUrl, PAGE.margin + 8, state.y, w, h);
             state.y += h + 2;
           } catch {
-            // Unsupported format or decode error — fall back to a text note
+            // Unsupported format or decode error, fall back to a text note
             // so the reader at least knows an attachment was associated.
             ensureSpace(BODY_LH);
             doc.setFont('helvetica', 'italic');
@@ -378,7 +378,7 @@ export function buildFieldObservationPdf(input: FieldObservationPdfInput): jsPDF
 
   const shots = input.annexScreenshots?.filter(Boolean) ?? [];
   if (shots.length > 0) {
-    writeSectionHeading(String(sectionNo++), 'ANNEX A — SCREEN CAPTURES');
+    writeSectionHeading(String(sectionNo++), 'ANNEX A, SCREEN CAPTURES');
     writeParagraph(
       'The following figures are exports from the viewer at the time of report issue. They are illustrative and may not cover the full scene.',
       10,
@@ -490,7 +490,7 @@ export function buildComparisonFieldObservationPdf(input: {
     writeParagraph('No file metadata was attached for this comparison issue.', 10, 'italic');
   }
 
-  writeSectionHeading(String(sectionNo++), "AUTHOR COMMENTS — DUAL VIEW");
+  writeSectionHeading(String(sectionNo++), "AUTHOR COMMENTS, DUAL VIEW");
   if (input.left) {
     writeParagraph(`Reference A notes: ${input.left.notes || '—'}`, 10, 'normal');
   }
@@ -502,7 +502,7 @@ export function buildComparisonFieldObservationPdf(input: {
     const s = f.scheduleDelayed ? 'Delay indicated' : 'No schedule delay flagged';
     const q = f.qualityConcern ? 'Quality concern flagged' : 'No quality concern flagged';
     const h = f.safetyConcern ? 'Safety concern flagged' : 'No safety concern flagged';
-    return `${label}: Schedule — ${s}; Quality — ${q}; H&S (visual) — ${h}.`;
+    return `${label}: Schedule, ${s}; Quality, ${q}; H&S (visual), ${h}.`;
   };
 
   writeSectionHeading(String(sectionNo++), 'CLASSIFICATION SUMMARY');
@@ -521,7 +521,7 @@ export function buildComparisonFieldObservationPdf(input: {
   const L = input.annexLeft.images.filter(Boolean);
   const R = input.annexRight.images.filter(Boolean);
   if (L.length > 0 || R.length > 0) {
-    writeSectionHeading(String(sectionNo++), 'ANNEX A — SUPPLEMENTARY SCREEN CAPTURES');
+    writeSectionHeading(String(sectionNo++), 'ANNEX A, SUPPLEMENTARY SCREEN CAPTURES');
     writeParagraph(
       'Optional exports captured during the comparison session. Horizontal position follows Reference A (left) and Reference B (right) as shown in the application.',
       10,
@@ -563,10 +563,10 @@ export function buildComparisonFieldObservationPdf(input: {
       state.y += imgH + 8;
     }
     if (L.length && input.annexLeft.text?.trim()) {
-      writeParagraph(`Reference A — annex notes: ${input.annexLeft.text}`, 9, 'normal');
+      writeParagraph(`Reference A, annex notes: ${input.annexLeft.text}`, 9, 'normal');
     }
     if (R.length && input.annexRight.text?.trim()) {
-      writeParagraph(`Reference B — annex notes: ${input.annexRight.text}`, 9, 'normal');
+      writeParagraph(`Reference B, annex notes: ${input.annexRight.text}`, 9, 'normal');
     }
   }
 

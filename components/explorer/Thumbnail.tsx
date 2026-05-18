@@ -20,7 +20,7 @@ type Props = {
   index?: number;
   // Multi-select. Each tile owns a checkbox in its corner. When `batchActive`
   // is true (at least one tile in the page-level batch), the checkbox stays
-  // visible and a plain tile-body click also toggles selection — otherwise
+  // visible and a plain tile-body click also toggles selection, otherwise
   // the checkbox shows on hover only and the tile body opens the file.
   batchActive?: boolean;
   selected?: boolean;
@@ -86,7 +86,7 @@ export function Thumbnail({
   };
 
   const handleCheckboxClick = (e: ReactMouseEvent<HTMLButtonElement>) => {
-    // The corner checkbox always toggles, regardless of batch state — that's
+    // The corner checkbox always toggles, regardless of batch state, that's
     // how the first selection is bootstrapped. Stop propagation so the tile
     // body's onClick doesn't also fire and double-toggle.
     if (!onToggleSelect) return;
@@ -115,7 +115,7 @@ export function Thumbnail({
     >
       <div className={`relative aspect-[4/3] bg-gradient-to-br ${meta.gradient}`}>
 
-        {/* Selection checkbox — corner widget. Hidden by default, fades in on
+        {/* Selection checkbox, corner widget. Hidden by default, fades in on
             tile hover. Once a batch is active or this tile is selected, it
             stays visible. Click toggles; shift-click range-extends. */}
         {onToggleSelect && (
@@ -146,7 +146,7 @@ export function Thumbnail({
           />
         )}
 
-        {/* Icon fallback — large centered icon + label */}
+        {/* Icon fallback, large centered icon + label */}
         {!showThumbnail && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2.5">
             <meta.Icon size={44} strokeWidth={1.25} className={meta.tint} />
@@ -169,7 +169,7 @@ export function Thumbnail({
           </span>
         )}
 
-        {/* Type badge — only when showing a real thumbnail */}
+        {/* Type badge, only when showing a real thumbnail */}
         {showThumbnail && (
           <span className="absolute right-1.5 top-1.5 rounded-sm bg-base-950/80 px-1.5 py-0.5 font-mono text-[9px] font-medium tracking-widest text-ink-200">
             {meta.label}

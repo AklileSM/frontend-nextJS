@@ -75,7 +75,7 @@ export function FloorplanUploader({
           />
           <div className="flex items-center justify-between border-t border-base-800 px-3 py-2">
             <p className="font-mono text-[11px] text-ink-400">
-              Current floorplan — drop a new image below to replace it
+              Current floorplan, drop a new image below to replace it
             </p>
             <button
               type="button"

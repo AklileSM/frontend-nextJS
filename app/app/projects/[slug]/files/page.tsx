@@ -22,7 +22,6 @@ import { BulkActionBar } from '@/components/explorer/BulkActionBar';
 import { FileGrid } from '@/components/explorer/FileGrid';
 import { MediaTabs, type MediaTab } from '@/components/explorer/MediaTabs';
 import { UploadZone } from '@/components/explorer/UploadZone';
-import { DeleteConfirm } from '@/components/explorer/DeleteConfirm';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Calendar, Filter } from 'lucide-react';
@@ -55,7 +54,7 @@ export default function FileExplorerPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkConfirmDelete, setBulkConfirmDelete] = useState(false);
-  // Anchor for shift-range selection — the last file the user clicked.
+  // Anchor for shift-range selection, the last file the user clicked.
   // Stored in a ref so re-renders don't reset it.
   const selectionAnchorRef = useRef<string | null>(null);
   const knownPendingRef = useRef<Set<string>>(new Set());
@@ -92,7 +91,7 @@ export default function FileExplorerPage() {
 
   useEffect(() => { setRoomFilter(null); setVisibleCount(10); }, [date]);
 
-  // Clear selection whenever the user changes context — tab switch, date
+  // Clear selection whenever the user changes context, tab switch, date
   // change, or new project. Stale selections from a hidden tab would be
   // invisible but still in scope for bulk actions, which is surprising.
   useEffect(() => {
@@ -134,7 +133,7 @@ export default function FileExplorerPage() {
     return result;
   }, [response, visibleRooms]);
 
-  // Flat, ordered list of every file currently rendered on this page — used
+  // Flat, ordered list of every file currently rendered on this page, used
   // as the index space for shift-range selection.
   const flatVisibleFiles = useMemo<ApiMediaFile[]>(() => {
     if (!response) return [];
@@ -186,7 +185,7 @@ export default function FileExplorerPage() {
     try {
       const result = await bulkDeleteFiles(ids);
       // Optimistically remove the affected rows so the user doesn't see them
-      // until the next reload — same trick the single-file delete uses.
+      // until the next reload, same trick the single-file delete uses.
       setHiddenFileIds((prev) => new Set([...prev, ...ids]));
       clearSelection();
       setReloadToken((t) => t + 1);
@@ -279,7 +278,7 @@ export default function FileExplorerPage() {
         label: 'Undo',
         onClick: () => {
           const e = deleteControllers.current.get(file.id);
-          if (!e || e.done) return; // API already responded — too late to undo
+          if (!e || e.done) return; // API already responded, too late to undo
           e.controller.abort();
           deleteControllers.current.delete(file.id);
           setHiddenFileIds((prev) => { const n = new Set(prev); n.delete(file.id); return n; });
@@ -297,7 +296,7 @@ export default function FileExplorerPage() {
     } catch (err) {
       deleteControllers.current.delete(file.id);
       if (controller.signal.aborted) {
-        // User hit Undo before the request completed — restore the file.
+        // User hit Undo before the request completed, restore the file.
         return;
       }
       entry.done = true;
@@ -366,7 +365,7 @@ export default function FileExplorerPage() {
 
       {canUpload && (
         // Always mounted while the user has upload permission so in-flight
-        // uploads survive a manual "Close uploader" — the panel collapses to
+        // uploads survive a manual "Close uploader", the panel collapses to
         // height:0 instead of being unmounted. The Uploader's auto-close on
         // batch completion calls back into setShowUploader.
         <motion.div
@@ -438,8 +437,19 @@ export default function FileExplorerPage() {
         )}
       </div>
 
-      <DeleteConfirm
-        file={pendingDelete}
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title="Delete this file?"
+        body={
+          <>
+            <code className="rounded bg-base-800 px-1.5 py-0.5 font-mono text-[12px] text-ink-100">
+              {pendingDelete?.file_name}
+            </code>{' '}
+            will be removed from the project. Any reports already published from this file remain available.
+          </>
+        }
+        confirmLabel="Delete file"
+        danger
         onConfirm={handleDeleteConfirm}
         onCancel={() => setPendingDelete(null)}
       />

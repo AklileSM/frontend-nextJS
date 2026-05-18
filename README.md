@@ -1,6 +1,6 @@
 # A6-Stern Frontend
 
-> **New here?** Read `[deployment/PROJECT_OVERVIEW.md](../deployment/PROJECT_OVERVIEW.md)` first — it's the cross-repo front page with a topic-based map of every doc in the project.
+> **New here?** Read `[deployment/PROJECT_OVERVIEW.md](../deployment/PROJECT_OVERVIEW.md)` first, it's the cross-repo front page with a topic-based map of every doc in the project.
 
 Next.js application for the A6-Stern construction documentation platform. Provides file browsing, 360° panorama and 3D point cloud viewers, side-by-side image comparison, annotation tools, and PDF report generation.
 
@@ -35,7 +35,7 @@ This README covers setup, route inventory, and the high-level state model. Deepe
 
 ```bash
 npm install
-# Configure the backend URL (see below — default points at Docker-mapped port 3002)
+# Configure the backend URL (see below, default points at Docker-mapped port 3002)
 npm run dev
 ```
 
@@ -82,7 +82,7 @@ The default fallback in `next.config.mjs` is `http://localhost:3002`, so if your
 
 JWT tokens are stored in `localStorage` under the key `a6_auth_v2`. The `apiFetch` wrapper in `services/apiClient.ts` attaches them automatically as `Authorization: Bearer <token>`.
 
-Any `401` response from the API clears the stored token and redirects the browser to `/login`. No token refresh — when the token expires (7-day lifetime set by the backend), the user is sent back to login.
+Any `401` response from the API clears the stored token and redirects the browser to `/login`. No token refresh, when the token expires (7-day lifetime set by the backend), the user is sent back to login.
 
 ## Route structure
 
@@ -171,7 +171,7 @@ The three heaviest dependencies are Three.js (`~600 KB gz`), PDF.js (`~400 KB gz
 All viewer components should be imported with `next/dynamic` to avoid bundling Three.js or PDF.js into the main chunk:
 
 ```tsx
-// Good — loads only when the page renders
+// Good, loads only when the page renders
 import dynamic from 'next/dynamic';
 const PanoramaViewer = dynamic(() => import('@/components/viewers/PanoramaViewer'), {
   ssr: false,            // Three.js requires browser APIs

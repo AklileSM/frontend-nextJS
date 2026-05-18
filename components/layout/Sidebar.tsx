@@ -53,7 +53,7 @@ export function Sidebar() {
     return () => { cancelled = true; };
   }, []);
 
-  // Derive slug from URL — most reliable sources first.
+  // Derive slug from URL, most reliable sources first.
   const slugFromPath = pathname.match(/\/app\/projects\/([^/]+)/)?.[1] ?? null;
   const roomSlug = searchParams.get('room');
   const roomFromQuery = roomSlug && allRooms ? allRooms.find((r) => r.slug === roomSlug) : null;
@@ -134,7 +134,7 @@ export function Sidebar() {
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 py-4">
-          {/* Home — always shown, links to current project home if known */}
+          {/* Home, always shown, links to current project home if known */}
           <NavLink
             href={currentSlug ? `/app/projects/${currentSlug}` : '/projects'}
             icon={<Home size={14} />}
@@ -143,7 +143,7 @@ export function Sidebar() {
             isActive={!!currentSlug && pathname === `/app/projects/${currentSlug}`}
           />
 
-          {/* All projects hub — always shown */}
+          {/* All projects hub, always shown */}
           <NavLink
             href="/projects"
             icon={<LayoutGrid size={14} />}
@@ -152,7 +152,7 @@ export function Sidebar() {
             isActive={false}
           />
 
-          {/* Current project accordion — always shown */}
+          {/* Current project accordion, always shown */}
           <div className="mt-2">
             {currentProject && currentRooms !== null ? (
               <ul className="space-y-0.5">
@@ -174,7 +174,7 @@ export function Sidebar() {
             )}
           </div>
 
-          {/* Admin — conditional */}
+          {/* Admin, conditional */}
           {user?.is_admin && (
             <>
               <SectionLabel expanded={open}>Platform</SectionLabel>

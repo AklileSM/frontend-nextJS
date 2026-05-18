@@ -198,7 +198,7 @@ export function ProjectRoomsTab({
       {/* Room list */}
       {rooms.length === 0 ? (
         <div className="rounded-lg border border-dashed border-base-700 bg-base-900/20 px-4 py-10 text-center text-[13px] text-ink-400">
-          No rooms yet — add the first one below.
+          No rooms yet, add the first one below.
         </div>
       ) : (
         <ul className="divide-y divide-base-800/50 overflow-hidden rounded-lg border border-base-800">

@@ -119,7 +119,7 @@ export function RoomManager({
     <div className="space-y-5">
       {rooms.length === 0 ? (
         <p className="rounded-md border border-dashed border-base-700 bg-base-900/20 px-4 py-6 text-center text-[13px] text-ink-400">
-          No rooms yet — add the first one below.
+          No rooms yet, add the first one below.
         </p>
       ) : (
         <ul className="divide-y divide-base-800/60 overflow-hidden rounded-lg border border-base-800">

@@ -1,6 +1,6 @@
 # Admin Pages
 
-The admin panel lives under `/app/admin/*`. It's a thin UI over the backend `/api/admin/*` endpoints — see `backend/PERMISSIONS.md` for the server-side authorization rules.
+The admin panel lives under `/app/admin/*`. It's a thin UI over the backend `/api/admin/*` endpoints, see `backend/PERMISSIONS.md` for the server-side authorization rules.
 
 ## Routes
 
@@ -99,7 +99,7 @@ Admins **can**:
 - Upload to any project regardless of membership (gated by `_require_can_upload` allowing admin bypass).
 - Delete any file regardless of project membership (`_can_delete_file` allows admin).
 - Read every project's metadata and member list via `/api/projects/`.
-- Trigger pointcloud-conversion retry (`POST /api/files/{id}/retry-conversion`) — admin only.
+- Trigger pointcloud-conversion retry (`POST /api/files/{id}/retry-conversion`), admin only.
 
 ## Where the code lives
 

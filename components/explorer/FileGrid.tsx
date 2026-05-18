@@ -13,7 +13,7 @@ type Props = {
   onDelete: (file: ApiMediaFile) => void;
   // Multi-select wiring. Selection lives on the page so it can span across
   // multiple FileGrid instances (rooms × dates × media types). `batchActive`
-  // is just `selectedIds.size > 0` — passed in so every Thumbnail knows
+  // is just `selectedIds.size > 0`, passed in so every Thumbnail knows
   // whether to keep its checkbox visible and treat body clicks as toggles.
   batchActive?: boolean;
   selectedIds?: ReadonlySet<string>;

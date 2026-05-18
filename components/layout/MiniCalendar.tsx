@@ -37,7 +37,7 @@ function activateMonths(counts: DateCounts): Set<string> {
 // Explicit initial/animate/exit values (not shared named variants). When this
 // component shares a page with other AnimatePresences (e.g. the annotation
 // form modal), framer-motion can occasionally leave variant lookups in a
-// transient state and a new child mounts stuck at its `initial` — manifests
+// transient state and a new child mounts stuck at its `initial`, manifests
 // as empty day cells / empty months grid after a modal closes.
 function enterFrom(direction: number) {
   return { x: direction > 0 ? 24 : -24, opacity: 0 };

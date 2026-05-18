@@ -13,7 +13,7 @@ type Props = {
 
 // Multi-select dropdown that filters which capture dates are visible on the room
 // explorer. `dates` should already be limited to dates the active room has files
-// for — selecting/deselecting only affects which sections render below.
+// for, selecting/deselecting only affects which sections render below.
 export function DateFilterMenu({ dates, selected, onChange }: Props) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);

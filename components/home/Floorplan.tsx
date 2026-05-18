@@ -58,7 +58,7 @@ export function Floorplan({ floorplanUrl, projectSlug, rooms, hoveredRoom, onHov
           className="block h-auto w-full select-none rounded"
         />
 
-        {/* Polygon zones — SVG overlay */}
+        {/* Polygon zones, SVG overlay */}
         {polygonRooms.length > 0 && (
           <svg
             className="absolute inset-0 h-full w-full"
@@ -182,7 +182,7 @@ export function Floorplan({ floorplanUrl, projectSlug, rooms, hoveredRoom, onHov
         {placedRooms.length === 0 && (
           <div className="absolute inset-0 flex items-center justify-center rounded">
             <p className="rounded-md bg-base-950/80 px-4 py-2 font-mono text-[11px] text-ink-400">
-              No hotspots placed — go to Settings → Setup to add them
+              No hotspots placed, go to Settings → Setup to add them
             </p>
           </div>
         )}

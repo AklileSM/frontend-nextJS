@@ -36,7 +36,7 @@ async function analyzeImageOnce(
  * automatically at upload time). This function polls every 2 s for up to 60 s
  * (30 attempts). Throws if the analysis is not ready within that window.
  *
- * Results are cached server-side — repeated calls for the same `fileId` return
+ * Results are cached server-side, repeated calls for the same `fileId` return
  * immediately without re-calling the vision API.
  */
 export async function analyzeImage(imageUrl: string, fileId?: string): Promise<string> {

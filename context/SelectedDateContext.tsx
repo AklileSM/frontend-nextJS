@@ -42,7 +42,7 @@ function readFromStorage(): DatesByScope {
  * Persists the user's selected date per explorer scope across navigation.
  *
  * A "scope" is a string key that identifies which part of the UI owns a date
- * selection — typically a project ID (e.g. `"proj-abc123"`). Using scopes lets
+ * selection, typically a project ID (e.g. `"proj-abc123"`). Using scopes lets
  * different projects remember different selected dates independently.
  *
  * State is kept in React for instant UI updates and mirrored to localStorage

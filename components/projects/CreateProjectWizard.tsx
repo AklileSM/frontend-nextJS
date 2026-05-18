@@ -154,7 +154,7 @@ export function CreateProjectWizard({ onClose }: { onClose: () => void }) {
         <div className="flex items-start justify-between border-b border-base-800 px-6 py-4">
           <div>
             <h2 className="text-[15px] font-semibold text-white">New project</h2>
-            <p className="mt-0.5 text-[12px] text-ink-400">{currentStep.label}{currentStep.optional ? ' — optional' : ''}</p>
+            <p className="mt-0.5 text-[12px] text-ink-400">{currentStep.label}{currentStep.optional ? ', optional' : ''}</p>
           </div>
           <button
             type="button"
@@ -203,7 +203,7 @@ export function CreateProjectWizard({ onClose }: { onClose: () => void }) {
                   required
                 />
                 <p className="mt-1 font-mono text-[11px] text-ink-500">
-                  Lowercase, numbers, hyphens — used in URLs.
+                  Lowercase, numbers, hyphens, used in URLs.
                 </p>
               </div>
               <div>

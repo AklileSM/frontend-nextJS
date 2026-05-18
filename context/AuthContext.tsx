@@ -146,7 +146,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         is_admin: me.is_admin ?? false,
       });
     } catch {
-      // Session expired — leave state as-is; the 401 handler will redirect.
+      // Session expired, leave state as-is; the 401 handler will redirect.
     }
   }, []);
 

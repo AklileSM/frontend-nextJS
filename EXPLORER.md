@@ -59,11 +59,11 @@ Next.js App Router has no `location.state` equivalent. To pass a clicked file's 
 
 ```ts
 setViewerContext({
-  file,            // ApiMediaFile — the full record
+  file,            // ApiMediaFile, the full record
   roomSlug,
   projectSlug,
   date,            // YYYY-MM-DD
-  origin,          // 'project' | 'room' — controls the back button target
+  origin,          // 'project' | 'room', controls the back button target
 });
 router.push(viewerHrefFor(file));
 ```

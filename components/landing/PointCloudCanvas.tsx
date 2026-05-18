@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 
-// Ambient illustration only — does not load or display any real point-cloud data.
+// Ambient illustration only, does not load or display any real point-cloud data.
 // Generates a deterministic field of points arranged on a stylised room outline,
 // projects them with a slowly rotating camera, and renders them at low intensity.
 // The geometry is invented; nothing here represents an actual scan.
@@ -16,7 +16,7 @@ type Props = {
 type Point = { x: number; y: number; z: number };
 
 function buildPoints(count: number): Point[] {
-  // Mulberry32 — small deterministic PRNG so SSR and CSR agree.
+  // Mulberry32, small deterministic PRNG so SSR and CSR agree.
   let s = 0x9e3779b9;
   const rand = () => {
     s |= 0;

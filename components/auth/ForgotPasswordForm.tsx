@@ -18,7 +18,7 @@ export function ForgotPasswordForm() {
     try {
       await requestPasswordReset(email.trim());
     } catch {
-      // Swallow errors — always show the same success message to
+      // Swallow errors, always show the same success message to
       // avoid revealing whether an email address is registered.
     } finally {
       setSubmitting(false);

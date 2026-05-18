@@ -61,7 +61,7 @@ call apiFetchCurrentUser() → GET /api/auth/me
   login(username, password): Promise<void>;
   register(username, password, email?): Promise<void>;
   logout(): void;
-  refreshUser(): Promise<void>; // re-fetches /me — used after verify-email
+  refreshUser(): Promise<void>; // re-fetches /me, used after verify-email
 }
 ```
 
@@ -135,7 +135,7 @@ The form flow inside `ResetPasswordForm.tsx`:
   - 400 → show an "invalid / expired" message with a link back to `/forgot-password`.
 2. User types a new password (and confirms it client-side).
 3. Submit → `resetPassword(token, newPassword)` → `POST /api/auth/reset-password`.
-  - 204 → success; redirect to `/login`. No JWT is issued by the reset endpoint — the user logs in fresh.
+  - 204 → success; redirect to `/login`. No JWT is issued by the reset endpoint, the user logs in fresh.
   - 400 → error toast (token may have expired between the preflight and submit; the 1-hour TTL is unforgiving).
 
 ## Token TTLs
@@ -168,7 +168,7 @@ The actual permission enforcement is server-side; this is purely UX so non-authe
 2. Sets `user=null` in context.
 3. `router.replace('/login')`.
 
-No server call — JWT is stateless, and signing the user out is a client-only operation. If you need server-side session invalidation (e.g., "log out everywhere"), rotate `JWT_SECRET` on the backend.
+No server call, JWT is stateless, and signing the user out is a client-only operation. If you need server-side session invalidation (e.g., "log out everywhere"), rotate `JWT_SECRET` on the backend.
 
 ## Where the code lives
 
