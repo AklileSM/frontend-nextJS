@@ -1,29 +1,31 @@
 'use client';
 
+/**
+ * App sidebar.
+ *
+ * Was ~509 lines. Internal components moved out to `./sidebar/`:
+ *   - NavAtoms.tsx        (SectionLabel, NavLink)
+ *   - ProjectAccordion.tsx
+ *   - RoomAccordion.tsx   (also contains DateNode and MediaGlyphs)
+ *   - UserFooter.tsx
+ *
+ * What stays here: top-level layout, project/room data fetch, the
+ * slug-from-URL → slug-from-sessionStorage fallback chain.
+ */
+
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
-import {
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
-  Folder,
-  Home,
-  Image as ImageIcon,
-  FileText,
-  Box,
-  LayoutGrid,
-  ShieldCheck,
-  Video,
-  type LucideIcon,
-} from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { ChevronsLeft, ChevronsRight, Home, LayoutGrid, ShieldCheck } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Logo } from '@/components/landing/Logo';
 import { useSidebar } from './SidebarContext';
 import { MiniCalendar } from './MiniCalendar';
 import { useAuth } from '@/context/AuthContext';
-import { getExplorerByRoom, listProjects, listRooms } from '@/services/apiClient';
-import type { ApiProject, ApiRoom, ApiRoomMediaGroup } from '@/types/api';
+import { listProjects, listRooms } from '@/services/apiClient';
+import type { ApiProject, ApiRoom } from '@/types/api';
+import { NavLink, SectionLabel } from './sidebar/NavAtoms';
+import { ProjectAccordion } from './sidebar/ProjectAccordion';
+import { UserFooter } from './sidebar/UserFooter';
 
 const PERSIST_KEY = 'sidebar.lastProjectSlug';
 
@@ -53,7 +55,7 @@ export function Sidebar() {
     return () => { cancelled = true; };
   }, []);
 
-  // Derive slug from URL, most reliable sources first.
+  // Derive slug from URL — most reliable sources first.
   const slugFromPath = pathname.match(/\/app\/projects\/([^/]+)/)?.[1] ?? null;
   const roomSlug = searchParams.get('room');
   const roomFromQuery = roomSlug && allRooms ? allRooms.find((r) => r.slug === roomSlug) : null;
@@ -134,7 +136,7 @@ export function Sidebar() {
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 py-4">
-          {/* Home, always shown, links to current project home if known */}
+          {/* Home — always shown, links to current project home if known */}
           <NavLink
             href={currentSlug ? `/app/projects/${currentSlug}` : '/projects'}
             icon={<Home size={14} />}
@@ -143,7 +145,7 @@ export function Sidebar() {
             isActive={!!currentSlug && pathname === `/app/projects/${currentSlug}`}
           />
 
-          {/* All projects hub, always shown */}
+          {/* All projects hub — always shown */}
           <NavLink
             href="/projects"
             icon={<LayoutGrid size={14} />}
@@ -152,7 +154,7 @@ export function Sidebar() {
             isActive={false}
           />
 
-          {/* Current project accordion, always shown */}
+          {/* Current project accordion — always shown */}
           <div className="mt-2">
             {currentProject && currentRooms !== null ? (
               <ul className="space-y-0.5">
@@ -174,7 +176,7 @@ export function Sidebar() {
             )}
           </div>
 
-          {/* Admin, conditional */}
+          {/* Admin — conditional */}
           {user?.is_admin && (
             <>
               <SectionLabel expanded={open}>Platform</SectionLabel>
@@ -202,307 +204,5 @@ export function Sidebar() {
         />
       </aside>
     </>
-  );
-}
-
-// ── Helpers ────────────────────────────────────────────────────────────────────
-
-function SectionLabel({
-  children,
-  expanded,
-  className = '',
-}: {
-  children: React.ReactNode;
-  expanded: boolean;
-  className?: string;
-}) {
-  if (!expanded) return null;
-  return (
-    <p className={`mb-2 mt-5 px-3 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-400 ${className}`}>
-      {children}
-    </p>
-  );
-}
-
-function NavLink({
-  href,
-  icon,
-  label,
-  expanded,
-  isActive,
-}: {
-  href: string;
-  icon: React.ReactNode;
-  label: string;
-  expanded: boolean;
-  isActive?: boolean;
-}) {
-  const pathname = usePathname();
-  const active = isActive ?? pathname === href;
-  return (
-    <Link
-      href={href}
-      className={`group relative flex items-center gap-2.5 rounded-md px-3 py-2 text-[13px] transition-colors ${
-        active ? 'bg-base-800/70 text-white' : 'text-ink-200 hover:bg-base-800/50 hover:text-white'
-      } ${expanded ? '' : 'lg:justify-center'}`}
-    >
-      {active && (
-        <motion.span
-          layoutId="active-rail"
-          className="absolute inset-y-1 left-0 w-[2px] rounded-r-sm bg-amber-500"
-        />
-      )}
-      <span className="shrink-0 text-ink-300 group-hover:text-white">{icon}</span>
-      <span className={expanded ? 'inline' : 'lg:hidden'}>{label}</span>
-    </Link>
-  );
-}
-
-// ── Project accordion ──────────────────────────────────────────────────────────
-
-function ProjectAccordion({
-  project,
-  rooms,
-  expanded,
-}: {
-  project: ApiProject;
-  rooms: ApiRoom[];
-  expanded: boolean;
-}) {
-  const pathname = usePathname();
-  const isActive = pathname === `/app/projects/${project.slug}`;
-  const [open, setOpen] = useState(true);
-
-  if (!expanded) {
-    return (
-      <Link
-        href={`/app/projects/${project.slug}`}
-        title={project.name}
-        className={`group relative hidden h-9 items-center justify-center rounded-md font-mono text-[12px] uppercase transition-colors lg:flex ${
-          isActive
-            ? 'bg-base-800/70 text-amber-500'
-            : 'text-ink-300 hover:bg-base-800/50 hover:text-white'
-        }`}
-      >
-        {isActive && (
-          <span className="absolute inset-y-1 left-0 w-[2px] rounded-r-sm bg-amber-500" />
-        )}
-        {project.slug.slice(0, 2).toUpperCase()}
-      </Link>
-    );
-  }
-
-  return (
-    <div>
-      <div
-        className={`group relative flex items-center gap-1 rounded-md text-[13px] transition-colors ${
-          isActive
-            ? 'bg-base-800/70 text-white'
-            : 'text-ink-100 hover:bg-base-800/50 hover:text-white'
-        }`}
-      >
-        {isActive && (
-          <span className="absolute inset-y-1 left-0 w-[2px] rounded-r-sm bg-amber-500" />
-        )}
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          aria-expanded={open}
-          className="flex h-9 w-7 shrink-0 items-center justify-center text-ink-300"
-        >
-          <ChevronRight
-            size={13}
-            className={`transition-transform duration-150 ${open ? 'rotate-90' : ''}`}
-          />
-        </button>
-        <Link
-          href={`/app/projects/${project.slug}`}
-          className="flex flex-1 items-center gap-2 py-2 pr-3"
-        >
-          <Folder size={14} className="text-ink-300" />
-          <span className="truncate">{project.name}</span>
-        </Link>
-      </div>
-
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.ul
-            key="rooms"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-            className="overflow-hidden pl-7"
-          >
-            {rooms.length === 0 ? (
-              <li className="px-2 py-1.5 font-mono text-[11px] text-ink-400">No rooms yet</li>
-            ) : (
-              rooms.map((r) => (
-                <li key={r.id}>
-                  <RoomAccordion room={r} />
-                </li>
-              ))
-            )}
-          </motion.ul>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-const roomOpenKey = (slug: string) => `a6.sidebar.roomOpen.${slug}`;
-
-function RoomAccordion({ room }: { room: ApiRoom }) {
-  const params = useSearchParams();
-  const isActive = params.get('room') === room.slug;
-  const [open, setOpen] = useState(() => {
-    try { return sessionStorage.getItem(roomOpenKey(room.slug)) === '1'; } catch { return false; }
-  });
-  const [dates, setDates] = useState<Array<[string, ApiRoomMediaGroup]> | null>(null);
-
-  // Fetch dates whenever the accordion opens for the first time.
-  useEffect(() => {
-    if (!open || dates) return;
-    getExplorerByRoom(room.slug).then((res) => {
-      setDates(Object.entries(res.dates).sort(([a], [b]) => b.localeCompare(a)));
-    }).catch(() => {});
-  }, [open, dates, room.slug]);
-
-  const toggle = () => {
-    setOpen((v) => {
-      const next = !v;
-      try {
-        if (next) sessionStorage.setItem(roomOpenKey(room.slug), '1');
-        else sessionStorage.removeItem(roomOpenKey(room.slug));
-      } catch { /* ignore */ }
-      return next;
-    });
-  };
-
-  return (
-    <div>
-      <div
-        className={`group relative flex items-center gap-1 rounded-md text-[12.5px] transition-colors ${
-          isActive ? 'text-amber-500' : 'text-ink-200 hover:text-white'
-        }`}
-      >
-        <button
-          type="button"
-          onClick={toggle}
-          aria-expanded={open}
-          className="flex h-7 w-5 shrink-0 items-center justify-center text-ink-400"
-        >
-          <ChevronRight
-            size={11}
-            className={`transition-transform duration-150 ${open ? 'rotate-90' : ''}`}
-          />
-        </button>
-        <Link
-          href={`/app/room-explorer?room=${room.slug}`}
-          className="flex flex-1 items-center justify-between gap-2 rounded py-1.5 pr-2 transition-colors hover:bg-base-800/50"
-        >
-          <span className="truncate">{room.name}</span>
-          {isActive && <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />}
-        </Link>
-      </div>
-
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.ul
-            key="dates"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-            className="overflow-hidden pl-5"
-          >
-            {!dates && (
-              <li className="px-2 py-1 font-mono text-[10.5px] text-ink-400">Loading…</li>
-            )}
-            {dates && dates.length === 0 && (
-              <li className="px-2 py-1 font-mono text-[10.5px] text-ink-400">No captures yet</li>
-            )}
-            {dates?.map(([date, group]) => (
-              <li key={date}>
-                <DateNode roomSlug={room.slug} date={date} group={group} />
-              </li>
-            ))}
-          </motion.ul>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-function DateNode({
-  roomSlug,
-  date,
-  group,
-}: {
-  roomSlug: string;
-  date: string;
-  group: ApiRoomMediaGroup;
-}) {
-  const total =
-    group.images.length + group.videos.length + group.pointclouds.length + group.pdfs.length;
-  return (
-    <Link
-      href={`/app/room-explorer?room=${roomSlug}&date=${date}`}
-      className="flex items-center justify-between gap-2 rounded px-2 py-1 font-mono text-[11px] text-ink-300 transition-colors hover:bg-base-800/40 hover:text-white"
-    >
-      <span className="flex items-center gap-2">
-        <span>{date}</span>
-        <MediaGlyphs group={group} />
-      </span>
-      <span className="text-ink-400">{total}</span>
-    </Link>
-  );
-}
-
-function MediaGlyphs({ group }: { group: ApiRoomMediaGroup }) {
-  const items: Array<{ Icon: LucideIcon; n: number; key: string }> = [
-    { Icon: ImageIcon, n: group.images.length,      key: 'img' },
-    { Icon: Video,     n: group.videos.length,      key: 'vid' },
-    { Icon: Box,       n: group.pointclouds.length, key: 'pcd' },
-    { Icon: FileText,  n: group.pdfs.length,        key: 'pdf' },
-  ];
-  return (
-    <span className="flex items-center gap-1">
-      {items.filter((i) => i.n > 0).map(({ Icon, key }) => (
-        <Icon key={key} size={10} />
-      ))}
-    </span>
-  );
-}
-
-// ── User footer ────────────────────────────────────────────────────────────────
-
-function UserFooter({
-  expanded,
-  username,
-  role,
-}: {
-  expanded: boolean;
-  username: string;
-  role: string;
-}) {
-  const initials = (() => {
-    const parts = username.split(/[\s._-]/).filter(Boolean);
-    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-    return username.slice(0, 2).toUpperCase();
-  })();
-
-  return (
-    <div className={`border-t border-base-800 px-3 py-3 ${expanded ? '' : 'lg:px-2 lg:py-3'}`}>
-      <div className={`flex items-center gap-3 ${expanded ? '' : 'lg:justify-center'}`}>
-        <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-amber-500 font-display text-[12px] font-bold text-base-950">
-          {initials}
-        </span>
-        <div className={`min-w-0 flex-1 ${expanded ? 'block' : 'lg:hidden'}`}>
-          <div className="truncate text-[13px] font-medium text-white">{username}</div>
-          <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-300">{role}</div>
-        </div>
-      </div>
-    </div>
   );
 }

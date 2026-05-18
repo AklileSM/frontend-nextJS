@@ -1,17 +1,27 @@
 'use client';
 
+/**
+ * Profile page — orchestrates Reports / Drafts / Files / Activity tabs.
+ *
+ * The three list tabs were extracted into `_components/`:
+ *   - ReportsTab.tsx
+ *   - DraftsTab.tsx     (+ DraftSide type and DraftRow type)
+ *   - FilesTab.tsx      (+ FileSide type)
+ *   - SideRail.tsx      (shared sub-nav)
+ *
+ * State stays here: tab selection, data fetching, delete-pending state,
+ * and the open/download/delete callbacks for each tab.
+ */
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { ArrowLeftRight, FileText, Film, Globe, Image as ImageIcon, Loader2, Mail, ScanLine } from 'lucide-react';
+import { Loader2, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { getAccessToken } from '@/auth/authSession';
-import { formatTimestamp } from '@/lib/formatDate';
 import { Tabs } from '@/components/ui/Tabs';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import { MoreMenu } from '@/components/ui/MoreMenu';
 import { setViewerContext } from '@/components/explorer/viewerContext';
 import { ActivityFeed } from '@/components/home/ActivityFeed';
 import { useMyProjectRole } from '@/hooks/useMyProjectRole';
@@ -33,13 +43,14 @@ import type {
   ApiReport,
   ApiViewerFieldDraft,
 } from '@/types/api';
+import { ReportsTab } from './_components/ReportsTab';
+import { DraftsTab, type DraftRow, type DraftSide } from './_components/DraftsTab';
+import { FilesTab, type FileSide } from './_components/FilesTab';
 
 export const dynamic = 'force-dynamic';
 
 const SIDEBAR_SLUG_KEY = 'sidebar.lastProjectSlug';
 type TopTab = 'reports' | 'drafts' | 'files' | 'activity';
-type DraftSide = 'viewer' | 'comparison';
-type FileSide = 'image' | 'video' | 'pdf';
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -155,7 +166,7 @@ export default function ProfilePage() {
     return `/app/viewer/static?draft=${encodeURIComponent(draft.id)}`;
   };
 
-  const viewerDraftRows = useMemo(
+  const viewerDraftRows = useMemo<DraftRow[]>(
     () =>
       viewerDrafts
         .map((d) => ({
@@ -171,7 +182,7 @@ export default function ProfilePage() {
     [viewerDrafts],
   );
 
-  const comparisonDraftRows = useMemo(
+  const comparisonDraftRows = useMemo<DraftRow[]>(
     () =>
       comparisonDrafts
         .map((d) => ({
@@ -185,13 +196,6 @@ export default function ProfilePage() {
         }))
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
     [comparisonDrafts],
-  );
-
-  const draftRows = draftSide === 'viewer' ? viewerDraftRows : comparisonDraftRows;
-
-  const filesForSide = useMemo(
-    () => myUploads.filter((u) => u.media_type === fileSide),
-    [myUploads, fileSide],
   );
 
   const onDeleteReport = async () => {
@@ -287,7 +291,7 @@ export default function ProfilePage() {
     return res.blob();
   };
 
-  const onOpen = async (report: ApiReport) => {
+  const onOpenReport = async (report: ApiReport) => {
     if (!report.pdf_url) {
       toast.error('This report has no PDF URL.');
       return;
@@ -296,7 +300,7 @@ export default function ProfilePage() {
     router.push(`/app/pdf-viewer?src=${encodeURIComponent(report.pdf_url)}&name=${encodeURIComponent(name)}`);
   };
 
-  const onDownload = async (report: ApiReport) => {
+  const onDownloadReport = async (report: ApiReport) => {
     try {
       const blob = await fetchReportPdfBlob(report);
       const url = URL.createObjectURL(blob);
@@ -309,6 +313,8 @@ export default function ProfilePage() {
       toast.error(err instanceof Error ? err.message : 'Could not download report.');
     }
   };
+
+  const projectName = currentProject?.name ?? null;
 
   return (
     <div className="px-6 py-10 sm:px-10 lg:px-12 xl:px-16">
@@ -397,181 +403,39 @@ export default function ProfilePage() {
           </div>
         ) : tab === 'reports' ? (
           <div className="mt-6 space-y-2">
-            {!projectSlug ? (
-              <p className="text-[13px] text-ink-300">
-                Open a project from the projects page to see the reports you filed there.
-              </p>
-            ) : (
-              <>
-                {reports.map((r) => (
-                  <article key={r.id} className="flex items-center gap-3 rounded-md border border-base-800 bg-base-900/40 px-4 py-3">
-                    <div className="flex h-8 w-8 shrink-0 overflow-hidden rounded border border-base-700 bg-base-900">
-                      {r.screenshots[0] ? (
-                        <img src={r.screenshots[0]} alt="" className="h-full w-full object-cover" />
-                      ) : (
-                        <span className="flex h-full w-full items-center justify-center text-ink-600">
-                          <FileText size={15} />
-                        </span>
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[13px] font-medium text-white">{r.label ?? 'Report'}</p>
-                      <p className="mt-0.5 text-[11px] text-ink-400">
-                        {formatTimestamp(r.created_at)}{r.flags.length > 0 ? ` · ${r.flags.join(', ')}` : ''}
-                      </p>
-                    </div>
-                    <MoreMenu
-                      items={[
-                        { label: 'Open', onClick: () => void onOpen(r) },
-                        { label: 'Download', onClick: () => void onDownload(r) },
-                        { label: 'Delete', onClick: () => setPendingDeleteReportId(r.id), danger: true },
-                      ]}
-                    />
-                  </article>
-                ))}
-                {reports.length === 0 && (
-                  <p className="text-[13px] text-ink-300">
-                    No reports{currentProject ? ` in ${currentProject.name}` : ''} yet.
-                  </p>
-                )}
-              </>
-            )}
+            <ReportsTab
+              reports={reports}
+              projectSlug={projectSlug}
+              currentProjectName={projectName}
+              onOpen={(r) => void onOpenReport(r)}
+              onDownload={(r) => void onDownloadReport(r)}
+              onDelete={setPendingDeleteReportId}
+            />
           </div>
         ) : tab === 'drafts' ? (
-          <div className="mt-6 grid grid-cols-[180px_1fr] gap-6">
-            <SideRail
-              tabs={[
-                { id: 'viewer', label: 'Drafts', count: viewerDraftRows.length },
-                { id: 'comparison', label: 'Comparison drafts', count: comparisonDraftRows.length },
-              ]}
-              active={draftSide}
-              onChange={setDraftSide}
+          <div className="mt-6">
+            <DraftsTab
+              viewerDraftRows={viewerDraftRows}
+              comparisonDraftRows={comparisonDraftRows}
+              draftSide={draftSide}
+              setDraftSide={setDraftSide}
+              projectSlug={projectSlug}
+              currentProjectName={projectName}
             />
-            <div className="space-y-2">
-              {!projectSlug ? (
-                <p className="text-[13px] text-ink-300">
-                  Open a project from the projects page to see the drafts you started there.
-                </p>
-              ) : (
-                <>
-                  {draftRows.map((d) => {
-                    const icon =
-                      d.viewerKind === 'interactive_360' ? <Globe size={15} /> :
-                      d.viewerKind === 'static_pcd' || d.viewerKind === 'point-cloud' ? <ScanLine size={15} /> :
-                      d.kind === 'comparison' ? <ArrowLeftRight size={15} /> :
-                      <ImageIcon size={15} />;
-                    const typeLabel =
-                      d.viewerKind === 'interactive_360' ? 'Panorama' :
-                      d.viewerKind === 'static_pcd' || d.viewerKind === 'point-cloud' ? 'Point cloud' :
-                      d.kind === 'comparison' ? 'Comparison' :
-                      'Image';
-                    return (
-                      <article key={`${d.kind}-${d.id}`} className="flex items-center gap-3 rounded-md border border-base-800 bg-base-900/40 px-4 py-3">
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-base-700 bg-base-900 text-ink-400">
-                          {icon}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-[13px] font-medium text-white">
-                            {d.label ?? `${typeLabel} draft`}
-                          </p>
-                          <p className="mt-0.5 text-[11px] text-ink-400">
-                            {typeLabel} · {formatTimestamp(d.createdAt)}{d.flags.length > 0 ? ` · ${d.flags.join(', ')}` : ''}
-                          </p>
-                        </div>
-                        <Link
-                          href={d.href}
-                          className="shrink-0 rounded-md border border-base-700 px-3 py-1.5 text-[12px] text-white transition-colors hover:border-ink-300"
-                        >
-                          Continue
-                        </Link>
-                      </article>
-                    );
-                  })}
-                  {draftRows.length === 0 && (
-                    <p className="text-[13px] text-ink-300">
-                      {draftSide === 'viewer' ? 'No drafts' : 'No comparison drafts'}
-                      {currentProject ? ` in ${currentProject.name}` : ''} yet.
-                    </p>
-                  )}
-                </>
-              )}
-            </div>
           </div>
         ) : tab === 'files' ? (
-          <div className="mt-6 grid grid-cols-[180px_1fr] gap-6">
-            <SideRail
-              tabs={[
-                { id: 'image', label: 'Images', count: myUploads.filter((u) => u.media_type === 'image').length },
-                { id: 'video', label: 'Videos', count: myUploads.filter((u) => u.media_type === 'video').length },
-                { id: 'pdf',   label: 'PDFs',   count: myUploads.filter((u) => u.media_type === 'pdf').length },
-              ]}
-              active={fileSide}
-              onChange={setFileSide}
+          <div className="mt-6">
+            <FilesTab
+              uploads={myUploads}
+              fileSide={fileSide}
+              setFileSide={setFileSide}
+              filesLoading={filesLoading}
+              projectSlug={projectSlug}
+              currentProjectName={projectName}
+              onOpen={onOpenUpload}
+              onDownload={(u) => void onDownloadUpload(u)}
+              onDelete={setPendingDeleteFileId}
             />
-            <div className="space-y-2">
-              {!projectSlug ? (
-                <p className="text-[13px] text-ink-300">
-                  Open a project from the projects page to see the files you uploaded there.
-                </p>
-              ) : filesLoading ? (
-                <div className="space-y-2">
-                  {Array.from({ length: 4 }).map((_, i) => (
-                    <div
-                      key={i}
-                      className="flex animate-pulse items-center gap-3 rounded-md border border-base-800 bg-base-900/40 px-4 py-3"
-                      style={{ animationDelay: `${i * 55}ms` }}
-                    >
-                      <div className="h-10 w-10 shrink-0 rounded border border-base-700 bg-base-800" />
-                      <div className="flex-1 space-y-2">
-                        <div className="h-3.5 w-2/5 rounded bg-base-800" />
-                        <div className="h-3 w-1/4 rounded bg-base-800/70" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <>
-                  {filesForSide.map((u) => (
-                    <article
-                      key={u.id}
-                      onClick={() => onOpenUpload(u)}
-                      className="flex cursor-pointer items-center gap-3 rounded-md border border-base-800 bg-base-900/40 px-4 py-3 transition-colors hover:border-base-700"
-                    >
-                      <div className="flex h-10 w-10 shrink-0 overflow-hidden rounded border border-base-700 bg-base-900">
-                        {u.media_type === 'image' && u.src ? (
-                          <img src={u.src} alt="" className="h-full w-full object-cover" loading="lazy" />
-                        ) : (
-                          <span className="flex h-full w-full items-center justify-center text-ink-400">
-                            {u.media_type === 'video' ? <Film size={16} /> : <FileText size={16} />}
-                          </span>
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-[13px] font-medium text-white">{u.file_name}</p>
-                        <p className="mt-0.5 text-[11px] text-ink-400">
-                          {u.room_name} · {u.capture_date}
-                        </p>
-                      </div>
-                      <div onClick={(e) => e.stopPropagation()}>
-                        <MoreMenu
-                          items={[
-                            { label: 'Open', onClick: () => onOpenUpload(u) },
-                            { label: 'Download', onClick: () => void onDownloadUpload(u) },
-                            { label: 'Delete', onClick: () => setPendingDeleteFileId(u.id), danger: true },
-                          ]}
-                        />
-                      </div>
-                    </article>
-                  ))}
-                  {filesForSide.length === 0 && (
-                    <p className="text-[13px] text-ink-300">
-                      No {fileSide === 'image' ? 'images' : fileSide === 'video' ? 'videos' : 'PDFs'} uploaded by you
-                      {currentProject ? ` in ${currentProject.name}` : ''} yet.
-                    </p>
-                  )}
-                </>
-              )}
-            </div>
           </div>
         ) : (
           // tab === 'activity'. Only reachable when showActivity is true,
@@ -609,49 +473,5 @@ export default function ProfilePage() {
         onCancel={() => setPendingDeleteFileId(null)}
       />
     </div>
-  );
-}
-
-type SideRailTab<T extends string> = { id: T; label: string; count?: number };
-
-function SideRail<T extends string>({
-  tabs,
-  active,
-  onChange,
-}: {
-  tabs: readonly SideRailTab<T>[];
-  active: T;
-  onChange: (id: T) => void;
-}) {
-  return (
-    <nav className="space-y-0.5 border-r border-base-800 pr-3">
-      {tabs.map((t) => {
-        const isActive = t.id === active;
-        return (
-          <button
-            key={t.id}
-            type="button"
-            role="tab"
-            aria-selected={isActive}
-            onClick={() => onChange(t.id)}
-            className={`relative flex w-full items-center justify-between rounded px-3 py-2 text-left text-[12.5px] font-medium transition-colors ${
-              isActive
-                ? 'bg-base-900 text-white'
-                : 'text-ink-400 hover:bg-base-900/40 hover:text-white'
-            }`}
-          >
-            <span>{t.label}</span>
-            {typeof t.count === 'number' && (
-              <span className={`font-mono text-[10px] ${isActive ? 'text-amber-400' : 'text-ink-500'}`}>
-                {t.count}
-              </span>
-            )}
-            {isActive && (
-              <span className="absolute -left-px top-1.5 bottom-1.5 w-[2px] rounded bg-amber-500" />
-            )}
-          </button>
-        );
-      })}
-    </nav>
   );
 }

@@ -30,13 +30,14 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Loader2, X } from 'lucide-react';
 import { createPortal } from 'react-dom';
 
-type ModalSize = 'sm' | 'md' | 'lg' | 'xl';
+type ModalSize = 'sm' | 'md' | 'lg' | 'xl' | '2xl';
 
 const SIZE_CLASS: Record<ModalSize, string> = {
-  sm: 'w-[400px]',
-  md: 'w-[440px]',
-  lg: 'w-[560px]',
-  xl: 'w-[768px]',
+  sm:  'w-[400px]',
+  md:  'w-[440px]',
+  lg:  'w-[560px]',
+  xl:  'w-[768px]',
+  '2xl': 'w-[896px]',
 };
 
 type Props = {

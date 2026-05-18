@@ -4,7 +4,6 @@ import { motion } from 'framer-motion';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { format, parseISO } from 'date-fns';
 import {
   bulkDeleteFiles,
   bulkDownloadFiles,
@@ -15,7 +14,6 @@ import {
 } from '@/services/apiClient';
 import { useAuth } from '@/context/AuthContext';
 import { BulkActionBar } from '@/components/explorer/BulkActionBar';
-import { FileGrid } from '@/components/explorer/FileGrid';
 import { MediaTabs, type MediaTab } from '@/components/explorer/MediaTabs';
 import { DateFilterMenu } from '@/components/explorer/DateFilterMenu';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -28,6 +26,8 @@ import type {
   ApiRoomMediaGroup,
   ExplorerByRoomResponse,
 } from '@/types/api';
+import { DateSection } from './_components/DateSection';
+import { Skeleton } from './_components/Skeleton';
 
 export const dynamic = 'force-dynamic';
 
@@ -459,89 +459,3 @@ function Inner() {
   );
 }
 
-function Skeleton() {
-  return (
-    <div className="space-y-6">
-      {Array.from({ length: 3 }).map((_, i) => (
-        <div key={i}>
-          <div className="h-5 w-40 animate-pulse rounded bg-base-800" />
-          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
-            {Array.from({ length: 5 }).map((_, j) => (
-              <div key={j} className="aspect-[4/3] animate-pulse rounded-md bg-base-800/60" />
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-const TYPE_PILLS = [
-  { key: 'images' as const,      label: 'IMG', bg: 'bg-amber-500/10',   text: 'text-amber-400'  },
-  { key: 'videos' as const,      label: 'VID', bg: 'bg-steel-500/10',   text: 'text-steel-400'  },
-  { key: 'pointclouds' as const, label: 'PCD', bg: 'bg-violet-500/10',  text: 'text-violet-400' },
-  { key: 'pdfs' as const,        label: 'PDF', bg: 'bg-base-700/50',    text: 'text-ink-300'    },
-] as const;
-
-function DateSection({
-  date,
-  group,
-  roomSlug,
-  projectSlug,
-  files,
-  isAdmin,
-  onDelete,
-  batchActive,
-  selectedIds,
-  onToggleSelect,
-}: {
-  date: string;
-  group: ApiRoomMediaGroup;
-  roomSlug: string;
-  projectSlug: string;
-  files: ApiMediaFile[];
-  isAdmin: boolean;
-  onDelete: (file: ApiMediaFile) => void;
-  batchActive?: boolean;
-  selectedIds?: ReadonlySet<string>;
-  onToggleSelect?: (file: ApiMediaFile, opts: { range: boolean }) => void;
-}) {
-  return (
-    <section>
-      <div className="mb-4 flex items-start justify-between gap-4">
-        <div>
-          <h2 className="font-display text-[20px] font-semibold tracking-tight text-white">
-            {format(parseISO(date), 'EEE, MMM d, yyyy')}
-          </h2>
-          <div className="mt-2 flex flex-wrap items-center gap-1.5">
-            {TYPE_PILLS.map(({ key, label, bg, text }) => {
-              const count = group[key].length;
-              if (!count) return null;
-              return (
-                <span
-                  key={key}
-                  className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 font-mono text-[10px] font-medium ${bg} ${text}`}
-                >
-                  <span className="tabular-nums">{count}</span>
-                  <span className="opacity-70">{label}</span>
-                </span>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-      <FileGrid
-        files={files}
-        roomSlug={roomSlug}
-        projectSlug={projectSlug}
-        date={date}
-        origin="room"
-        isAdmin={isAdmin}
-        onDelete={onDelete}
-        batchActive={batchActive}
-        selectedIds={selectedIds}
-        onToggleSelect={onToggleSelect}
-      />
-    </section>
-  );
-}

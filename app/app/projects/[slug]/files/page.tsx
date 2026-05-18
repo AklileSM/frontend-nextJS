@@ -1,10 +1,23 @@
 'use client';
 
+/**
+ * Per-project file explorer page.
+ *
+ * The 600-line monolith was reduced by moving four pieces out:
+ *   - _components/RoomSection.tsx  (per-room block: heading + grid)
+ *   - _components/Uploader.tsx     (room combobox + date picker + UploadZone)
+ *   - _components/Skeleton.tsx     (loading placeholder)
+ *   - _components/helpers.ts       (pickGroup, emptyGroup, filesForTab, TYPE_TO_TAB)
+ *
+ * State + orchestration stay here (date param, project lookup, polling,
+ * selection state, bulk + single delete flows).
+ */
+
 import { motion } from 'framer-motion';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Upload, X, ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Calendar, Filter, Upload, X } from 'lucide-react';
 import Link from 'next/link';
 import {
   bulkDeleteFiles,
@@ -19,19 +32,19 @@ import { useSelectedDate } from '@/context/SelectedDateContext';
 import { useMyProjectRole } from '@/hooks/useMyProjectRole';
 import { RoomFilterMenu } from '@/components/explorer/RoomFilterMenu';
 import { BulkActionBar } from '@/components/explorer/BulkActionBar';
-import { FileGrid } from '@/components/explorer/FileGrid';
 import { MediaTabs, type MediaTab } from '@/components/explorer/MediaTabs';
-import { UploadZone } from '@/components/explorer/UploadZone';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { Calendar, Filter } from 'lucide-react';
 import type {
   ApiMediaFile,
   ApiProject,
   ApiRoom,
-  ApiRoomMediaGroup,
   ExplorerByDateResponse,
 } from '@/types/api';
+import { RoomSection } from './_components/RoomSection';
+import { Uploader } from './_components/Uploader';
+import { Skeleton } from './_components/Skeleton';
+import { emptyGroup, filesForTab, pickGroup, TYPE_TO_TAB } from './_components/helpers';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,7 +67,7 @@ export default function FileExplorerPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkConfirmDelete, setBulkConfirmDelete] = useState(false);
-  // Anchor for shift-range selection, the last file the user clicked.
+  // Anchor for shift-range selection — the last file the user clicked.
   // Stored in a ref so re-renders don't reset it.
   const selectionAnchorRef = useRef<string | null>(null);
   const knownPendingRef = useRef<Set<string>>(new Set());
@@ -91,7 +104,7 @@ export default function FileExplorerPage() {
 
   useEffect(() => { setRoomFilter(null); setVisibleCount(10); }, [date]);
 
-  // Clear selection whenever the user changes context, tab switch, date
+  // Clear selection whenever the user changes context — tab switch, date
   // change, or new project. Stale selections from a hidden tab would be
   // invisible but still in scope for bulk actions, which is surprising.
   useEffect(() => {
@@ -185,7 +198,7 @@ export default function FileExplorerPage() {
     try {
       const result = await bulkDeleteFiles(ids);
       // Optimistically remove the affected rows so the user doesn't see them
-      // until the next reload, same trick the single-file delete uses.
+      // until the next reload — same trick the single-file delete uses.
       setHiddenFileIds((prev) => new Set([...prev, ...ids]));
       clearSelection();
       setReloadToken((t) => t + 1);
@@ -296,7 +309,7 @@ export default function FileExplorerPage() {
     } catch (err) {
       deleteControllers.current.delete(file.id);
       if (controller.signal.aborted) {
-        // User hit Undo before the request completed, restore the file.
+        // User hit Undo before the request completed — restore the file.
         return;
       }
       entry.done = true;
@@ -365,7 +378,7 @@ export default function FileExplorerPage() {
 
       {canUpload && (
         // Always mounted while the user has upload permission so in-flight
-        // uploads survive a manual "Close uploader", the panel collapses to
+        // uploads survive a manual "Close uploader" — the panel collapses to
         // height:0 instead of being unmounted. The Uploader's auto-close on
         // batch completion calls back into setShowUploader.
         <motion.div
@@ -473,166 +486,6 @@ export default function FileExplorerPage() {
           onClear={clearSelection}
         />
       )}
-    </div>
-  );
-}
-
-function pickGroup(rooms: Record<string, ApiRoomMediaGroup>, room: ApiRoom): ApiRoomMediaGroup | null {
-  return rooms[room.name] ?? rooms[room.slug] ?? null;
-}
-
-function emptyGroup(): ApiRoomMediaGroup {
-  return { images: [], videos: [], pointclouds: [], pdfs: [] };
-}
-
-function filesForTab(group: ApiRoomMediaGroup, tab: MediaTab): ApiMediaFile[] {
-  return group[tab];
-}
-
-function Skeleton() {
-  return (
-    <div className="space-y-6">
-      {Array.from({ length: 3 }).map((_, i) => (
-        <div key={i}>
-          <div className="h-5 w-40 animate-pulse rounded bg-base-800" />
-          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
-            {Array.from({ length: 5 }).map((_, j) => (
-              <div key={j} className="aspect-[4/3] animate-pulse rounded-md bg-base-800/60" />
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-const TYPE_PILLS = [
-  { key: 'images' as const,      label: 'IMG', bg: 'bg-amber-500/10',  text: 'text-amber-400'  },
-  { key: 'videos' as const,      label: 'VID', bg: 'bg-steel-500/10',  text: 'text-steel-400'  },
-  { key: 'pointclouds' as const, label: 'PCD', bg: 'bg-violet-500/10', text: 'text-violet-400' },
-  { key: 'pdfs' as const,        label: 'PDF', bg: 'bg-base-700/50',   text: 'text-ink-300'    },
-] as const;
-
-function RoomSection({
-  roomName, roomSlug, projectSlug, date, group, files, canDelete, onDelete,
-  batchActive, selectedIds, onToggleSelect,
-}: {
-  roomName: string; roomSlug: string; projectSlug: string; date: string;
-  group: ApiRoomMediaGroup; files: ApiMediaFile[]; canDelete: boolean; onDelete: (f: ApiMediaFile) => void;
-  batchActive?: boolean;
-  selectedIds?: ReadonlySet<string>;
-  onToggleSelect?: (file: ApiMediaFile, opts: { range: boolean }) => void;
-}) {
-  return (
-    <section>
-      <div className="mb-4 flex items-start justify-between gap-4">
-        <div>
-          <h2 className="font-display text-[20px] font-semibold tracking-tight text-white">{roomName}</h2>
-          <div className="mt-2 flex flex-wrap items-center gap-1.5">
-            {TYPE_PILLS.map(({ key, label, bg, text }) => {
-              const count = group[key].length;
-              if (!count) return null;
-              return (
-                <span
-                  key={key}
-                  className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 font-mono text-[10px] font-medium ${bg} ${text}`}
-                >
-                  <span className="tabular-nums">{count}</span>
-                  <span className="opacity-70">{label}</span>
-                </span>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-      <FileGrid
-        files={files}
-        roomSlug={roomSlug}
-        projectSlug={projectSlug}
-        date={date}
-        origin="project"
-        isAdmin={canDelete}
-        onDelete={onDelete}
-        batchActive={batchActive}
-        selectedIds={selectedIds}
-        onToggleSelect={onToggleSelect}
-      />
-    </section>
-  );
-}
-
-const TYPE_TO_TAB: Record<ApiMediaFile['type'], MediaTab> = {
-  image: 'images',
-  video: 'videos',
-  pointcloud: 'pointclouds',
-  pdf: 'pdfs',
-};
-
-function Uploader({ rooms, captureDate, onUploaded, onClose, visible }: { rooms: ApiRoom[]; captureDate: string; onUploaded: (type: ApiMediaFile['type']) => void; onClose?: () => void; visible?: boolean }) {
-  const [roomId, setRoomId] = useState(rooms[0]?.id ?? '');
-  const [query, setQuery] = useState('');
-  const [open, setOpen] = useState(false);
-  const [uploadDate, setUploadDate] = useState(captureDate);
-
-  useEffect(() => {
-    if (!roomId && rooms.length) setRoomId(rooms[0].id);
-  }, [roomId, rooms]);
-
-  useEffect(() => { setUploadDate(captureDate); }, [captureDate]);
-
-  const selectedRoom = rooms.find((r) => r.id === roomId);
-  const filtered = query
-    ? rooms.filter((r) => r.name.toLowerCase().includes(query.toLowerCase()))
-    : rooms;
-
-  if (!rooms.length || !roomId || !selectedRoom) return null;
-
-  return (
-    <div className="rounded-lg border border-base-800 bg-base-900/30 p-5">
-      <div className="mb-4 flex flex-wrap items-center gap-4">
-        {/* Room combobox */}
-        <div className="flex items-center gap-2">
-          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-300">Room</span>
-          <div className="relative">
-            <input
-              type="text"
-              value={open ? query : selectedRoom.name}
-              onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
-              onFocus={() => { setQuery(''); setOpen(true); }}
-              onBlur={() => setTimeout(() => setOpen(false), 150)}
-              placeholder="Search rooms…"
-              className="w-44 rounded-md border border-base-700 bg-base-950 px-2.5 py-1.5 text-[13px] text-white outline-none focus:border-amber-500"
-            />
-            {open && filtered.length > 0 && (
-              <ul className="absolute left-0 top-full z-20 mt-1 max-h-52 w-44 overflow-y-auto rounded-md border border-base-700 bg-base-900 py-1 shadow-xl">
-                {filtered.map((r) => (
-                  <li key={r.id}>
-                    <button
-                      type="button"
-                      onMouseDown={() => { setRoomId(r.id); setQuery(''); setOpen(false); }}
-                      className={`w-full px-3 py-1.5 text-left text-[13px] transition-colors hover:bg-base-800 ${r.id === roomId ? 'text-amber-400' : 'text-white'}`}
-                    >
-                      {r.name}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
-
-        {/* Capture date override */}
-        <div className="flex items-center gap-2">
-          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-300">Date</span>
-          <input
-            type="date"
-            value={uploadDate}
-            onChange={(e) => setUploadDate(e.target.value)}
-            className="rounded-md border border-base-700 bg-base-950 px-2.5 py-1.5 text-[13px] text-white outline-none focus:border-amber-500"
-          />
-        </div>
-      </div>
-      <UploadZone roomId={roomId} roomSlug={selectedRoom.slug} captureDate={uploadDate} onUploaded={onUploaded} onClose={onClose} visible={visible} />
     </div>
   );
 }

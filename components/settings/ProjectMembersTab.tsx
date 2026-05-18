@@ -1,20 +1,28 @@
 'use client';
 
+/** Project members tab: list, role change, remove, plus the add-member form
+ *  (typeahead user search + role picker).
+ *
+ *  Was ~433 lines. Two things came out:
+ *    - `members/RoleDropdown.tsx` — the three-option role popover.
+ *    - The inline ConfirmModal — replaced with the shared `<ConfirmDialog>`.
+ */
+
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { toast } from 'sonner';
-import { UserMinus, Loader2, X, ChevronDown } from 'lucide-react';
+import { Loader2, UserMinus } from 'lucide-react';
 import {
-  listProjectMembers,
   inviteProjectMember,
-  updateProjectMember,
+  listProjectMembers,
   removeProjectMember,
   searchUsers,
+  updateProjectMember,
 } from '@/services/apiClient';
 import { useAuth } from '@/context/AuthContext';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import type { AdminUser, ApiProjectMember } from '@/types/api';
-
-const ROLES: ApiProjectMember['role'][] = ['viewer', 'editor', 'owner'];
+import { RoleDropdown } from './members/RoleDropdown';
 
 const ROLE_BADGE: Record<ApiProjectMember['role'], string> = {
   owner:  'bg-amber-500/15 text-amber-400',
@@ -26,140 +34,9 @@ function initial(username: string) {
   return username.slice(0, 2).toUpperCase();
 }
 
-function RoleDropdown({
-  value,
-  onChange,
-}: {
-  value: ApiProjectMember['role'];
-  onChange: (r: ApiProjectMember['role']) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
-  const btnRef = useRef<HTMLButtonElement>(null);
-
-  const openDropdown = () => {
-    if (btnRef.current) {
-      const r = btnRef.current.getBoundingClientRect();
-      setCoords({ top: r.bottom + 4, left: r.left, width: r.width });
-    }
-    setOpen(true);
-  };
-
-  const dotColor = (r: ApiProjectMember['role']) =>
-    r === 'owner' ? 'bg-amber-400' : r === 'editor' ? 'bg-steel-400' : 'bg-ink-500';
-
-  return (
-    <div>
-      <button
-        ref={btnRef}
-        type="button"
-        onClick={openDropdown}
-        onBlur={() => setTimeout(() => setOpen(false), 150)}
-        className="flex w-full items-center justify-between gap-1.5 rounded-md border border-base-700 bg-base-950 px-2.5 py-1 text-[12px] text-white transition-colors hover:border-base-600"
-      >
-        <span className="flex items-center gap-1.5">
-          <span className={`h-1.5 w-1.5 rounded-full ${dotColor(value)}`} />
-          {value.charAt(0).toUpperCase() + value.slice(1)}
-        </span>
-        <ChevronDown size={11} className="text-ink-500" />
-      </button>
-      <AnimatePresence>
-        {open && (
-          <motion.ul
-            initial={{ opacity: 0, y: -4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.1 }}
-            style={{ top: coords.top, left: coords.left, width: coords.width }}
-            className="fixed z-50 rounded-md border border-base-700 bg-base-900 py-1 shadow-xl"
-          >
-            {ROLES.map((r) => (
-              <li key={r}>
-                <button
-                  type="button"
-                  onMouseDown={() => { onChange(r); setOpen(false); }}
-                  className={`flex w-full items-center gap-2 px-3 py-1.5 text-[12px] transition-colors hover:bg-base-800 ${
-                    r === value ? 'text-white' : 'text-ink-400'
-                  }`}
-                >
-                  <span className={`h-1.5 w-1.5 rounded-full ${dotColor(r)}`} />
-                  {r.charAt(0).toUpperCase() + r.slice(1)}
-                </button>
-              </li>
-            ))}
-          </motion.ul>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
 type ConfirmAction =
   | { type: 'remove'; member: ApiProjectMember }
   | { type: 'role'; member: ApiProjectMember; newRole: ApiProjectMember['role'] };
-
-function ConfirmModal({
-  action,
-  onConfirm,
-  onCancel,
-}: {
-  action: ConfirmAction;
-  onConfirm: () => void;
-  onCancel: () => void;
-}) {
-  const title =
-    action.type === 'remove'
-      ? `Remove ${action.member.username}?`
-      : `Change role to ${action.newRole}?`;
-
-  const body =
-    action.type === 'remove'
-      ? `${action.member.username} will lose all access to this project.`
-      : `${action.member.username} will be ${action.newRole === 'owner' ? 'promoted to owner' : action.newRole === 'editor' ? `promoted to editor` : 'demoted to viewer'}.`;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-base-950/70 backdrop-blur-sm" onClick={onCancel} />
-      <motion.div
-        initial={{ opacity: 0, scale: 0.96, y: 8 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.96, y: 8 }}
-        transition={{ duration: 0.15, ease: [0.22, 1, 0.36, 1] }}
-        className="relative w-full max-w-sm rounded-xl border border-base-700 bg-base-900 p-6 shadow-2xl"
-      >
-        <button
-          type="button"
-          onClick={onCancel}
-          className="absolute right-4 top-4 rounded p-1 text-ink-400 transition-colors hover:text-white"
-        >
-          <X size={14} />
-        </button>
-        <h3 className="font-display text-[17px] font-semibold text-white">{title}</h3>
-        <p className="mt-2 text-[13px] leading-relaxed text-ink-400">{body}</p>
-        <div className="mt-5 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-md border border-base-700 px-4 py-2 text-[13px] text-ink-300 transition-colors hover:border-ink-400 hover:text-white"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            className={`rounded-md px-4 py-2 text-[13px] font-semibold transition-colors ${
-              action.type === 'remove'
-                ? 'bg-red-500/90 text-white hover:bg-red-500'
-                : 'bg-amber-500 text-base-950 hover:bg-amber-400'
-            }`}
-          >
-            {action.type === 'remove' ? 'Remove' : 'Confirm'}
-          </button>
-        </div>
-      </motion.div>
-    </div>
-  );
-}
 
 export function ProjectMembersTab({
   projectId,
@@ -183,9 +60,8 @@ export function ProjectMembersTab({
   const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Confirm modal
+  // Confirm dialog
   const [confirm, setConfirm] = useState<ConfirmAction | null>(null);
-  const [confirming, setConfirming] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -245,7 +121,6 @@ export function ProjectMembersTab({
 
   const handleConfirm = async () => {
     if (!confirm) return;
-    setConfirming(true);
     try {
       if (confirm.type === 'remove') {
         await removeProjectMember(projectId, confirm.member.user_id);
@@ -259,10 +134,20 @@ export function ProjectMembersTab({
       setConfirm(null);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Action failed');
-    } finally {
-      setConfirming(false);
     }
   };
+
+  const confirmTitle = confirm
+    ? confirm.type === 'remove'
+      ? `Remove ${confirm.member.username}?`
+      : `Change role to ${confirm.newRole}?`
+    : '';
+
+  const confirmBody = confirm
+    ? confirm.type === 'remove'
+      ? `${confirm.member.username} will lose all access to this project.`
+      : `${confirm.member.username} will be ${confirm.newRole === 'owner' ? 'promoted to owner' : confirm.newRole === 'editor' ? 'promoted to editor' : 'demoted to viewer'}.`
+    : '';
 
   if (loading) {
     return (
@@ -417,16 +302,15 @@ export function ProjectMembersTab({
         </div>
       )}
 
-      {/* Confirmation modal */}
-      <AnimatePresence>
-        {confirm && (
-          <ConfirmModal
-            action={confirm}
-            onConfirm={handleConfirm}
-            onCancel={() => !confirming && setConfirm(null)}
-          />
-        )}
-      </AnimatePresence>
+      <ConfirmDialog
+        open={!!confirm}
+        title={confirmTitle}
+        body={confirmBody}
+        confirmLabel={confirm?.type === 'remove' ? 'Remove' : 'Confirm'}
+        danger={confirm?.type === 'remove'}
+        onConfirm={handleConfirm}
+        onCancel={() => setConfirm(null)}
+      />
     </div>
   );
 }
