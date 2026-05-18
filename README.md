@@ -1,6 +1,6 @@
 # A6-Stern Frontend
 
-> **New here?** Read [`deployment/PROJECT_OVERVIEW.md`](../deployment/PROJECT_OVERVIEW.md) first — it's the cross-repo front page with a topic-based map of every doc in the project.
+> **New here?** Read `[deployment/PROJECT_OVERVIEW.md](../deployment/PROJECT_OVERVIEW.md)` first — it's the cross-repo front page with a topic-based map of every doc in the project.
 
 Next.js application for the A6-Stern construction documentation platform. Provides file browsing, 360° panorama and 3D point cloud viewers, side-by-side image comparison, annotation tools, and PDF report generation.
 
@@ -10,19 +10,21 @@ Works alongside the `backend` and `deployment` repos.
 
 This README covers setup, route inventory, and the high-level state model. Deeper topics live in companion docs:
 
-| Doc | Covers |
-|---|---|
-| [STYLING.md](STYLING.md) | Color tokens, typography, common UI patterns, framer-motion conventions |
-| [VIEWERS.md](VIEWERS.md) | Static / panorama / point cloud / PDF / compare viewers; viewer-context handoff |
-| [EXPLORER.md](EXPLORER.md) | File grid, thumbnails, upload zone, calendar, room filter, bulk ops |
-| [REPORTS.md](REPORTS.md) | ReportBuilder, draft lifecycle, PDF generation, comparison flow |
-| [ANNOTATIONS.md](ANNOTATIONS.md) | Annotation pins, coordinate system, attachments, linked annotations |
-| [ADMIN.md](ADMIN.md) | `/app/admin/users` and `/app/admin/projects` pages, role gating |
-| [PROJECT_SETTINGS.md](PROJECT_SETTINGS.md) | Per-project settings: members, rooms, floorplan, danger zone |
-| [AUTH_FLOWS.md](AUTH_FLOWS.md) | Register, email verification, forgot/reset password, token storage |
-| [API_CLIENT.md](API_CLIENT.md) | How to add an endpoint, error handling, upload patterns |
-| [TESTING.md](TESTING.md) | Current state (no tests) + Vitest / Playwright starter recipe |
-| [docs/changelog-2026q2.md](docs/changelog-2026q2.md) | Historical UX audit changelog |
+
+| Doc                                                  | Covers                                                                          |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------- |
+| [STYLING.md](STYLING.md)                             | Color tokens, typography, common UI patterns, framer-motion conventions         |
+| [VIEWERS.md](VIEWERS.md)                             | Static / panorama / point cloud / PDF / compare viewers; viewer-context handoff |
+| [EXPLORER.md](EXPLORER.md)                           | File grid, thumbnails, upload zone, calendar, room filter, bulk ops             |
+| [REPORTS.md](REPORTS.md)                             | ReportBuilder, draft lifecycle, PDF generation, comparison flow                 |
+| [ANNOTATIONS.md](ANNOTATIONS.md)                     | Annotation pins, coordinate system, attachments, linked annotations             |
+| [ADMIN.md](ADMIN.md)                                 | `/app/admin/users` and `/app/admin/projects` pages, role gating                 |
+| [PROJECT_SETTINGS.md](PROJECT_SETTINGS.md)           | Per-project settings: members, rooms, floorplan, danger zone                    |
+| [AUTH_FLOWS.md](AUTH_FLOWS.md)                       | Register, email verification, forgot/reset password, token storage              |
+| [API_CLIENT.md](API_CLIENT.md)                       | How to add an endpoint, error handling, upload patterns                         |
+| [TESTING.md](TESTING.md)                             | Current state (no tests) + Vitest / Playwright starter recipe                   |
+| [docs/changelog-2026q2.md](docs/changelog-2026q2.md) | Historical UX audit changelog                                                   |
+
 
 ## Prerequisites
 
@@ -58,11 +60,11 @@ The default fallback in `next.config.mjs` is `http://localhost:3002`, so if your
 
 | Variable              | Where set             | Default                 | Description                                                                                                                                                             |
 | --------------------- | --------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `BACKEND_URL`         | `.env.local` or shell | `http://localhost:3002` | Backend base URL used by the Next.js rewrite proxy. **Build-time and runtime** — changing it requires a rebuild in Docker.                                              |
+| `BACKEND_URL`         | `.env.local` or shell | `http://localhost:3002` | Backend base URL used by the Next.js rewrite proxy. **Build-time and runtime**, changing it requires a rebuild in Docker.                                               |
 | `NEXT_PROXY_MAX_BODY` | `.env.local` or shell | `128mb`                 | Maximum request body the Next.js proxy will buffer. Must be larger than your point cloud chunk size (default chunks are 64 MB). Lower this only if memory is a concern. |
 
 
-**Note:** `BACKEND_URL` is never sent to the browser. The browser always calls `/api/`* on the same origin; Next.js rewrites those server-side to the backend. This is why the variable needs to be available at build time in Docker — Next.js bakes the rewrite destination into its route manifest.
+**Note:** `BACKEND_URL` is never sent to the browser. The browser always calls `/api/`* on the same origin; Next.js rewrites those server-side to the backend. This is why the variable needs to be available at build time in Docker, Next.js bakes the rewrite destination into its route manifest.
 
 ## Available scripts
 
@@ -90,7 +92,7 @@ Any `401` response from the API clears the stored token and redirects the browse
 | `/`                          | No            | Public landing page                              |
 | `/login`                     | No            |                                                  |
 | `/register`                  | No            |                                                  |
-| `/app/*`                     | Yes           | Main application shell (navbar + sidebar)        |
+| `/app/`*                     | Yes           | Main application shell (navbar + sidebar)        |
 | `/app/projects/[slug]/files` | Yes           | File explorer                                    |
 | `/app/compare`               | Yes           | Side-by-side image comparison                    |
 | `/app/viewer/panorama`       | Yes           | 360° viewer                                      |
@@ -120,20 +122,20 @@ After upload, point clouds are converted to Potree format asynchronously. The fi
 ## Key code locations
 
 
-| Path                              | Purpose                                                                          |
-| --------------------------------- | -------------------------------------------------------------------------------- |
-| `next.config.mjs`                 | Rewrite proxy config, `BACKEND_URL` wiring, proxy body size limit                |
-| `services/apiClient.ts`           | All API calls — fetch wrapper, auth header injection, 401 redirect, upload logic |
-| `auth/authSession.ts`             | JWT read/write/clear in localStorage                                             |
-| `context/AuthContext.tsx`         | Auth state (current user, login, logout, register)                               |
-| `context/SelectedDateContext.tsx` | Date filter state shared across the file explorer                                |
-| `hooks/useMyProjectRole.ts`       | Returns the current user's role in a given project                               |
-| `types/api.ts`                    | TypeScript interfaces mirroring all backend response shapes                      |
-| `lib/engineeringReportPdf.ts`     | PDF generation for engineering reports (jsPDF)                                   |
-| `lib/compareDraftPdfFromState.ts` | PDF generation for comparison reports                                            |
-| `components/viewers/`             | Panorama (Three.js), PointCloud (Potree), Static image, PDF viewers              |
-| `components/explorer/`            | File grid, thumbnails, date/room filters, upload zone                            |
-| `components/compare/`             | Side-by-side 360° comparison viewer and panel                                    |
+| Path                              | Purpose                                                                         |
+| --------------------------------- | ------------------------------------------------------------------------------- |
+| `next.config.mjs`                 | Rewrite proxy config, `BACKEND_URL` wiring, proxy body size limit               |
+| `services/apiClient.ts`           | All API calls, fetch wrapper, auth header injection, 401 redirect, upload logic |
+| `auth/authSession.ts`             | JWT read/write/clear in localStorage                                            |
+| `context/AuthContext.tsx`         | Auth state (current user, login, logout, register)                              |
+| `context/SelectedDateContext.tsx` | Date filter state shared across the file explorer                               |
+| `hooks/useMyProjectRole.ts`       | Returns the current user's role in a given project                              |
+| `types/api.ts`                    | TypeScript interfaces mirroring all backend response shapes                     |
+| `lib/engineeringReportPdf.ts`     | PDF generation for engineering reports (jsPDF)                                  |
+| `lib/compareDraftPdfFromState.ts` | PDF generation for comparison reports                                           |
+| `components/viewers/`             | Panorama (Three.js), PointCloud (Potree), Static image, PDF viewers             |
+| `components/explorer/`            | File grid, thumbnails, date/room filters, upload zone                           |
+| `components/compare/`             | Side-by-side 360° comparison viewer and panel                                   |
 
 
 ## Performance and bundle
@@ -199,11 +201,11 @@ Three things happen in `next.config.mjs` that are easy to miss:
 { source: '/api/:path*', destination: `${backendBase}/api/:path`* }
 ```
 
-Every browser request to `/api/*` is rewritten server-side by Next.js to the backend URL. The browser always calls the same origin as the frontend — the backend address never reaches the client. This eliminates CORS configuration entirely.
+Every browser request to `/api/*` is rewritten server-side by Next.js to the backend URL. The browser always calls the same origin as the frontend, the backend address never reaches the client. This eliminates CORS configuration entirely.
 
 **2. BACKEND_URL is build-time AND runtime**
 
-`backendBase` is read from `process.env.BACKEND_URL` when the Next.js server starts. In Docker, it is baked into the route manifest at `docker build` time as a build arg. Changing the value in `.env` after building has no effect — you must rebuild the image.
+`backendBase` is read from `process.env.BACKEND_URL` when the Next.js server starts. In Docker, it is baked into the route manifest at `docker build` time as a build arg. Changing the value in `.env` after building has no effect, you must rebuild the image.
 
 **3. Proxy body size limit**
 
@@ -256,7 +258,7 @@ Viewer state (which file is open, camera position) is passed via `sessionStorage
 2. **Login/register**: the token is written to localStorage; the user object is set in context.
 3. **401 from any API call**: `apiFetch` clears the token and hard-redirects to `/login`.
 4. **Logout**: token cleared from localStorage; user set to `null` in context.
-5. **Token expiry**: handled identically to a 401 — the next API call triggers the redirect.
+5. **Token expiry**: handled identically to a 401, the next API call triggers the redirect.
 
 ### Adding new global state
 

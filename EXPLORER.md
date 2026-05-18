@@ -4,10 +4,12 @@ The Explorer is the primary "browse your project" surface. It groups uploaded fi
 
 ## Routes
 
-| Route | Purpose | Grouping |
-|---|---|---|
+
+| Route                        | Purpose                   | Grouping                    |
+| ---------------------------- | ------------------------- | --------------------------- |
 | `/app/projects/[slug]/files` | Per-project file explorer | by room (for selected date) |
-| `/app/room-explorer` | Cross-project room view | by date (for selected room) |
+| `/app/room-explorer`         | Cross-project room view   | by date (for selected room) |
+
 
 Both pages are wrapped in `AppShell` (sidebar + header) and share most of the explorer components.
 
@@ -44,13 +46,14 @@ ExplorerByDateResponse | ExplorerByRoomResponse
 ```
 
 The page owns:
+
 - Selected date (via `SelectedDateContext`, persisted to localStorage)
 - Active room filter (URL query param `?room=`)
 - Active media tab (URL query param `?tab=`)
 - Bulk-select state (`Set<fileId>`)
 - Upload zone visibility
 
-## Viewer handoff — `viewerContext.ts`
+## Viewer handoff: `viewerContext.ts`
 
 Next.js App Router has no `location.state` equivalent. To pass a clicked file's metadata into a viewer page (which lives at a different URL), the Explorer writes to localStorage *before* navigating:
 
@@ -75,25 +78,29 @@ A legacy key `a6.viewerContext` is read as a fallback for sessions that pre-date
 
 ### `viewerHrefFor(file)` routing
 
-| File type | Default route | Notes |
-|---|---|---|
-| `image` | `/app/viewer/static` | User can switch to Panorama inside the viewer |
-| `video` | `/app/viewer/static` | Plays inline |
-| `pointcloud` | `/app/viewer/point-cloud` | |
-| `pdf` | `/app/pdf-viewer` | |
 
-### `backHrefFor(ctx)` — back button target
+| File type    | Default route             | Notes                                         |
+| ------------ | ------------------------- | --------------------------------------------- |
+| `image`      | `/app/viewer/static`      | User can switch to Panorama inside the viewer |
+| `video`      | `/app/viewer/static`      | Plays inline                                  |
+| `pointcloud` | `/app/viewer/point-cloud` |                                               |
+| `pdf`        | `/app/pdf-viewer`         |                                               |
 
-| `ctx.origin` | Back URL |
-|---|---|
-| `'project'` | `/app/projects/<slug>/files?date=<date>` |
-| `'room'` | `/app/room-explorer?room=<slug>` |
+
+### `backHrefFor(ctx)`: back button target
+
+
+| `ctx.origin` | Back URL                                 |
+| ------------ | ---------------------------------------- |
+| `'project'`  | `/app/projects/<slug>/files?date=<date>` |
+| `'room'`     | `/app/room-explorer?room=<slug>`         |
+
 
 Viewer pages also show a "Back to Explorer" fallback when `ctx` is null (e.g., the user bookmarked the viewer URL).
 
 ### Recent files
 
-Every `setViewerContext` call also writes to `a6.recentFiles` — a capped list of the **last 12** files opened across all projects. Used by the project home page's "Recent files" widget. The list keeps the full `ApiMediaFile` object so clicking a recent entry can navigate straight to the right viewer without an API round-trip.
+Every `setViewerContext` call also writes to `a6.recentFiles`, a capped list of the **last 12** files opened across all projects. Used by the project home page's "Recent files" widget. The list keeps the full `ApiMediaFile` object so clicking a recent entry can navigate straight to the right viewer without an API round-trip.
 
 ## Calendar / Date filter
 
@@ -120,14 +127,14 @@ Days with any media are highlighted. Selecting one updates `SelectedDateContext`
 
 ## Upload Zone
 
-Wrapped in admin/editor gating at the page level — the upload toggle only appears when the user has permission. Inside `UploadZone`:
+Wrapped in admin/editor gating at the page level, the upload toggle only appears when the user has permission. Inside `UploadZone`:
 
 1. Files are detected by extension into one of `image / video / pointcloud / pdf`.
 2. For each file, a **client-side SHA-256** is computed (`lib/hashFile.ts`).
 3. `precheckUploadHash` is called; if the backend already has this hash, the tile is marked `duplicate` with the room/date where it lives, and the upload is blocked client-side.
 4. On confirm, `uploadSingleFile` runs:
-   - Images / videos / PDFs → single `POST /api/upload/single` with XHR progress.
-   - Point clouds → tries direct-MinIO upload first (`/pointcloud/direct-init` → presigned PUT), falls back to chunked (`/pointcloud/init` → repeated `/chunk` → `/complete`) if direct is disabled or fails.
+  - Images / videos / PDFs → single `POST /api/upload/single` with XHR progress.
+  - Point clouds → tries direct-MinIO upload first (`/pointcloud/direct-init` → presigned PUT), falls back to chunked (`/pointcloud/init` → repeated `/chunk` → `/complete`) if direct is disabled or fails.
 
 A staging modal collects all files first, lets the user remove individual tiles, and uploads sequentially.
 
@@ -139,8 +146,8 @@ The capture date defaults to the page's `?date=` param but can be changed before
 
 When any thumbnail is selected, `BulkActionBar` appears with:
 
-- **Delete** — `POST /api/files/bulk-delete` (returns `{affected, skipped}`)
-- **Download** — `POST /api/files/bulk-download` (streams a ZIP)
+- **Delete**: `POST /api/files/bulk-delete` (returns `{affected, skipped}`)
+- **Download**: `POST /api/files/bulk-download` (streams a ZIP)
 
 Each operation is gated server-side per asset; failures count as `skipped` and the rest of the batch still completes. The bar disappears when the selection becomes empty.
 
@@ -164,7 +171,7 @@ The polling `useEffect` cleans up via `clearInterval` on unmount so navigating a
 
 ## Search
 
-The header search box (`Header.tsx` → `ProjectSearch.tsx`) calls `searchFiles(q, projectSlug)`. The backend does trigram + ILIKE matching across `display_name`, `original_name`, `Room.name`, and parses ISO dates as exact matches on `capture_date`. Results route through a dedicated dropdown — clicking a result triggers `setViewerContext` + navigate, same handoff as the grid.
+The header search box (`Header.tsx` → `ProjectSearch.tsx`) calls `searchFiles(q, projectSlug)`. The backend does trigram + ILIKE matching across `display_name`, `original_name`, `Room.name`, and parses ISO dates as exact matches on `capture_date`. Results route through a dedicated dropdown, clicking a result triggers `setViewerContext` + navigate, same handoff as the grid.
 
 ## Empty states
 
@@ -172,13 +179,13 @@ The header search box (`Header.tsx` → `ProjectSearch.tsx`) calls `searchFiles(
 
 - No date selected → "Pick a date from the calendar to start browsing"
 - Date has no files for the active room/tab → "No files captured here yet"
-- Search returns nothing → "No matches for '<q>'"
+- Search returns nothing → "No matches for ''"
 
 Don't introduce ad-hoc empty messages; reuse `EmptyState`.
 
 ## Pagination
 
-The per-project explorer paginates rooms — `visibleCount: 10` initially, "Load more" reveals the next 10. Resets to 10 when the date changes. Inside each room, all files in the active tab are shown without inner pagination (typical batch sizes are well under a hundred).
+The per-project explorer paginates rooms, `visibleCount: 10` initially, "Load more" reveals the next 10. Resets to 10 when the date changes. Inside each room, all files in the active tab are shown without inner pagination (typical batch sizes are well under a hundred).
 
 ## Keyboard
 
@@ -187,16 +194,19 @@ The per-project explorer paginates rooms — `visibleCount: 10` initially, "Load
 
 ## Where the code lives
 
-| Concern | File |
-|---|---|
-| Per-project page | `app/app/projects/[slug]/files/page.tsx` |
-| Room explorer page | `app/app/room-explorer/page.tsx` |
-| Grid / Thumbnail | `components/explorer/FileGrid.tsx`, `Thumbnail.tsx` |
-| Upload zone | `components/explorer/UploadZone.tsx` |
-| Date filter | `components/explorer/DateFilterMenu.tsx` |
-| Room combobox | `components/explorer/RoomFilterMenu.tsx` |
-| Bulk actions | `components/explorer/BulkActionBar.tsx` |
-| Viewer handoff | `components/explorer/viewerContext.ts` |
-| Selected-date context | `context/SelectedDateContext.tsx` |
-| Hash helper | `lib/hashFile.ts` |
-| Recent files widget | `components/home/RecentFiles.tsx` |
+
+| Concern               | File                                                |
+| --------------------- | --------------------------------------------------- |
+| Per-project page      | `app/app/projects/[slug]/files/page.tsx`            |
+| Room explorer page    | `app/app/room-explorer/page.tsx`                    |
+| Grid / Thumbnail      | `components/explorer/FileGrid.tsx`, `Thumbnail.tsx` |
+| Upload zone           | `components/explorer/UploadZone.tsx`                |
+| Date filter           | `components/explorer/DateFilterMenu.tsx`            |
+| Room combobox         | `components/explorer/RoomFilterMenu.tsx`            |
+| Bulk actions          | `components/explorer/BulkActionBar.tsx`             |
+| Viewer handoff        | `components/explorer/viewerContext.ts`              |
+| Selected-date context | `context/SelectedDateContext.tsx`                   |
+| Hash helper           | `lib/hashFile.ts`                                   |
+| Recent files widget   | `components/home/RecentFiles.tsx`                   |
+
+

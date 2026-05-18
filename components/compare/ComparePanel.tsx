@@ -1,47 +1,56 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+/**
+ * Side-by-side comparison panel.
+ *
+ * This file used to be ~1570 lines. Sub-components and shared types/helpers
+ * were split out into `./panel/*`:
+ *
+ *   - panel/types.ts          — Side, PanelState, FileSelection, ...
+ *   - panel/helpers.ts        — draftSavedDayKeyLocal, isPCDUrl, ...
+ *   - panel/CompareCalendar.tsx
+ *   - panel/PickerThumbnail.tsx
+ *   - panel/PanelFileExplorer.tsx
+ *   - panel/PublishModal.tsx
+ *
+ * The state still lives in this file (it is heavily interdependent across
+ * the dual viewers, draft hydration, snapshot/annex, and the publish
+ * pipeline). The sub-components are pure presentational pieces; the publish
+ * modal receives the draft list + selection state as props.
+ */
+
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { AnimatePresence, motion } from 'framer-motion';
-import {
-  addMonths,
-  eachDayOfInterval,
-  endOfMonth,
-  endOfWeek,
-  format,
-  isSameMonth,
-  parseISO,
-  startOfMonth,
-  startOfWeek,
-} from 'date-fns';
 import { PDFDocument } from 'pdf-lib';
 import { toast } from 'sonner';
 import {
   ArrowLeft,
-  Box,
-  CalendarDays,
   Camera,
-  ChevronLeft,
-  ChevronRight,
-  FileText,
   GitCompareArrows,
-  Image as ImageIcon,
   Link2,
   Link2Off,
   Loader2,
-  Trash2,
-  Video as VideoIcon,
   X,
 } from 'lucide-react';
-import { MediaTabs, type MediaTab } from '@/components/explorer/MediaTabs';
 import Compare360Viewer, { type CameraSyncState } from './Compare360Viewer';
+import { CompareCalendar } from './panel/CompareCalendar';
+import { PanelFileExplorer } from './panel/PanelFileExplorer';
+import { PublishModal } from './panel/PublishModal';
+import { isPCDUrl } from './panel/helpers';
+import type {
+  FileSelection,
+  NoticeState,
+  PanelState,
+  ScreenshotNotes,
+  Side,
+  SideFlags,
+} from './panel/types';
 import {
   API_BASE,
   createComparisonDraft,
   deleteComparisonDraft,
   getComparisonDraft,
-  getExplorerByDateForProject,
   getExplorerDatesSummaryForProject,
   listComparisonDrafts,
   listProjects,
@@ -56,499 +65,7 @@ import {
   type CompareDraftStateV1,
 } from '@/lib/compareDraftPdfFromState';
 import { flagsFromObservationBooleans } from '@/lib/observationReportFlags';
-import type { ApiComparisonDraft, ApiMediaFile, ApiProject, ApiRoomMediaGroup } from '@/types/api';
-
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-type Side = 'left' | 'right';
-type PanelState = 'calendar' | 'explorer' | 'viewer360' | 'viewerPCD';
-
-type FileSelection = {
-  fileUrl: string;
-  fileId: string;
-  displayFileName: string;
-  roomSlug: string;
-  roomLabel: string;
-  captureDate: string;
-  mediaType: string;
-  isPCD: boolean;
-};
-
-type ScreenshotNotes = { images: string[]; text: string };
-type SideFlags = { safety: boolean; quality: boolean; delayed: boolean };
-type NoticeState = { title: string; message: string; variant: 'info' | 'error' };
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function draftSavedDayKeyLocal(iso: string): string {
-  const t = new Date(iso);
-  if (Number.isNaN(t.getTime())) return '';
-  const y = t.getFullYear();
-  const m = String(t.getMonth() + 1).padStart(2, '0');
-  const d = String(t.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
-
-function formatLocalDayMedium(dateKey: string): string {
-  const [y, mo, day] = dateKey.split('-').map(Number);
-  if (!y || !mo || !day) return dateKey;
-  return new Date(y, mo - 1, day).toLocaleDateString(undefined, { dateStyle: 'medium' });
-}
-
-function isPCDUrl(url: string): boolean {
-  return /\.(glb|obj|e57|las|laz|ply)(\?|$)/i.test(url.split('?')[0]);
-}
-
-// ── CompareCalendar ───────────────────────────────────────────────────────────
-
-const WEEKDAYS_SHORT = ['M', 'T', 'W', 'T', 'F', 'S', 'S'] as const;
-const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'] as const;
-
-const calSlideVariants = {
-  enterForward:  { x: 20, opacity: 0 },
-  enterBackward: { x: -20, opacity: 0 },
-  center:        { x: 0,  opacity: 1 },
-  exitForward:   { x: -20, opacity: 0 },
-  exitBackward:  { x: 20,  opacity: 0 },
-};
-
-function activeMonthsFromDates(dates: ReadonlySet<string>): Set<string> {
-  const s = new Set<string>();
-  for (const iso of dates) s.add(iso.slice(0, 7));
-  return s;
-}
-
-function CompareCalendar({
-  availableDates,
-  onDateSelect,
-}: {
-  availableDates: ReadonlySet<string>;
-  onDateSelect: (date: string) => void;
-}) {
-  const [cursor, setCursor] = useState<Date>(() => {
-    const sorted = [...availableDates].sort();
-    return sorted.length > 0
-      ? startOfMonth(parseISO(sorted.at(-1)! + 'T00:00:00'))
-      : startOfMonth(new Date());
-  });
-  const [view, setView] = useState<'days' | 'months'>('days');
-  const [direction, setDirection] = useState(1);
-
-  const activeMonths = useMemo(() => activeMonthsFromDates(availableDates), [availableDates]);
-
-  const goMonth = (delta: number) => {
-    setDirection(delta);
-    setCursor((c) => addMonths(c, delta));
-  };
-
-  const goYear = (delta: number) => {
-    setDirection(delta);
-    setCursor((c) => new Date(c.getFullYear() + delta, c.getMonth(), 1));
-  };
-
-  const pickMonth = (idx: number) => {
-    const next = new Date(cursor.getFullYear(), idx, 1);
-    setDirection(next > cursor ? 1 : -1);
-    setCursor(next);
-    setView('days');
-  };
-
-  const days = useMemo(() => {
-    const start = startOfWeek(startOfMonth(cursor), { weekStartsOn: 1 });
-    const end = endOfWeek(endOfMonth(cursor), { weekStartsOn: 1 });
-    return eachDayOfInterval({ start, end });
-  }, [cursor]);
-
-  return (
-    <div className="flex h-full flex-col items-center justify-center p-6">
-      <div className="w-full max-w-[300px]">
-
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <button
-            type="button"
-            onClick={() => view === 'days' ? goMonth(-1) : goYear(-1)}
-            aria-label={view === 'days' ? 'Previous month' : 'Previous year'}
-            className="inline-flex h-7 w-7 items-center justify-center rounded text-ink-400 transition-colors hover:bg-base-800 hover:text-white"
-          >
-            <ChevronLeft size={15} />
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setView((v) => v === 'days' ? 'months' : 'days')}
-            className="flex items-center gap-1.5 rounded px-2 py-1 font-mono text-[13px] font-medium text-white transition-colors hover:bg-base-800"
-          >
-            {view === 'days' ? format(cursor, 'MMMM yyyy') : cursor.getFullYear()}
-            <ChevronRight
-              size={11}
-              className={`text-ink-500 transition-transform duration-150 ${view === 'months' ? 'rotate-90' : '-rotate-90'}`}
-            />
-          </button>
-
-          <button
-            type="button"
-            onClick={() => view === 'days' ? goMonth(1) : goYear(1)}
-            aria-label={view === 'days' ? 'Next month' : 'Next year'}
-            className="inline-flex h-7 w-7 items-center justify-center rounded text-ink-400 transition-colors hover:bg-base-800 hover:text-white"
-          >
-            <ChevronRight size={15} />
-          </button>
-        </div>
-
-        {/* Animated content */}
-        <div className="relative mt-4 overflow-hidden">
-          <AnimatePresence mode="wait" initial={false} custom={direction}>
-            {view === 'days' ? (
-              <motion.div
-                key={`days-${format(cursor, 'yyyy-MM')}`}
-                custom={direction}
-                variants={calSlideVariants}
-                initial={direction > 0 ? 'enterForward' : 'enterBackward'}
-                animate="center"
-                exit={direction > 0 ? 'exitForward' : 'exitBackward'}
-                transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-              >
-                {/* Weekday headers */}
-                <div className="grid grid-cols-7 gap-y-1">
-                  {WEEKDAYS_SHORT.map((d, i) => (
-                    <span key={i} className="text-center font-mono text-[10px] uppercase tracking-[0.12em] text-ink-500">
-                      {d}
-                    </span>
-                  ))}
-                </div>
-
-                {/* Day cells */}
-                <div className="mt-1 grid grid-cols-7 gap-y-0.5">
-                  {days.map((day, i) => {
-                    const iso = format(day, 'yyyy-MM-dd');
-                    const inMonth = isSameMonth(day, cursor);
-                    const hasFiles = availableDates.has(iso);
-                    return (
-                      <button
-                        key={i}
-                        type="button"
-                        disabled={!hasFiles || !inMonth}
-                        onClick={() => onDateSelect(iso)}
-                        className={`relative flex h-9 w-full items-center justify-center rounded text-[13px] transition-colors ${
-                          !inMonth
-                            ? 'cursor-default text-base-700'
-                            : hasFiles
-                            ? 'cursor-pointer font-medium text-white hover:bg-amber-500 hover:text-base-950'
-                            : 'cursor-not-allowed text-base-700 line-through opacity-40'
-                        }`}
-                      >
-                        {format(day, 'd')}
-                        {hasFiles && inMonth && (
-                          <span className="absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-amber-500" />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </motion.div>
-            ) : (
-              <motion.div
-                key={`months-${cursor.getFullYear()}`}
-                custom={direction}
-                variants={calSlideVariants}
-                initial={direction > 0 ? 'enterForward' : 'enterBackward'}
-                animate="center"
-                exit={direction > 0 ? 'exitForward' : 'exitBackward'}
-                transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-                className="grid grid-cols-3 gap-1.5 py-1"
-              >
-                {MONTH_NAMES.map((name, idx) => {
-                  const key = `${cursor.getFullYear()}-${String(idx + 1).padStart(2, '0')}`;
-                  const hasData = activeMonths.has(key);
-                  // Highlight only if (1) cursor is on today's year and
-                  // (2) the month is today's month and (3) that month
-                  // actually has data. Previously this was just
-                  // `cursor.getMonth() === idx`, which left April lit up
-                  // across every year you scrolled to — misleading
-                  // because most of those April rows had no captures.
-                  const today = new Date();
-                  const isCurrent =
-                    cursor.getFullYear() === today.getFullYear() &&
-                    idx === today.getMonth() &&
-                    hasData;
-                  return (
-                    <button
-                      key={name}
-                      type="button"
-                      onClick={() => pickMonth(idx)}
-                      className={`relative flex flex-col items-center justify-center rounded py-3 text-[12px] font-medium transition-colors ${
-                        isCurrent
-                          ? 'bg-amber-500 text-base-950'
-                          : hasData
-                          ? 'text-white hover:bg-base-800'
-                          : 'cursor-not-allowed text-base-700 opacity-40'
-                      }`}
-                    >
-                      {name}
-                      {hasData && !isCurrent && (
-                        <span className="absolute bottom-1.5 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-amber-500" />
-                      )}
-                    </button>
-                  );
-                })}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        <p className="mt-4 text-center font-mono text-[11px] text-ink-600">
-          {availableDates.size} captured {availableDates.size === 1 ? 'day' : 'days'} · select to browse
-        </p>
-      </div>
-    </div>
-  );
-}
-
-// ── Type metadata for picker thumbnails ──────────────────────────────────────
-
-const PICKER_TYPE_META: Record<string, {
-  label: string;
-  gradient: string;
-  tint: string;
-  Icon: typeof ImageIcon;
-}> = {
-  image:      { label: 'IMG', gradient: 'from-amber-500/20 via-amber-500/5 to-base-900',   tint: 'text-amber-500',  Icon: ImageIcon  },
-  video:      { label: 'VID', gradient: 'from-steel-500/25 via-steel-500/5 to-base-900',   tint: 'text-steel-400',  Icon: VideoIcon  },
-  pointcloud: { label: 'PCD', gradient: 'from-violet-500/25 via-violet-500/5 to-base-900', tint: 'text-violet-300', Icon: Box        },
-  pdf:        { label: 'PDF', gradient: 'from-base-700/60 via-base-800 to-base-900',        tint: 'text-ink-200',    Icon: FileText   },
-};
-
-// ── PickerThumbnail ───────────────────────────────────────────────────────────
-
-function PickerThumbnail({
-  file,
-  disabled,
-  index = 0,
-  onPick,
-}: {
-  file: ApiMediaFile;
-  disabled: boolean;
-  index?: number;
-  onPick: () => void;
-}) {
-  const [thumbFailed, setThumbFailed] = useState(false);
-  const meta = PICKER_TYPE_META[file.type] ?? PICKER_TYPE_META.image;
-  const showThumb = !thumbFailed && (file.type === 'image' || file.type === 'video' || file.type === 'pdf') && !!file.src;
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25, delay: Math.min(index * 0.03, 0.36), ease: [0.22, 1, 0.36, 1] }}
-      whileHover={!disabled ? { y: -3 } : {}}
-      onClick={!disabled ? onPick : undefined}
-      className={`group relative overflow-hidden rounded-lg border transition-colors ${
-        disabled
-          ? 'cursor-not-allowed border-amber-500/50 opacity-50'
-          : 'cursor-pointer border-base-800 hover:border-amber-500/40'
-      }`}
-    >
-      <div className={`relative aspect-[4/3] bg-gradient-to-br ${meta.gradient}`}>
-
-        {/* Real thumbnail */}
-        {showThumb && (
-          <img
-            src={file.src}
-            alt={file.file_name}
-            loading="lazy"
-            className="absolute inset-0 h-full w-full object-cover"
-            onError={() => setThumbFailed(true)}
-          />
-        )}
-
-        {/* Icon fallback */}
-        {!showThumb && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2.5">
-            <meta.Icon size={36} strokeWidth={1.25} className={meta.tint} />
-            <span className={`font-mono text-[9px] font-semibold uppercase tracking-[0.2em] opacity-60 ${meta.tint}`}>
-              {meta.label}
-            </span>
-          </div>
-        )}
-
-        {/* PCD dot scatter */}
-        {file.type === 'pointcloud' && (
-          <span className="pointer-events-none absolute inset-3 grid grid-cols-8 gap-1 opacity-50">
-            {Array.from({ length: 24 }).map((_, i) => (
-              <span
-                key={i}
-                className="block h-0.5 w-0.5 rounded-full bg-amber-500/60"
-                style={{ opacity: 0.3 + ((i * 13) % 7) * 0.1 }}
-              />
-            ))}
-          </span>
-        )}
-
-        {/* Type badge — only when showing a real thumbnail */}
-        {showThumb && (
-          <span className="absolute right-1.5 top-1.5 rounded-sm bg-base-950/80 px-1.5 py-0.5 font-mono text-[9px] font-medium tracking-widest text-ink-200">
-            {meta.label}
-          </span>
-        )}
-
-        {/* IN USE badge */}
-        {disabled && (
-          <span className="absolute left-2 top-2 rounded-sm bg-amber-500/20 px-1.5 py-0.5 font-mono text-[9px] font-medium tracking-widest text-amber-400">
-            IN USE
-          </span>
-        )}
-
-        {/* Bottom info overlay */}
-        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-base-950/95 via-base-950/50 to-transparent px-2.5 pb-2.5 pt-8">
-          <p className="truncate text-[11px] font-medium leading-snug text-white" title={file.file_name}>
-            {file.file_name}
-          </p>
-          <p className="mt-0.5 font-mono text-[9px] text-ink-400">{file.capture_date}</p>
-        </div>
-
-      </div>
-    </motion.div>
-  );
-}
-
-// ── PanelFileExplorer ─────────────────────────────────────────────────────────
-
-function PanelFileExplorer({
-  projectId,
-  selectedDate,
-  disabledFileUrl,
-  onFileSelect,
-  onBackToCalendar,
-  tabRailId,
-}: {
-  projectId: string;
-  selectedDate: string;
-  disabledFileUrl: string | null;
-  onFileSelect: (sel: FileSelection) => void;
-  onBackToCalendar: () => void;
-  tabRailId: string;
-}) {
-  const [activeTab, setActiveTab] = useState<MediaTab>('images');
-  const [roomsForDate, setRoomsForDate] = useState<Record<string, ApiRoomMediaGroup>>({});
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setActiveTab('images');
-  }, [selectedDate]);
-
-  useEffect(() => {
-    if (!selectedDate || !projectId) return;
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    getExplorerByDateForProject(projectId, selectedDate)
-      .then((res) => { if (!cancelled) setRoomsForDate(res.rooms || {}); })
-      .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load files.'); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [selectedDate, projectId]);
-
-  const roomSlugs = Object.keys(roomsForDate);
-
-  const tabCounts = useMemo((): Record<MediaTab, number> => {
-    const result = { images: 0, videos: 0, pointclouds: 0, pdfs: 0 };
-    for (const m of Object.values(roomsForDate)) {
-      result.images      += m.images?.length ?? 0;
-      result.videos      += m.videos?.length ?? 0;
-      result.pointclouds += m.pointclouds?.length ?? 0;
-      result.pdfs        += m.pdfs?.length ?? 0;
-    }
-    return result;
-  }, [roomsForDate]);
-
-  const displayedFiles = useMemo((): ApiMediaFile[] =>
-    roomSlugs.flatMap((slug) => roomsForDate[slug]?.[activeTab] ?? []),
-  [roomsForDate, roomSlugs, activeTab]);
-
-  return (
-    <div className="flex h-full flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-base-800 px-4 py-3">
-        <span className="font-mono text-[13px] font-medium text-white">{selectedDate}</span>
-        <button
-          type="button"
-          onClick={onBackToCalendar}
-          className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] text-ink-400 transition-colors hover:bg-base-800 hover:text-white"
-        >
-          <CalendarDays size={11} />
-          Calendar
-        </button>
-      </div>
-
-      {/* Media tabs */}
-      <div className="border-b border-base-800 px-3 py-3">
-        <MediaTabs
-          active={activeTab}
-          counts={tabCounts}
-          onChange={setActiveTab}
-          railId={tabRailId}
-        />
-      </div>
-
-      {/* File grid */}
-      <div className="flex-1 overflow-y-auto p-3">
-        {loading ? (
-          <div className="flex justify-center py-8">
-            <Loader2 size={18} className="animate-spin text-ink-500" />
-          </div>
-        ) : error ? (
-          <p className="py-4 text-center text-[12px] text-red-400">{error}</p>
-        ) : displayedFiles.length === 0 && !loading ? (
-          <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
-            <p className="text-[12px] font-medium text-ink-400">No {activeTab} here</p>
-            <p className="text-[11px] text-ink-600">
-              {roomSlugs.length === 0 ? 'No files for this date.' : 'Try a different room or media type.'}
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-3 gap-2">
-            {displayedFiles.map((file, i) => {
-              const url = file.full_src || file.src;
-              const isDisabled = url === disabledFileUrl;
-              const isPcd = file.type === 'pointcloud' || isPCDUrl(url);
-              const roomSlug = roomSlugs.find(
-                (s) => roomsForDate[s]?.[activeTab]?.some((f) => f.id === file.id)
-              ) ?? '';
-              return (
-                <PickerThumbnail
-                  key={file.id}
-                  file={file}
-                  disabled={isDisabled}
-                  index={i}
-                  onPick={() => {
-                    if (file.type === 'pdf') {
-                      window.open(url, '_blank', 'noopener,noreferrer');
-                      return;
-                    }
-                    onFileSelect({
-                      fileUrl: url,
-                      fileId: file.id,
-                      displayFileName: file.file_name,
-                      roomSlug,
-                      roomLabel: roomSlug,
-                      captureDate: file.capture_date,
-                      mediaType: file.type,
-                      isPCD: isPcd,
-                    });
-                  }}
-                />
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── ComparePanel ──────────────────────────────────────────────────────────────
+import type { ApiComparisonDraft, ApiProject } from '@/types/api';
 
 export function ComparePanel() {
   const searchParams = useSearchParams();
@@ -877,24 +394,16 @@ export function ComparePanel() {
   };
 
   // Publish helpers
-  const publishAvailableDateKeys = useMemo(() => {
-    const set = new Set<string>();
-    for (const d of comparisonDrafts) { const k = draftSavedDayKeyLocal(d.created_at); if (k) set.add(k); }
-    return [...set].sort();
-  }, [comparisonDrafts]);
-
-  const publishVisibleDrafts = useMemo(() => {
-    if (!publishFilterDateKeys.length) return [];
-    const allow = new Set(publishFilterDateKeys);
-    return comparisonDrafts.filter((d) => allow.has(draftSavedDayKeyLocal(d.created_at)));
-  }, [comparisonDrafts, publishFilterDateKeys]);
-
   const openPublishModal = async () => {
     setPublishModalLoading(true);
     try {
       const drafts = await listComparisonDrafts();
       setComparisonDrafts(drafts);
-      const dayKeys = [...new Set(drafts.map((d) => draftSavedDayKeyLocal(d.created_at)).filter(Boolean))].sort();
+      const dayKeys = [...new Set(drafts.map((d) => {
+        const t = new Date(d.created_at);
+        if (Number.isNaN(t.getTime())) return '';
+        return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+      }).filter(Boolean))].sort();
       setPublishFilterDateKeys(dayKeys);
       setPublishSelectedIds(drafts.map((d) => d.id));
       setIsPublishModalOpen(true);
@@ -952,6 +461,16 @@ export function ComparePanel() {
     try { await publishReportsWithIds(publishSelectedIds); }
     catch (e) { toast.error(e instanceof Error ? e.message : 'Publish failed.'); }
     finally { setPublishBusy(false); }
+  };
+
+  const handleDeleteDraftFromPublishModal = async (id: string) => {
+    try {
+      await deleteComparisonDraft(id);
+      setComparisonDrafts((p) => p.filter((x) => x.id !== id));
+      setPublishSelectedIds((p) => p.filter((x) => x !== id));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not delete draft.');
+    }
   };
 
   // Empty state
@@ -1320,190 +839,18 @@ export function ComparePanel() {
       )}
 
       {/* ── Publish modal ──────────────────────────────────────────────────── */}
-      {isPublishModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true">
-          <div className="relative flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-base-700 bg-base-900">
-            {publishBusy && (
-              <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-base-900/95 backdrop-blur-sm">
-                <Loader2 size={28} className="animate-spin text-amber-400" />
-                <div className="text-center">
-                  <p className="font-semibold text-white">Building your report</p>
-                  <p className="mt-1 text-[12px] text-ink-400">Merging PDFs and uploading…</p>
-                </div>
-              </div>
-            )}
-            <div className="flex items-start justify-between gap-4 border-b border-base-800 px-6 py-5">
-              <div>
-                <h2 className="font-display text-[18px] font-semibold text-white">Publish consolidated report</h2>
-                <p className="mt-1 text-[12px] text-ink-400">
-                  Merge selected drafts into one PDF. Published drafts are removed from your list.
-                </p>
-              </div>
-              <button type="button" disabled={publishBusy} onClick={() => setIsPublishModalOpen(false)} className="rounded p-1 text-ink-400 hover:text-white disabled:opacity-40">
-                <X size={16} />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto px-6 py-4">
-              {comparisonDrafts.length === 0 ? (
-                <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-base-700 py-12 text-center">
-                  <GitCompareArrows size={32} className="mb-3 text-ink-600" />
-                  <p className="text-[13px] font-medium text-ink-400">No comparison drafts</p>
-                  <p className="mt-1 text-[11px] text-ink-600">Save a comparison first, then return here to publish.</p>
-                </div>
-              ) : (
-                <>
-                  {/* Date filter chips */}
-                  <div className="mb-4 rounded-xl border border-base-800 bg-base-800/40 px-3 py-3">
-                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                      <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-500">Draft saved on</p>
-                      <div className="flex gap-1.5">
-                        <button
-                          type="button"
-                          disabled={publishBusy}
-                          onClick={() => setPublishFilterDateKeys([...publishAvailableDateKeys])}
-                          className="rounded-full border border-base-700 bg-base-900 px-2 py-0.5 text-[10px] text-ink-300 transition-colors hover:text-white disabled:opacity-40"
-                        >
-                          All dates
-                        </button>
-                        <button
-                          type="button"
-                          disabled={publishBusy}
-                          onClick={() => setPublishFilterDateKeys([])}
-                          className="rounded-full border border-base-700 bg-base-900 px-2 py-0.5 text-[10px] text-ink-300 transition-colors hover:text-white disabled:opacity-40"
-                        >
-                          Clear
-                        </button>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {publishAvailableDateKeys.map((key) => {
-                        const checked = publishFilterDateKeys.includes(key);
-                        return (
-                          <button
-                            key={key}
-                            type="button"
-                            disabled={publishBusy}
-                            onClick={() =>
-                              setPublishFilterDateKeys((prev) =>
-                                prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key].sort(),
-                              )
-                            }
-                            className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${
-                              checked
-                                ? 'border-amber-500/40 bg-amber-500/10 text-amber-400'
-                                : 'border-base-700 text-ink-400 hover:border-base-600 hover:text-white'
-                            } disabled:opacity-40`}
-                          >
-                            {formatLocalDayMedium(key)}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Select / clear all */}
-                  <div className="mb-3 flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      disabled={publishBusy || publishVisibleDrafts.length === 0}
-                      onClick={() => setPublishSelectedIds(publishVisibleDrafts.map((d) => d.id))}
-                      className="rounded-full border border-base-700 px-3 py-1 text-[11px] text-ink-400 transition-colors hover:text-white disabled:opacity-40"
-                    >
-                      Select all
-                    </button>
-                    <button
-                      type="button"
-                      disabled={publishBusy}
-                      onClick={() => setPublishSelectedIds([])}
-                      className="rounded-full border border-base-700 px-3 py-1 text-[11px] text-ink-400 transition-colors hover:text-white disabled:opacity-40"
-                    >
-                      Clear
-                    </button>
-                    {publishVisibleDrafts.length > 0 && (
-                      <span className="text-[11px] text-ink-600">
-                        {publishSelectedIds.length} of {publishVisibleDrafts.length} selected
-                      </span>
-                    )}
-                  </div>
-
-                  {publishVisibleDrafts.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-amber-800/40 bg-amber-900/10 py-8 text-center">
-                      <p className="text-[13px] font-medium text-amber-400">No drafts match the selected dates</p>
-                      <p className="mt-1 text-[11px] text-amber-500/80">Select at least one date to see drafts.</p>
-                    </div>
-                  ) : (
-                    <ul className="space-y-1.5">
-                      {publishVisibleDrafts.map((d) => (
-                        <li
-                          key={d.id}
-                          className={`flex items-center gap-3 rounded-lg border p-3 transition-colors ${
-                            publishSelectedIds.includes(d.id) ? 'border-amber-500/30 bg-amber-500/5' : 'border-base-800'
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={publishSelectedIds.includes(d.id)}
-                            disabled={publishBusy}
-                            onChange={() =>
-                              setPublishSelectedIds((prev) =>
-                                prev.includes(d.id) ? prev.filter((x) => x !== d.id) : [...prev, d.id],
-                              )
-                            }
-                            className="accent-amber-500"
-                          />
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-[12px] text-white">{d.label ?? 'Untitled draft'}</p>
-                            <p className="text-[11px] text-ink-500">{formatLocalDayMedium(draftSavedDayKeyLocal(d.created_at))}</p>
-                          </div>
-                          <button
-                            type="button"
-                            disabled={publishBusy}
-                            onClick={async () => {
-                              try {
-                                await deleteComparisonDraft(d.id);
-                                setComparisonDrafts((p) => p.filter((x) => x.id !== d.id));
-                                setPublishSelectedIds((p) => p.filter((x) => x !== d.id));
-                              } catch (e) {
-                                toast.error(e instanceof Error ? e.message : 'Could not delete draft.');
-                              }
-                            }}
-                            className="rounded p-1 text-ink-600 transition-colors hover:text-red-400 disabled:opacity-40"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </>
-              )}
-            </div>
-
-            <div className="flex gap-2 border-t border-base-800 px-6 py-4">
-              <button
-                type="button"
-                disabled={publishBusy}
-                onClick={() => setIsPublishModalOpen(false)}
-                className="flex-1 rounded-lg border border-base-700 px-3 py-2 text-[13px] font-medium text-white transition-colors hover:bg-base-800 disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={publishSelectedIds.length === 0 || publishBusy}
-                onClick={() => void handlePublishConfirm()}
-                className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-3 py-2 text-[13px] font-semibold text-base-950 transition-colors hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {publishBusy ? <Loader2 size={13} className="animate-spin" /> : null}
-                {publishBusy
-                  ? 'Publishing…'
-                  : `Publish${publishSelectedIds.length > 0 ? ` ${publishSelectedIds.length}` : ''} PDF`}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <PublishModal
+        isOpen={isPublishModalOpen}
+        onClose={() => setIsPublishModalOpen(false)}
+        drafts={comparisonDrafts}
+        selectedIds={publishSelectedIds}
+        setSelectedIds={setPublishSelectedIds}
+        filterDateKeys={publishFilterDateKeys}
+        setFilterDateKeys={setPublishFilterDateKeys}
+        isBusy={publishBusy}
+        onPublishConfirm={() => void handlePublishConfirm()}
+        onDeleteDraft={handleDeleteDraftFromPublishModal}
+      />
 
       {/* ── Notice dialog ──────────────────────────────────────────────────── */}
       {notice && (

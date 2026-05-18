@@ -9,13 +9,13 @@ This document covers how reports are built and published from the frontend: the 
 **Props:**
 
 
-| Prop            | Type                                    | Description                                                            |
-| --------------- | --------------------------------------- | ---------------------------------------------------------------------- |
-| `file`          | `ApiMediaFile`                          | The file being viewed — used for filename, capture date, and file ID   |
-| `viewerKind`    | `'static' | 'panorama' | 'point-cloud'` | Which viewer is active — determines PDF subtitle and API `viewer_kind` |
-| `aiDescription` | `string`                                | AI-generated image description to include in the PDF                   |
-| `state`         | `Record<string, unknown>`               | Viewer-specific state to persist in the draft (scale, mode, etc.)      |
-| `viewerContext` | `{ roomSlug, date } | null`             | Used for the location/date line in the PDF header                      |
+| Prop            | Type                      | Description                                                         |
+| --------------- | ------------------------- | ------------------------------------------------------------------- |
+| `file`          | `ApiMediaFile`            | The file being viewed, used for filename, capture date, and file ID |
+| `viewerKind`    | `'static'                 | 'panorama'                                                          |
+| `aiDescription` | `string`                  | AI-generated image description to include in the PDF                |
+| `state`         | `Record<string, unknown>` | Viewer-specific state to persist in the draft (scale, mode, etc.)   |
+| `viewerContext` | `{ roomSlug, date }       | null`                                                               |
 
 
 ## Draft lifecycle

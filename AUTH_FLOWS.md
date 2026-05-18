@@ -4,14 +4,16 @@ Covers everything except the login form: registration, email verification, forgo
 
 ## Pages
 
-| Route | File | Auth required |
-|---|---|---|
-| `/login` | `app/login/page.tsx` | No |
-| `/register` | `app/register/page.tsx` | No |
-| `/forgot-password` | `app/forgot-password/page.tsx` | No |
-| `/reset-password?token=…` | `app/reset-password/page.tsx` | No (token-gated) |
-| `/verify-email?token=…` | `app/verify-email/page.tsx` | No (token-gated) |
-| `/unauthorized` | `app/unauthorized/page.tsx` | No |
+
+| Route                     | File                           | Auth required    |
+| ------------------------- | ------------------------------ | ---------------- |
+| `/login`                  | `app/login/page.tsx`           | No               |
+| `/register`               | `app/register/page.tsx`        | No               |
+| `/forgot-password`        | `app/forgot-password/page.tsx` | No               |
+| `/reset-password?token=…` | `app/reset-password/page.tsx`  | No (token-gated) |
+| `/verify-email?token=…`   | `app/verify-email/page.tsx`    | No (token-gated) |
+| `/unauthorized`           | `app/unauthorized/page.tsx`    | No               |
+
 
 All five sit outside the app shell and reuse `components/auth/AuthShell.tsx` for the centered card layout.
 
@@ -35,7 +37,7 @@ Single source of truth: `auth/authSession.ts`. The JWT is persisted in `localSto
 
 `getAccessToken()` returns just the token string. `clearAccessToken()` wipes the whole entry.
 
-A legacy key (`a6_access_token`) is read once and migrated transparently — old sessions don't need to re-login on upgrade.
+A legacy key (`a6_access_token`) is read once and migrated transparently, old sessions don't need to re-login on upgrade.
 
 ## AuthContext lifecycle
 
@@ -129,20 +131,22 @@ Then construct `/verify-email?token=<that>` and visit it.
 The form flow inside `ResetPasswordForm.tsx`:
 
 1. On mount, call `validateResetToken(token)` → `GET /api/auth/validate-reset-token?token=…`.
-   - 204 → render the new-password form.
-   - 400 → show an "invalid / expired" message with a link back to `/forgot-password`.
+  - 204 → render the new-password form.
+  - 400 → show an "invalid / expired" message with a link back to `/forgot-password`.
 2. User types a new password (and confirms it client-side).
 3. Submit → `resetPassword(token, newPassword)` → `POST /api/auth/reset-password`.
-   - 204 → success; redirect to `/login`. No JWT is issued by the reset endpoint — the user logs in fresh.
-   - 400 → error toast (token may have expired between the preflight and submit; the 1-hour TTL is unforgiving).
+  - 204 → success; redirect to `/login`. No JWT is issued by the reset endpoint — the user logs in fresh.
+  - 400 → error toast (token may have expired between the preflight and submit; the 1-hour TTL is unforgiving).
 
 ## Token TTLs
 
-| Token | Lifetime | Where in code |
-|---|---|---|
-| JWT access token | 7 days | `backend/app/core/security.py` |
-| Email verification | 7 days | `backend/app/api/auth.py:25` |
-| Password reset | **1 hour** | `backend/app/api/auth.py:26` |
+
+| Token              | Lifetime   | Where in code                  |
+| ------------------ | ---------- | ------------------------------ |
+| JWT access token   | 7 days     | `backend/app/core/security.py` |
+| Email verification | 7 days     | `backend/app/api/auth.py:25`   |
+| Password reset     | **1 hour** | `backend/app/api/auth.py:26`   |
+
 
 The short password-reset TTL means a user who clicks the link the next day must request a fresh one. Cap your UX expectations accordingly.
 
@@ -168,14 +172,17 @@ No server call — JWT is stateless, and signing the user out is a client-only o
 
 ## Where the code lives
 
-| Concern | File |
-|---|---|
-| Token storage | `auth/authSession.ts` |
-| Auth state + actions | `context/AuthContext.tsx` |
-| Centered card shell | `components/auth/AuthShell.tsx` |
-| Forms | `components/auth/LoginForm.tsx`, `RegisterForm.tsx`, `ForgotPasswordForm.tsx`, `ResetPasswordForm.tsx` |
-| Verify-email page logic | `app/verify-email/VerifyEmailContent.tsx` |
-| Global 401 redirect | `services/apiClient.ts::apiFetch` |
-| Protected route guard | `components/layout/ProtectedRoute.tsx` |
-| API client wrappers | `services/apiClient.ts` (`apiLogin`, `apiRegister`, `apiFetchCurrentUser`, `verifyEmail`, `resendVerificationEmail`, `requestPasswordReset`, `validateResetToken`, `resetPassword`) |
-| Backend token logic | `backend/AUTH_AND_EMAIL.md` |
+
+| Concern                 | File                                                                                                                                                                                |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Token storage           | `auth/authSession.ts`                                                                                                                                                               |
+| Auth state + actions    | `context/AuthContext.tsx`                                                                                                                                                           |
+| Centered card shell     | `components/auth/AuthShell.tsx`                                                                                                                                                     |
+| Forms                   | `components/auth/LoginForm.tsx`, `RegisterForm.tsx`, `ForgotPasswordForm.tsx`, `ResetPasswordForm.tsx`                                                                              |
+| Verify-email page logic | `app/verify-email/VerifyEmailContent.tsx`                                                                                                                                           |
+| Global 401 redirect     | `services/apiClient.ts::apiFetch`                                                                                                                                                   |
+| Protected route guard   | `components/layout/ProtectedRoute.tsx`                                                                                                                                              |
+| API client wrappers     | `services/apiClient.ts` (`apiLogin`, `apiRegister`, `apiFetchCurrentUser`, `verifyEmail`, `resendVerificationEmail`, `requestPasswordReset`, `validateResetToken`, `resetPassword`) |
+| Backend token logic     | `backend/AUTH_AND_EMAIL.md`                                                                                                                                                         |
+
+

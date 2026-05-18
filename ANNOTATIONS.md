@@ -18,7 +18,7 @@ Annotation pin positions are stored as **normalized `[0, 1]` floats** relative t
 }
 ```
 
-This is what's written into `Annotation.data` on the backend (the backend treats `data` as opaque JSON — only the frontend interprets `x`/`y`/`text`).
+This is what's written into `Annotation.data` on the backend (the backend treats `data` as opaque JSON, only the frontend interprets `x`/`y`/`text`).
 
 Normalized coords mean the pin stays in the right spot when the image is zoomed or the viewer is resized. Multiplied by the current rendered image dimensions, they become pixel offsets for the overlay.
 
@@ -26,16 +26,18 @@ Normalized coords mean the pin stays in the right spot when the image is zoomed 
 
 Three categorical flags, plus a neutral "no flag":
 
-| `flag` value | UI chip color | Used for |
-|---|---|---|
-| `safety` | red | Visible safety hazard |
-| `quality` | amber | Workmanship / quality concern |
-| `delayed` | steel-blue | Schedule slip indicator |
-| `null` | gray | Uncategorized note |
+
+| `flag` value | UI chip color | Used for                      |
+| ------------ | ------------- | ----------------------------- |
+| `safety`     | red           | Visible safety hazard         |
+| `quality`    | amber         | Workmanship / quality concern |
+| `delayed`    | steel-blue    | Schedule slip indicator       |
+| `null`       | gray          | Uncategorized note            |
+
 
 Defined in `FLAG_META` at the top of `components/viewers/StaticViewer.tsx`. The annotation render uses the same color across the pin marker, the list chip, and the focus ring on the selected pin.
 
-> The annotation flag values (`safety`, `quality`, `delayed`) and the report flag values (`safety_concern`, `quality_concern`, `schedule_delayed`) are intentionally separate strings — same intent, two namespaces. The bridge is `lib/observationReportFlags.ts`.
+> The annotation flag values (`safety`, `quality`, `delayed`) and the report flag values (`safety_concern`, `quality_concern`, `schedule_delayed`) are intentionally separate strings. Same intent, two namespaces. The bridge is `lib/observationReportFlags.ts`.
 
 ## UI flow
 
@@ -47,8 +49,8 @@ Defined in `FLAG_META` at the top of `components/viewers/StaticViewer.tsx`. The 
 4. User types text, optionally picks a flag and a "linked annotation".
 5. Optionally attaches an image (multipart upload).
 6. Submit calls:
-   - `createAnnotation({ fileId, x, y, text, flag, linked_annotation_id })`
-   - If an attachment was staged: `uploadAnnotationAttachment(annotationId, file)` immediately after.
+  - `createAnnotation({ fileId, x, y, text, flag, linked_annotation_id })`
+  - If an attachment was staged: `uploadAnnotationAttachment(annotationId, file)` immediately after.
 7. Annotation list refreshes; new pin appears with the next sequential number.
 
 ### Editing
@@ -62,11 +64,11 @@ Defined in `FLAG_META` at the top of `components/viewers/StaticViewer.tsx`. The 
 `AnnotationDeleteConfirm` (a `ConfirmDialog` variant) intercepts the delete button. On confirm:
 
 - `deleteAnnotation(id)` removes the row.
-- `deleteAnnotationAttachment(id)` is not needed — the delete cascades on the backend.
+- `deleteAnnotationAttachment(id)` is not needed, the delete cascades on the backend.
 
 ### Toggling visibility
 
-The "Show/hide annotations" eye icon toggles `showAnnotations` locally — the pins disappear from the image but remain in the side list (and on the backend). Used when the user wants a clean view for a screenshot.
+The "Show/hide annotations" eye icon toggles `showAnnotations` locally, the pins disappear from the image but remain in the side list (and on the backend). Used when the user wants a clean view for a screenshot.
 
 ## Linked annotations
 
@@ -92,7 +94,7 @@ await uploadAnnotationAttachment(annotationId, file);
 // → returns the updated annotation with attachment_url set
 ```
 
-Replacing an attachment is the same call — the backend drops the old object before storing the new one.
+Replacing an attachment is the same call, the backend drops the old object before storing the new one.
 
 ### Display
 
@@ -119,7 +121,7 @@ When a report is published, `ReportBuilder.tsx` (`buildObservationPdf`) walks th
 3. For attachments: fetches the bytes with the auth header and converts to a base64 data URL. `jsPDF.addImage` is synchronous, so all network IO is resolved upfront.
 4. Hands the enriched list to `buildFieldObservationPdf` (`lib/engineeringReportPdf.ts`).
 
-Attachment fetch failures are silent — the PDF renders an italic "could not be embedded" note instead of crashing.
+Attachment fetch failures are silent, the PDF renders an italic "could not be embedded" note instead of crashing.
 
 ## State shape
 
@@ -141,15 +143,18 @@ Lives in `useState` on `StaticViewer.tsx`. Reset to `null` on submit / cancel / 
 
 ## Permissions reality check
 
-Annotations are **not** owner-scoped on the backend. Any authenticated user can edit or delete any annotation. The frontend doesn't currently surface this — there's no "this isn't yours" message. If you want strict per-user authorship, see `backend/ANNOTATIONS.md` § "Adding author tracking".
+Annotations are **not** owner-scoped on the backend. Any authenticated user can edit or delete any annotation. The frontend doesn't currently surface this, there's no "this isn't yours" message. If you want strict per-user authorship, see `backend/ANNOTATIONS.md` § "Adding author tracking".
 
 ## Where the code lives
 
-| Concern | File |
-|---|---|
-| Annotation overlay, form, sidebar list | `components/viewers/StaticViewer.tsx` |
-| Delete confirm modal | `components/viewers/AnnotationDeleteConfirm.tsx` |
-| Flag taxonomy + bridge to report flags | `lib/observationReportFlags.ts` |
-| API client wrappers | `services/apiClient.ts` (`createAnnotation`, `updateAnnotation`, `deleteAnnotation`, `uploadAnnotationAttachment`, `deleteAnnotationAttachment`, `listAnnotations`) |
-| PDF render integration | `components/reports/ReportBuilder.tsx`, `lib/engineeringReportPdf.ts` |
-| TypeScript types | `types/api.ts` (`ApiAnnotation`, `AnnotationFlag`) |
+
+| Concern                                | File                                                                                                                                                                |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Annotation overlay, form, sidebar list | `components/viewers/StaticViewer.tsx`                                                                                                                               |
+| Delete confirm modal                   | `components/viewers/AnnotationDeleteConfirm.tsx`                                                                                                                    |
+| Flag taxonomy + bridge to report flags | `lib/observationReportFlags.ts`                                                                                                                                     |
+| API client wrappers                    | `services/apiClient.ts` (`createAnnotation`, `updateAnnotation`, `deleteAnnotation`, `uploadAnnotationAttachment`, `deleteAnnotationAttachment`, `listAnnotations`) |
+| PDF render integration                 | `components/reports/ReportBuilder.tsx`, `lib/engineeringReportPdf.ts`                                                                                               |
+| TypeScript types                       | `types/api.ts` (`ApiAnnotation`, `AnnotationFlag`)                                                                                                                  |
+
+

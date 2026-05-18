@@ -28,8 +28,8 @@ Components only ever call the **named exports**. They are typed functions that r
 - **Auth attached automatically.** `apiFetch` reads the JWT from `localStorage` via `getAccessToken()` and sets `Authorization: Bearer <token>`. Calls that must be unauthenticated (login, register) pass `withAuth=false`.
 - **Errors are strings.** Backend errors come back as `{"detail": "..."}` or, for 422, `{"detail": [{msg, loc, ...}]}`. Both are normalized to a single readable string by `parseApiError`. The caller catches `Error` and toasts the message.
 - **No retry by default.** Two exceptions:
-  - `listRooms()` has a one-shot retry — used early in the boot sequence where flakes are common.
-  - Chunked pointcloud uploads retry each chunk up to 3 times — implemented inline, not in `apiFetch`.
+  - `listRooms()` has a one-shot retry, used early in the boot sequence where flakes are common.
+  - Chunked pointcloud uploads retry each chunk up to 3 times, implemented inline, not in `apiFetch`.
 - **No SWR / React Query.** State management is component-local. If you want caching, lift the call to a context and memoize. Don't reach for SWR for a single use site.
 - **Global 401 → /login.** `apiFetch` checks for 401 outside `/login` and `/register`, clears the token, and `window.location.replace('/login')`. This is the only side effect inside the fetch wrapper.
 
@@ -152,7 +152,7 @@ export default function Page() {
 
 Don't:
 
-- ❌ Read the response status code in your component. The wrapper has thrown — you'd be unreachable.
+- ❌ Read the response status code in your component. The wrapper has thrown, you'd be unreachable.
 - ❌ Inline a `fetch('/api/things')` in a component. Always go through `apiClient.ts`.
 - ❌ Add `Authorization` headers manually. `apiFetch` does it; double-setting is fine but pointless.
 
@@ -187,7 +187,7 @@ The "direct" variant (`/pointcloud/direct-init` → presigned PUT → `/pointclo
 
 ### Bulk endpoints
 
-Bulk-delete returns `{affected, skipped}`. Surface both to the user — "Deleted 4, skipped 2 (no permission)".
+Bulk-delete returns `{affected, skipped}`. Surface both to the user, "Deleted 4, skipped 2 (no permission)".
 
 Bulk-download returns a Blob; combine with `affected` / `skipped` from response headers (`X-Bulk-Affected`, `X-Bulk-Skipped`):
 
@@ -203,7 +203,7 @@ return {
 
 ### Auth-free calls
 
-Login, register, forgot-password, reset-password, verify-email, `validate-reset-token`, `resend-verification` — these all bypass the 401-redirect side effect by passing `withAuth=false` (or by being on a page exempt from the redirect rule).
+Login, register, forgot-password, reset-password, verify-email, `validate-reset-token`, `resend-verification`, these all bypass the 401-redirect side effect by passing `withAuth=false` (or by being on a page exempt from the redirect rule).
 
 If you're tempted to add an unauthenticated endpoint, make sure the route is exempted in `apiFetch`'s 401 check too, or you'll loop.
 
@@ -221,7 +221,7 @@ The caller creates an `AbortController`, passes `.signal`, and calls `.abort()` 
 
 ## Types vs schemas
 
-The backend's Pydantic schemas live in `backend/app/schemas.py`. The frontend's TypeScript types live in `types/api.ts`. They must stay aligned by convention — there's no codegen step.
+The backend's Pydantic schemas live in `backend/app/schemas.py`. The frontend's TypeScript types live in `types/api.ts`. They must stay aligned by convention, there's no codegen step.
 
 When you change a backend response shape:
 
@@ -231,10 +231,13 @@ When you change a backend response shape:
 
 ## Where the code lives
 
-| Concern | File |
-|---|---|
-| All API wrappers | `services/apiClient.ts` |
-| TypeScript types | `types/api.ts` |
-| Token storage | `auth/authSession.ts` |
-| Hash helper (for upload precheck) | `lib/hashFile.ts` |
-| Next.js rewrite config | `next.config.mjs` |
+
+| Concern                           | File                    |
+| --------------------------------- | ----------------------- |
+| All API wrappers                  | `services/apiClient.ts` |
+| TypeScript types                  | `types/api.ts`          |
+| Token storage                     | `auth/authSession.ts`   |
+| Hash helper (for upload precheck) | `lib/hashFile.ts`       |
+| Next.js rewrite config            | `next.config.mjs`       |
+
+
