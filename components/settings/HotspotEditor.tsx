@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Check, MapPin, PenLine, Pencil, X } from 'lucide-react';
 import { updateRoom } from '@/services/apiClient';
+import { CoachmarkTour, type CoachmarkStep } from '@/components/onboarding/CoachmarkTour';
 import {
   isPolygonCoords,
   isPinCoords,
@@ -198,6 +199,29 @@ export function HotspotEditor({
   onRoomUpdated: (room: ApiRoom) => void;
 }) {
   const overlayRef = useRef<HTMLDivElement>(null);
+  const modeToggleRef = useRef<HTMLDivElement>(null);
+  const floorplanWrapperRef = useRef<HTMLDivElement>(null);
+
+  const tourSteps: CoachmarkStep[] = [
+    {
+      targetRef: modeToggleRef,
+      title: 'Pick a hotspot shape',
+      body: 'Zone draws a polygon outline around a room. Pin drops a single marker. Choose one before you click on the floorplan.',
+      placement: 'bottom',
+    },
+    {
+      targetRef: floorplanWrapperRef,
+      title: 'Draw on the floorplan',
+      body: 'In Zone mode, click each corner of the room boundary; click the first dot again to close the polygon. In Pin mode, one click drops the marker. A popover then lets you assign it to a room.',
+      placement: 'auto',
+    },
+    {
+      targetRef: floorplanWrapperRef,
+      title: 'Edit or remove later',
+      body: 'Click an existing zone or pin to redraw it or delete it. These hotspots become the clickable regions on the project home floorplan.',
+      placement: 'auto',
+    },
+  ];
 
   const [mode, setMode] = useState<Mode>('polygon');
   const [polyPoints, setPolyPoints] = useState<Point[]>([]);
@@ -368,7 +392,10 @@ export function HotspotEditor({
     <div className="space-y-3">
       {/* Mode toggle + hint */}
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex gap-0.5 rounded-md border border-base-700 bg-base-950 p-0.5">
+        <div
+          ref={modeToggleRef}
+          className="flex gap-0.5 rounded-md border border-base-700 bg-base-950 p-0.5"
+        >
           <button
             type="button"
             onClick={() => switchMode('polygon')}
@@ -422,7 +449,7 @@ export function HotspotEditor({
       )}
 
       {/* Outer wrapper, relative but NOT overflow-hidden so popovers can escape */}
-      <div className="relative select-none">
+      <div ref={floorplanWrapperRef} className="relative select-none">
         <div className="overflow-hidden rounded-lg border border-base-800 bg-base-950">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={floorplanUrl} alt="Floorplan" draggable={false} className="block h-auto w-full" />
@@ -618,6 +645,8 @@ export function HotspotEditor({
           )}
         </div>
       </div>
+
+      <CoachmarkTour id="hotspot-editor" steps={tourSteps} />
     </div>
   );
 }

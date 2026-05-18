@@ -16,6 +16,7 @@ import {
 } from '@/services/apiClient';
 import { ReportBuilder } from '@/components/reports/ReportBuilder';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { CoachmarkTour, type CoachmarkStep } from '@/components/onboarding/CoachmarkTour';
 import type { ApiAnnotation } from '@/types/api';
 import { useViewerContext } from './useViewerContext';
 import { backHrefFor } from '@/components/explorer/viewerContext';
@@ -38,6 +39,29 @@ export function StaticViewer() {
   const [detailsForId, setDetailsForId] = useState<string | null>(null);
   const [pendingDeleteAnnotationId, setPendingDeleteAnnotationId] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const newAnnotationBtnRef = useRef<HTMLButtonElement>(null);
+  const imageContainerRef = useRef<HTMLDivElement>(null);
+
+  const tourSteps: CoachmarkStep[] = [
+    {
+      targetRef: newAnnotationBtnRef,
+      title: 'Start placing a pin',
+      body: 'Click New Annotation to enter placement mode. Your cursor turns into a crosshair when you can drop a pin.',
+      placement: 'bottom',
+    },
+    {
+      targetRef: imageContainerRef,
+      title: 'Click the image to drop a pin',
+      body: 'With placement mode on, click anywhere on the image. A form opens so you can write a note, tag a flag (safety / quality / delayed), link it to another pin, or attach a photo.',
+      placement: 'auto',
+    },
+    {
+      targetRef: imageContainerRef,
+      title: 'Existing pins',
+      body: 'Pins are numbered. Click any pin to see its details, edit, or delete. To move a pin, open it in edit mode and click a new spot on the image.',
+      placement: 'auto',
+    },
+  ];
 
   const backHref = useMemo(() => (ctx ? backHrefFor(ctx) : fallbackHref), [ctx, fallbackHref]);
 
@@ -282,6 +306,7 @@ export function StaticViewer() {
             {analyzing ? 'Generating...' : 'Generate Description'}
           </button>
           <button
+            ref={newAnnotationBtnRef}
             type="button"
             onClick={() => {
               setPlacingAnnotation((v) => !v);
@@ -350,6 +375,7 @@ export function StaticViewer() {
               <div className="flex justify-center">
                 <div className="origin-top" style={{ transform: `scale(${scale})` }}>
                   <div
+                    ref={imageContainerRef}
                     className={`relative inline-block ${crosshairActive ? 'cursor-crosshair' : ''}`}
                     onClick={onImageClickForAnnotation}
                   >
@@ -449,6 +475,12 @@ export function StaticViewer() {
         danger
         onConfirm={performDeleteAnnotation}
         onCancel={() => setPendingDeleteAnnotationId(null)}
+      />
+
+      <CoachmarkTour
+        id="static-annotations"
+        steps={tourSteps}
+        enabled={ctx.file.type !== 'video'}
       />
     </div>
   );

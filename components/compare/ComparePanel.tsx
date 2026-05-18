@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { PDFDocument } from 'pdf-lib';
@@ -21,6 +21,7 @@ import { PublishModal } from './panel/PublishModal';
 import { isPCDUrl } from './panel/helpers';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Modal } from '@/components/ui/Modal';
+import { CoachmarkTour, type CoachmarkStep } from '@/components/onboarding/CoachmarkTour';
 import type {
   FileSelection,
   NoticeState,
@@ -113,6 +114,45 @@ export function ComparePanel() {
   // Dialogs
   const [notice, setNotice] = useState<NoticeState | null>(null);
   const [isBackModalOpen, setIsBackModalOpen] = useState(false);
+
+  // Coachmark tour targets
+  const leftPanelRef = useRef<HTMLDivElement>(null);
+  const rightPanelRef = useRef<HTMLDivElement>(null);
+  const lockBtnRef = useRef<HTMLButtonElement>(null);
+  const snapshotBtnRef = useRef<HTMLButtonElement>(null);
+
+  const tourSteps: CoachmarkStep[] = [
+    {
+      targetRef: leftPanelRef,
+      title: 'Pick a starting file',
+      body: "Pick a date on the calendar, then a file from the explorer. The left panel is the 'before' side of your comparison.",
+      placement: 'right',
+    },
+    {
+      targetRef: rightPanelRef,
+      title: 'Pick what to compare against',
+      body: 'Same drill on the right. The file must be from the same room as the left.',
+      placement: 'left',
+    },
+    {
+      targetRef: lockBtnRef,
+      title: 'Sync the cameras',
+      body: 'Once both viewers are open, click Lock views to make dragging either camera move both viewers together.',
+      placement: 'top',
+    },
+    {
+      targetRef: snapshotBtnRef,
+      title: 'Capture the comparison',
+      body: 'Snapshot captures both viewers and reveals a notes section below, where you add per-side notes and flags (safety / quality / delayed).',
+      placement: 'top',
+    },
+    {
+      targetRef: snapshotBtnRef,
+      title: 'One report from many drafts',
+      body: 'Comparison reports are built from multiple drafts. Save each comparison as a draft, then come back later and save more. Generate Report combines all of them into one consolidated PDF.',
+      placement: 'top',
+    },
+  ];
 
   // Load project + available dates
   useEffect(() => {
@@ -522,6 +562,7 @@ export function ComparePanel() {
               return (
                 <div
                   key={side}
+                  ref={side === 'left' ? leftPanelRef : rightPanelRef}
                   className="flex h-[70vh] flex-col overflow-hidden rounded-xl border border-base-800 bg-base-900"
                 >
                   {panel === 'calendar' && (
@@ -597,6 +638,7 @@ export function ComparePanel() {
           {/* Camera lock + Snapshot button */}
           <div className="flex items-center justify-between rounded-xl border border-base-800 bg-base-900/40 px-4 py-3">
             <button
+              ref={lockBtnRef}
               type="button"
               onClick={toggleSynchronization}
               className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-[12px] font-medium transition-colors ${
@@ -610,6 +652,7 @@ export function ComparePanel() {
             </button>
 
             <button
+              ref={snapshotBtnRef}
               type="button"
               onClick={handleSnapshot}
               disabled={leftPanel !== 'viewer360' && rightPanel !== 'viewer360'}
@@ -857,6 +900,12 @@ export function ComparePanel() {
           router.push(project ? `/app/projects/${project.slug}` : '/projects');
         }}
         onCancel={() => setIsBackModalOpen(false)}
+      />
+
+      <CoachmarkTour
+        id="compare"
+        steps={tourSteps}
+        enabled={!loadingProject && !!project}
       />
     </div>
   );
