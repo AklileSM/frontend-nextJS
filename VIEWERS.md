@@ -24,7 +24,7 @@ setViewerContext({
 
 ```ts
 const { ctx, loading, fallbackHref } = useViewerContext();
-// ctx is ViewerContext | null — null if the user navigated directly without going through the explorer
+// ctx is ViewerContext | null, null if the user navigated directly without going through the explorer
 ```
 
 Context is stored per project slug under `a6.viewerContext.<projectSlug>` and survives full page reloads. The last 12 opened files are tracked in `a6.recentFiles` for the recently-viewed list on the dashboard.

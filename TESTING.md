@@ -15,8 +15,8 @@ playwright.*     → does not exist
 
 The only quality gates today are:
 
-- `npm run lint` — ESLint
-- `npm run typecheck` — `tsc --noEmit`
+- `npm run lint`, ESLint
+- `npm run typecheck`, `tsc --noEmit`
 
 Both are advisory. CI does not exist either.
 
@@ -27,11 +27,11 @@ Both are advisory. CI does not exist either.
 | Unit | Vitest | Pure utilities in `lib/` (`hashFile`, `observationReportFlags`, `formatDate`, `engineeringReportPdf` shape) |
 | Component | Vitest + Testing Library | `ReportBuilder` form validation, `RoomFilterMenu` filtering, `FileGrid` empty state |
 | Integration | Playwright | Login → upload → annotate → publish; admin sees the admin tab; viewer cannot upload |
-| Visual | Playwright trace + diff | Optional — viewer pages, especially panorama and pointcloud |
+| Visual | Playwright trace + diff | Optional, viewer pages, especially panorama and pointcloud |
 
 Don't aim for 100% coverage. Aim for the tests that catch the bugs you've already seen.
 
-## Recommended setup — Vitest + Testing Library
+## Recommended setup, Vitest + Testing Library
 
 ```bash
 npm install -D vitest @vitejs/plugin-react jsdom @testing-library/react @testing-library/jest-dom @testing-library/user-event
@@ -150,7 +150,7 @@ vi.mock('@/services/apiClient', () => ({
 
 The api-client tests themselves (network behavior, error parsing, 401 redirect) belong in their own file and can use `vi.fn()` for `fetch`.
 
-## Recommended setup — Playwright (integration)
+## Recommended setup, Playwright (integration)
 
 ```bash
 npm install -D @playwright/test
@@ -175,8 +175,8 @@ export default defineConfig({
 
 E2E tests need a real backend. Two options:
 
-- **Local stack** — run `docker compose up -d` from `deployment/` and point `BACKEND_URL=http://localhost:3002`.
-- **Disposable backend** — wrap `docker compose up -d db backend` in a fixture that resets the DB between runs.
+- **Local stack**, run `docker compose up -d` from `deployment/` and point `BACKEND_URL=http://localhost:3002`.
+- **Disposable backend**, wrap `docker compose up -d db backend` in a fixture that resets the DB between runs.
 
 Smoke test:
 
@@ -195,10 +195,10 @@ test('login redirects to /app', async ({ page }) => {
 
 ## What NOT to test
 
-- Three.js render output (mocking WebGL is more work than it's worth — verify viewers manually).
+- Three.js render output (mocking WebGL is more work than it's worth, verify viewers manually).
 - The PDF byte content (test the input shape passed to `buildFieldObservationPdf`, not the bytes).
-- Animation timings (`framer-motion` — its own concerns).
-- The Next.js framework (route resolution, rewrites — assume they work).
+- Animation timings (`framer-motion`, its own concerns).
+- The Next.js framework (route resolution, rewrites, assume they work).
 
 ## CI suggestion (when you're ready)
 
@@ -219,7 +219,7 @@ jobs:
       - run: npm run test:run
 ```
 
-Add Playwright as a separate job if/when you wire it up — it needs the backend stack and is too slow to run on every push.
+Add Playwright as a separate job if/when you wire it up, it needs the backend stack and is too slow to run on every push.
 
 ## Where the code lives (when it exists)
 

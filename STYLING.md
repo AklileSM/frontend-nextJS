@@ -6,7 +6,7 @@ This app uses **Tailwind CSS** for layout and static styles, and **Framer Motion
 
 ## Color palette
 
-All colors are defined in `tailwind.config.ts`. Do not use arbitrary hex values — use these tokens.
+All colors are defined in `tailwind.config.ts`. Do not use arbitrary hex values, use these tokens.
 
 ### `base` dark UI surfaces
 
