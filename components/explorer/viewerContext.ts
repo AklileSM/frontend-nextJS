@@ -113,9 +113,8 @@ export function backHrefFor(ctx: ViewerContext): string {
 
 export function viewerHrefFor(file: ApiMediaFile): string {
   if (file.type === 'image') {
-    // Panorama detection in the live app is heuristic-based; for the mock the
-    // explorer simply opens panorama-y files via the static viewer until the
-    // user explicitly chooses the panorama route from the inner viewer.
+    // Images open in the static viewer by default. The panorama route is
+    // opt-in from inside the viewer rather than auto-detected here.
     return '/app/viewer/static';
   }
   if (file.type === 'pointcloud') return '/app/viewer/point-cloud';

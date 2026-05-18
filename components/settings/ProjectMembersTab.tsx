@@ -1,13 +1,5 @@
 'use client';
 
-/** Project members tab: list, role change, remove, plus the add-member form
- *  (typeahead user search + role picker).
- *
- *  Was ~433 lines. Two things came out:
- *    - `members/RoleDropdown.tsx` — the three-option role popover.
- *    - The inline ConfirmModal — replaced with the shared `<ConfirmDialog>`.
- */
-
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { toast } from 'sonner';

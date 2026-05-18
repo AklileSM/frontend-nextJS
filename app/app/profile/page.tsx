@@ -1,18 +1,5 @@
 'use client';
 
-/**
- * Profile page — orchestrates Reports / Drafts / Files / Activity tabs.
- *
- * The three list tabs were extracted into `_components/`:
- *   - ReportsTab.tsx
- *   - DraftsTab.tsx     (+ DraftSide type and DraftRow type)
- *   - FilesTab.tsx      (+ FileSide type)
- *   - SideRail.tsx      (shared sub-nav)
- *
- * State stays here: tab selection, data fetching, delete-pending state,
- * and the open/download/delete callbacks for each tab.
- */
-
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';

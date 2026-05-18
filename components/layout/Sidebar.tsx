@@ -1,18 +1,5 @@
 'use client';
 
-/**
- * App sidebar.
- *
- * Was ~509 lines. Internal components moved out to `./sidebar/`:
- *   - NavAtoms.tsx        (SectionLabel, NavLink)
- *   - ProjectAccordion.tsx
- *   - RoomAccordion.tsx   (also contains DateNode and MediaGlyphs)
- *   - UserFooter.tsx
- *
- * What stays here: top-level layout, project/room data fetch, the
- * slug-from-URL → slug-from-sessionStorage fallback chain.
- */
-
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';

@@ -1,30 +1,5 @@
 'use client';
 
-/**
- * Static image / video viewer.
- *
- * This file used to be ~855 lines. The annotation UI was split into
- * dedicated sub-modules under `./static/`:
- *
- *   - static/annotationStyles.ts     — FLAG_META, FLAG_ORDER, UNFLAGGED_*
- *   - static/types.ts                — AnnotationFormState
- *   - static/AnnotationPins.tsx      — pin overlay on the image
- *   - static/AnnotationFormModal.tsx — create / edit modal (uses <Modal>)
- *   - static/AnnotationDetailsModal.tsx — click-pin details (uses <Modal>)
- *
- * What remains here:
- *   - Viewer-context loading + back nav
- *   - Image / video render + zoom
- *   - AI analysis button + result display
- *   - Annotation state (list, selection, form, details, delete-confirm)
- *     and the API calls (create / update / delete / attachment upload).
- *
- * The state stays here because everything below the surface is coupled —
- * the pin overlay reads the same selection as the details modal; the form
- * modal reads the same annotations list to populate its "related" picker;
- * the parent's image click handler updates the open form's pin coords.
- */
-
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';

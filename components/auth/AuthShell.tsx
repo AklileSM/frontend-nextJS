@@ -2,9 +2,8 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { Logo } from '@/components/landing/Logo';
 
-// Two-column auth shell. Left column carries the brand + a short pitch + a
-// mock-mode hint. Right column hosts the form. On mobile the left column
-// collapses and the form takes the viewport.
+// Two-column auth layout: brand + tagline on the left, form on the right.
+// Single-column on mobile.
 
 type Props = {
   title: string;

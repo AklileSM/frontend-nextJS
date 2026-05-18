@@ -1,14 +1,9 @@
 'use client';
 
 /**
- * Yes/no confirmation dialog with an alert icon, single confirm button, and
- * built-in busy state for the async path. Backed by `<Modal>`; if you need
- * anything beyond title + body + confirm button, drop down to `<Modal>`
- * directly.
- *
- * Dismissal: the X in the header, Escape, or a backdrop click. (There is no
- * Cancel button, the `cancelLabel` prop is retained for API compatibility
- * but is intentionally unrendered.)
+ * Yes/no confirmation dialog with an alert icon and a single confirm button.
+ * Dismissal is via the X, Escape, or a backdrop click — there is no Cancel
+ * button. For anything more complex, use `<Modal>` directly.
  */
 
 import type { ReactNode } from 'react';
@@ -23,9 +18,6 @@ type Props = {
    *  if the caller wants inline code spans, a preview block, etc. */
   body: ReactNode;
   confirmLabel?: string;
-  /** Retained for API compatibility; not rendered. Dismissal is via X / Esc /
-   *  backdrop. */
-  cancelLabel?: string;
   danger?: boolean;
   onConfirm: () => Promise<void> | void;
   onCancel: () => void;
@@ -36,8 +28,6 @@ export function ConfirmDialog({
   title,
   body,
   confirmLabel = 'Confirm',
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  cancelLabel = 'Cancel',
   danger = false,
   onConfirm,
   onCancel,

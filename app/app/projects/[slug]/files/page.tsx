@@ -1,18 +1,5 @@
 'use client';
 
-/**
- * Per-project file explorer page.
- *
- * The 600-line monolith was reduced by moving four pieces out:
- *   - _components/RoomSection.tsx  (per-room block: heading + grid)
- *   - _components/Uploader.tsx     (room combobox + date picker + UploadZone)
- *   - _components/Skeleton.tsx     (loading placeholder)
- *   - _components/helpers.ts       (pickGroup, emptyGroup, filesForTab, TYPE_TO_TAB)
- *
- * State + orchestration stay here (date param, project lookup, polling,
- * selection state, bulk + single delete flows).
- */
-
 import { motion } from 'framer-motion';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';

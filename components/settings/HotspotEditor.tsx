@@ -43,8 +43,6 @@ function controlsAnchor(c: FloorPlanCoordinates): Point {
   return { x: c.x + c.width / 2, y: c.y + c.height / 2 };
 }
 
-// ── RoomPicker ────────────────────────────────────────────────────────────────
-
 function RoomPicker({
   rooms,
   defaultRoomId,
@@ -107,7 +105,6 @@ function RoomPicker({
   );
 }
 
-// ── Zone controls popup (click-to-select) ─────────────────────────────────────
 
 function ZoneControls({
   room,
@@ -157,7 +154,6 @@ function ZoneControls({
   );
 }
 
-// ── Rect zone overlay (legacy) ────────────────────────────────────────────────
 
 function RectZone({
   room,
@@ -189,7 +185,6 @@ function RectZone({
   );
 }
 
-// ── Main component ─────────────────────────────────────────────────────────────
 
 export function HotspotEditor({
   projectId,
@@ -224,7 +219,6 @@ export function HotspotEditor({
 
   const isInteracting = polyPoints.length > 0 || !!pendingCoords;
 
-  // ── Helpers ─────────────────────────────────────────────────────────────────
 
   const getRelativePos = useCallback((e: { clientX: number; clientY: number }): Point | null => {
     const el = overlayRef.current;
@@ -263,7 +257,6 @@ export function HotspotEditor({
     setSelectedZoneId(null);
   }, []);
 
-  // ── Keyboard ─────────────────────────────────────────────────────────────────
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -273,7 +266,6 @@ export function HotspotEditor({
     return () => window.removeEventListener('keydown', handler);
   }, [discard]);
 
-  // ── Overlay interactions ──────────────────────────────────────────────────────
 
   const handleOverlayClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
@@ -312,7 +304,6 @@ export function HotspotEditor({
 
   const handleMouseLeave = useCallback(() => setMousePos(null), []);
 
-  // ── API calls ────────────────────────────────────────────────────────────────
 
   const handleAssign = async (roomId: string) => {
     if (!pendingCoords) return;
@@ -348,7 +339,6 @@ export function HotspotEditor({
     setSelectedZoneId(null);
   };
 
-  // ── Cursor ────────────────────────────────────────────────────────────────────
 
   const cursor =
     pendingCoords ? 'cursor-default'
@@ -357,7 +347,6 @@ export function HotspotEditor({
     : nearFirstVertex ? 'cursor-pointer'
     : 'cursor-crosshair';
 
-  // ── Hint text ─────────────────────────────────────────────────────────────────
 
   const hint = redrawingRoomId
     ? `Redrawing ${rooms.find((r) => r.id === redrawingRoomId)?.name ?? ''}, `
@@ -374,7 +363,6 @@ export function HotspotEditor({
       ? 'Click to close the polygon.'
       : 'Click the first point to close, or keep adding vertices.';
 
-  // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-3">

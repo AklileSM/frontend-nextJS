@@ -76,8 +76,6 @@ export function ProjectRoomsTab({
     if (editingId) editInputRef.current?.focus();
   }, [editingId]);
 
-  // ── Add ────────────────────────────────────────────────────────────────────
-
   const handleAddNameChange = (v: string) => {
     setAddName(v);
     if (!addSlugTouched) setAddSlug(autoSlug(v));
@@ -104,8 +102,6 @@ export function ProjectRoomsTab({
       setAdding(false);
     }
   };
-
-  // ── Rename ─────────────────────────────────────────────────────────────────
 
   const startEdit = (room: ApiRoom) => {
     setConfirmDeleteId(null);
@@ -138,8 +134,6 @@ export function ProjectRoomsTab({
     }
   };
 
-  // ── Reorder ────────────────────────────────────────────────────────────────
-
   const move = async (index: number, direction: -1 | 1) => {
     const target = index + direction;
     if (target < 0 || target >= rooms.length) return;
@@ -166,8 +160,6 @@ export function ProjectRoomsTab({
     }
   };
 
-  // ── Delete ─────────────────────────────────────────────────────────────────
-
   const handleDelete = async (room: ApiRoom) => {
     setDeletingId(room.id);
     try {
@@ -181,8 +173,6 @@ export function ProjectRoomsTab({
       setConfirmDeleteId(null);
     }
   };
-
-  // ── Render ─────────────────────────────────────────────────────────────────
 
   if (loading) {
     return (

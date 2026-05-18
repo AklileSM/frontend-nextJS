@@ -1,24 +1,5 @@
 'use client';
 
-/**
- * Side-by-side comparison panel.
- *
- * This file used to be ~1570 lines. Sub-components and shared types/helpers
- * were split out into `./panel/*`:
- *
- *   - panel/types.ts         , Side, PanelState, FileSelection, ...
- *   - panel/helpers.ts       , draftSavedDayKeyLocal, isPCDUrl, ...
- *   - panel/CompareCalendar.tsx
- *   - panel/PickerThumbnail.tsx
- *   - panel/PanelFileExplorer.tsx
- *   - panel/PublishModal.tsx
- *
- * The state still lives in this file (it is heavily interdependent across
- * the dual viewers, draft hydration, snapshot/annex, and the publish
- * pipeline). The sub-components are pure presentational pieces; the publish
- * modal receives the draft list + selection state as props.
- */
-
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -492,7 +473,6 @@ export function ComparePanel() {
     );
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-4 p-4">
