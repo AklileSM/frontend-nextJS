@@ -166,7 +166,7 @@ export function FeedbackModal({ open, onClose }: Props) {
             <div className="flex flex-col items-center gap-1 text-ink-300">
               <Upload size={16} />
               <p className="text-[12.5px]">
-                <span className="font-medium text-white">Click to upload</span>, drag and drop, or paste from clipboard
+                <span className="font-medium text-white">Click to upload</span>, drag and drop
               </p>
               <p className="text-[11px] text-ink-500">PNG / JPG / WebP up to 8 MB each</p>
             </div>
