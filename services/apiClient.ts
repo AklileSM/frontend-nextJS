@@ -22,3 +22,4 @@ export * from './api/upload';
 export * from './api/ai';
 export * from './api/annotations';
 export * from './api/reports';
+export * from './api/feedback';

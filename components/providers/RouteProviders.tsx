@@ -5,6 +5,7 @@ import { Toaster } from 'sonner';
 import { AuthProvider } from '@/context/AuthContext';
 import { SelectedDateProvider } from '@/context/SelectedDateContext';
 import { ClientLogger } from '@/components/diagnostics/ClientLogger';
+import { FeedbackFab } from '@/components/feedback/FeedbackFab';
 
 function AppToaster() {
   return (
@@ -29,6 +30,7 @@ export function AppProviders({ children }: { children: ReactNode }) {
       <SelectedDateProvider>
         <ClientLogger />
         {children}
+        <FeedbackFab />
         <AppToaster />
       </SelectedDateProvider>
     </AuthProvider>
@@ -40,6 +42,7 @@ export function AuthPageProviders({ children }: { children: ReactNode }) {
     <AuthProvider>
       <ClientLogger />
       {children}
+      <FeedbackFab />
       <AppToaster />
     </AuthProvider>
   );
