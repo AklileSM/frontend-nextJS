@@ -98,7 +98,7 @@ export function FeedbackModal({ open, onClose }: Props) {
         viewport: typeof window !== 'undefined' ? `${window.innerWidth}x${window.innerHeight}` : '',
         userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
       });
-      toast.success('Thanks, your feedback was submitted.');
+      toast.success('Your feedback was submitted, thank you!');
       onClose();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not send feedback.');
@@ -111,11 +111,10 @@ export function FeedbackModal({ open, onClose }: Props) {
     <Modal
       open={open}
       onClose={submitting ? () => {} : onClose}
-      title="Send feedback"
-      subtitle="Bugs, comments, ideas, anything. Screenshots help."
+      title="Share feedback"
       size="lg"
       busy={submitting}
-      busyMessage="Submitting feedback…"
+      busyMessage="Submitting…"
       footer={
         <>
           <button
@@ -145,7 +144,7 @@ export function FeedbackModal({ open, onClose }: Props) {
             onChange={(e) => setComment(e.target.value)}
             onPaste={onPaste}
             rows={5}
-            placeholder="Describe what you saw, what you expected, or just paste a screenshot"
+            placeholder="Describe what you saw, bugs, comments, anything."
             className="w-full resize-none rounded-md border border-base-700 bg-base-950/60 px-3 py-2.5 text-[13px] text-white placeholder-ink-600 focus:border-base-600 focus:outline-none"
             autoFocus
           />
