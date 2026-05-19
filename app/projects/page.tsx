@@ -95,14 +95,16 @@ export default function ProjectsHubPage() {
             )}
           </div>
 
-          <button
-            type="button"
-            onClick={() => setShowCreate(true)}
-            className="inline-flex items-center gap-2 rounded-md bg-amber-500 px-5 py-2.5 text-[13px] font-semibold text-base-950 shadow-[0_8px_24px_-10px_rgba(245,158,11,0.5)] transition-all hover:bg-amber-400 hover:shadow-[0_8px_32px_-8px_rgba(245,158,11,0.65)]"
-          >
-            <Plus size={15} strokeWidth={2.5} />
-            New project
-          </button>
+          {!fetching && projects.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowCreate(true)}
+              className="inline-flex items-center gap-2 rounded-md bg-amber-500 px-5 py-2.5 text-[13px] font-semibold text-base-950 shadow-[0_8px_24px_-10px_rgba(245,158,11,0.5)] transition-all hover:bg-amber-400 hover:shadow-[0_8px_32px_-8px_rgba(245,158,11,0.65)]"
+            >
+              <Plus size={15} strokeWidth={2.5} />
+              New project
+            </button>
+          )}
         </motion.div>
 
         {/* Divider */}
