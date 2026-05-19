@@ -51,7 +51,7 @@ export function FeedbackModal({ open, onClose }: Props) {
       accepted.push(f);
     }
     if (rejected > 0) {
-      toast.error(`${rejected} file(s) skipped — only images under 8 MB are allowed.`);
+      toast.error(`${rejected} file(s) skipped, only images under 8 MB are allowed.`);
     }
     setFiles((prev) => {
       const merged = [...prev, ...accepted];
@@ -98,7 +98,7 @@ export function FeedbackModal({ open, onClose }: Props) {
         viewport: typeof window !== 'undefined' ? `${window.innerWidth}x${window.innerHeight}` : '',
         userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
       });
-      toast.success('Thanks — your feedback was sent.');
+      toast.success('Thanks, your feedback was submitted.');
       onClose();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not send feedback.');
@@ -112,10 +112,10 @@ export function FeedbackModal({ open, onClose }: Props) {
       open={open}
       onClose={submitting ? () => {} : onClose}
       title="Send feedback"
-      subtitle="Bugs, confusion, ideas — anything. Screenshots help."
+      subtitle="Bugs, comments, ideas, anything. Screenshots help."
       size="lg"
       busy={submitting}
-      busyMessage="Sending feedback…"
+      busyMessage="Submitting feedback…"
       footer={
         <>
           <button
@@ -133,22 +133,19 @@ export function FeedbackModal({ open, onClose }: Props) {
             className="inline-flex items-center gap-1.5 rounded-md bg-amber-500 px-3.5 py-1.5 text-[13px] font-semibold text-base-950 transition-colors hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Send size={13} />
-            Send
+            Submit
           </button>
         </>
       }
     >
       <div className="space-y-4">
         <div>
-          <label className="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.18em] text-ink-400">
-            What happened?
-          </label>
           <textarea
             value={comment}
             onChange={(e) => setComment(e.target.value)}
             onPaste={onPaste}
             rows={5}
-            placeholder="Describe what you saw, what you expected, or just paste a screenshot (Ctrl/Cmd+V)…"
+            placeholder="Describe what you saw, what you expected, or just paste a screenshot"
             className="w-full resize-none rounded-md border border-base-700 bg-base-950/60 px-3 py-2.5 text-[13px] text-white placeholder-ink-600 focus:border-base-600 focus:outline-none"
             autoFocus
           />
