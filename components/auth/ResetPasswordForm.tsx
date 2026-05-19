@@ -6,11 +6,13 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Field } from '@/components/auth/Field';
+import { useAuth } from '@/context/AuthContext';
 import { validateResetToken, resetPassword } from '@/services/apiClient';
 
 export function ResetPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { logout } = useAuth();
   const token = searchParams.get('token') ?? '';
 
   const [validating, setValidating] = useState(true);
@@ -47,6 +49,7 @@ export function ResetPasswordForm() {
     setSubmitting(true);
     try {
       await resetPassword(token, password);
+      logout();
       toast.success('Password updated. You can now sign in.');
       router.replace('/login');
     } catch (err) {

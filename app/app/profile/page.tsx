@@ -41,7 +41,7 @@ type TopTab = 'reports' | 'drafts' | 'files' | 'activity';
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [tab, setTab] = useState<TopTab>('reports');
   const [draftSide, setDraftSide] = useState<DraftSide>('viewer');
   const [fileSide, setFileSide] = useState<FileSide>('image');
@@ -68,6 +68,21 @@ export default function ProfilePage() {
   // Same predicate the backend's GET /activity uses: owner / editor / admin.
   // Viewers don't get an Activity tab.
   const { canUpload } = useMyProjectRole(currentProject?.id);
+
+  // Re-fetch the user when the tab regains focus, so the verify-email banner
+  // disappears after the user clicks the link in another tab and comes back.
+  useEffect(() => {
+    if (!user || user.email_verified) return;
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void refreshUser();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
+  }, [user, refreshUser]);
   const showActivity = canUpload && !!projectSlug;
 
   useEffect(() => {
