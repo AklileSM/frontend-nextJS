@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { MessageSquarePlus } from 'lucide-react';
 import { FeedbackModal } from './FeedbackModal';
 
 export function FeedbackFab() {
@@ -14,7 +13,7 @@ export function FeedbackFab() {
         onClick={() => setOpen(true)}
         aria-label="Share feedback"
         title="Share feedback"
-        className="fixed bottom-5 right-5 z-40 inline-flex h-12 w-12 items-center justify-center rounded-full bg-amber-500 text-base-950 shadow-lg shadow-black/40 transition-all hover:bg-amber-400 hover:shadow-xl active:scale-95 sm:bottom-6 sm:right-6"
+        className="fixed bottom-5 right-5 z-40 inline-flex items-center justify-center rounded-full bg-amber-500 px-5 py-2.5 text-[13px] font-semibold text-base-950 shadow-lg shadow-black/40 transition-all hover:bg-amber-400 hover:shadow-xl active:scale-95 sm:bottom-6 sm:right-6"
       >
         Feedback
       </button>
