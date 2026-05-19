@@ -1,10 +1,8 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
-import { LogOut } from 'lucide-react';
-import { useAuth } from '@/context/AuthContext';
 import { Logo } from '@/components/landing/Logo';
+import { ProfileMenu } from '@/components/app/ProfileMenu';
 
 type Props = {
   children: ReactNode;
@@ -12,27 +10,12 @@ type Props = {
 };
 
 export function StandaloneShell({ children, maxWidth = '1280px' }: Props) {
-  const { user, logout } = useAuth();
-  const router = useRouter();
-
   return (
     <div className="relative min-h-screen bg-base-950 text-white">
       <BackgroundGrid />
       <header className="relative z-10 flex h-14 items-center justify-between border-b border-base-800/60 px-6 sm:px-10">
         <Logo />
-        <div className="flex items-center gap-4">
-          <span className="hidden font-mono text-[12px] text-ink-400 sm:block">
-            {user?.username}
-          </span>
-          <button
-            type="button"
-            onClick={() => { logout(); router.replace('/login'); }}
-            className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 font-mono text-[12px] text-ink-400 transition-colors hover:bg-base-800 hover:text-white"
-          >
-            <LogOut size={13} />
-            Sign out
-          </button>
-        </div>
+        <ProfileMenu />
       </header>
       <main
         className="relative z-10 mx-auto px-6 py-14 sm:px-10 lg:py-20"

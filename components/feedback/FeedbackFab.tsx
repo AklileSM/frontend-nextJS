@@ -13,7 +13,7 @@ export function FeedbackFab() {
         onClick={() => setOpen(true)}
         aria-label="Share feedback"
         title="Share feedback"
-        className="fixed bottom-5 right-5 z-40 inline-flex items-center justify-center rounded-full bg-amber-500 px-5 py-2.5 text-[13px] font-semibold text-base-950 shadow-lg shadow-black/40 transition-all hover:bg-amber-400 hover:shadow-xl active:scale-95 sm:bottom-6 sm:right-6"
+        className="fixed bottom-5 right-5 z-40 inline-flex items-center justify-center rounded-full bg-amber-500 px-6 py-3 text-[14px] font-semibold tracking-[0.01em] text-base-950 shadow-[0_8px_24px_-8px_rgba(245,158,11,0.55)] transition-all hover:bg-amber-400 hover:shadow-[0_10px_28px_-6px_rgba(245,158,11,0.7)] active:scale-95 sm:bottom-6 sm:right-6"
       >
         Feedback
       </button>
