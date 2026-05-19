@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useRef, useState, type ClipboardEvent, type DragEvent } from 'react';
-import { usePathname, useSearchParams } from 'next/navigation';
 import { Loader2, Send, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Modal } from '@/components/ui/Modal';
@@ -16,8 +15,6 @@ type Props = {
 };
 
 export function FeedbackModal({ open, onClose }: Props) {
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
   const [comment, setComment] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
@@ -94,12 +91,10 @@ export function FeedbackModal({ open, onClose }: Props) {
     if (!canSubmit) return;
     setSubmitting(true);
     try {
-      const queryString = searchParams.toString();
-      const fullPath = queryString ? `${pathname}?${queryString}` : pathname;
       await submitFeedback({
         comment: comment.trim(),
         screenshots: files,
-        pageUrl: typeof window !== 'undefined' ? `${window.location.origin}${fullPath}` : fullPath,
+        pageUrl: typeof window !== 'undefined' ? window.location.href : '',
         viewport: typeof window !== 'undefined' ? `${window.innerWidth}x${window.innerHeight}` : '',
         userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
       });

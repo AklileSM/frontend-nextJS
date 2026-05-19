@@ -203,10 +203,7 @@ function ProjectCard({ project, isAdmin, userId }: { project: ApiProject; isAdmi
             className="text-ink-600 transition-all duration-200 group-hover:translate-x-0.5 group-hover:text-amber-500"
           />
         </div>
-      </Link>
-
-      {/* Settings gear, admins and project owners */}
-      
+      </Link>      
     </motion.div>
   );
 }
