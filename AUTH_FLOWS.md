@@ -89,7 +89,7 @@ There is no token refresh. When the 7-day JWT expires, the next API call trigger
 1. User submits `{username, password, email?}`.
 2. `AuthContext.register(...)` → `apiRegister(...)` → `POST /api/auth/register`.
 3. Response includes `{access_token, user}`. The provider sets both and redirects to `/app`.
-4. If `email` was provided, the backend fires `send_verification_email()` in the background. The user lands in the app with `email_verified=false`; nothing blocks them.
+4. The backend fires `send_verification_email()` in the background. The user lands in the app with `email_verified=false` and can use the app immediately, but password reset is blocked until the email is verified (see `backend/AUTH_AND_EMAIL.md` → Password reset).
 
 > **The first user registered becomes admin.** This is enforced on the backend (`user_count == 0 → is_admin = True`). For a fresh deployment, register your own account before anyone else does.
 
