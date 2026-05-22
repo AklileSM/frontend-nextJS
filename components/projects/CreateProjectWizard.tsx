@@ -84,28 +84,17 @@ export function CreateProjectWizard({ onClose }: { onClose: () => void }) {
 
   // Details form
   const [name, setName] = useState('');
-  const [slug, setSlug] = useState('');
-  const [slugTouched, setSlugTouched] = useState(false);
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState('');
   const [creating, setCreating] = useState(false);
 
-  const autoSlug = (n: string) =>
-    n.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-
-  const handleNameChange = (v: string) => {
-    setName(v);
-    if (!slugTouched) setSlug(autoSlug(v));
-  };
-
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !slug.trim()) return;
+    if (!name.trim()) return;
     setCreating(true);
     try {
       const p = await createProject({
         name: name.trim(),
-        slug: slug.trim(),
         description: description.trim() || null,
         location: location.trim() || null,
       });
@@ -181,30 +170,12 @@ export function CreateProjectWizard({ onClose }: { onClose: () => void }) {
                 <input
                   type="text"
                   value={name}
-                  onChange={(e) => handleNameChange(e.target.value)}
+                  onChange={(e) => setName(e.target.value)}
                   placeholder="A6-Stern Extension"
                   className={inputCls}
                   required
                   autoFocus
                 />
-              </div>
-              <div>
-                <FieldLabel required>Slug</FieldLabel>
-                <input
-                  type="text"
-                  value={slug}
-                  onChange={(e) => {
-                    setSlugTouched(true);
-                    setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''));
-                  }}
-                  placeholder="a6-stern-ext"
-                  pattern="^[a-z0-9-]+$"
-                  className={`${inputCls} font-mono`}
-                  required
-                />
-                <p className="mt-1 font-mono text-[11px] text-ink-500">
-                  Lowercase, numbers, hyphens, used in URLs.
-                </p>
               </div>
               <div>
                 <FieldLabel>Description</FieldLabel>
@@ -229,7 +200,7 @@ export function CreateProjectWizard({ onClose }: { onClose: () => void }) {
               <div className="flex justify-end pt-2">
                 <button
                   type="submit"
-                  disabled={creating || !name.trim() || !slug.trim()}
+                  disabled={creating || !name.trim()}
                   className="inline-flex items-center gap-2 rounded-md bg-amber-500 px-4 py-2 text-[13px] font-semibold text-base-950 transition-colors hover:bg-amber-400 disabled:opacity-50"
                 >
                   {creating ? 'Creating…' : <><span>Create &amp; continue</span><ArrowRight size={13} /></>}

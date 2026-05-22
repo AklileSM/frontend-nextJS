@@ -1,6 +1,6 @@
 # A6-Stern Frontend
 
-> **New here?** Read `[deployment/PROJECT_OVERVIEW.md](../deployment/PROJECT_OVERVIEW.md)` first, it's the cross-repo front page with a topic-based map of every doc in the project.
+> **New here?** Read [`../README.md`](../README.md) first, it's the project front page with a topic-based map of every doc in the repo.
 
 Next.js application for the A6-Stern construction documentation platform. Provides file browsing, 360° panorama and 3D point cloud viewers, side-by-side image comparison, annotation tools, and PDF report generation.
 

@@ -16,14 +16,6 @@ import {
 import { createRoom, deleteRoom, listRooms, updateRoom } from '@/services/apiClient';
 import type { ApiRoom } from '@/types/api';
 
-function autoSlug(name: string) {
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
-
 const inputCls =
   'rounded-md border border-base-700 bg-base-950 px-3 py-2 text-[13px] text-white outline-none placeholder:text-ink-500 focus:border-amber-500 transition-colors';
 
@@ -39,8 +31,6 @@ export function ProjectRoomsTab({
 
   // Add form
   const [addName, setAddName] = useState('');
-  const [addSlug, setAddSlug] = useState('');
-  const [addSlugTouched, setAddSlugTouched] = useState(false);
   const [adding, setAdding] = useState(false);
 
   // Per-row state
@@ -76,25 +66,17 @@ export function ProjectRoomsTab({
     if (editingId) editInputRef.current?.focus();
   }, [editingId]);
 
-  const handleAddNameChange = (v: string) => {
-    setAddName(v);
-    if (!addSlugTouched) setAddSlug(autoSlug(v));
-  };
-
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!addName.trim() || !addSlug.trim()) return;
+    if (!addName.trim()) return;
     setAdding(true);
     try {
       const room = await createRoom(projectId, {
         name: addName.trim(),
-        slug: addSlug.trim(),
         sort_order: rooms.length,
       });
       setRooms((prev) => [...prev, room]);
       setAddName('');
-      setAddSlug('');
-      setAddSlugTouched(false);
       toast.success(`Room "${room.name}" created`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to create room');
@@ -121,7 +103,6 @@ export function ProjectRoomsTab({
     try {
       const updated = await updateRoom(projectId, room.id, {
         name: trimmed,
-        slug: autoSlug(trimmed),
       });
       setRooms((prev) => prev.map((r) => (r.id === room.id ? updated : r)));
       toast.success('Room renamed');
@@ -339,26 +320,14 @@ export function ProjectRoomsTab({
           <input
             type="text"
             value={addName}
-            onChange={(e) => handleAddNameChange(e.target.value)}
+            onChange={(e) => setAddName(e.target.value)}
             placeholder="Room name"
             required
             className={`${inputCls} min-w-[160px] flex-1`}
           />
-          <input
-            type="text"
-            value={addSlug}
-            onChange={(e) => {
-              setAddSlugTouched(true);
-              setAddSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''));
-            }}
-            placeholder="slug"
-            required
-            pattern="^[a-z0-9-]+$"
-            className={`${inputCls} w-36 font-mono`}
-          />
           <button
             type="submit"
-            disabled={adding || !addName.trim() || !addSlug.trim()}
+            disabled={adding || !addName.trim()}
             className="inline-flex items-center gap-2 rounded-md bg-amber-500 px-4 py-2 text-[13px] font-semibold text-base-950 hover:bg-amber-400 transition-colors disabled:opacity-40"
           >
             {adding ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}

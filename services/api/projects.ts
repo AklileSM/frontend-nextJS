@@ -9,7 +9,6 @@ import { API_BASE, apiFetch, getJson, parseApiError } from './core';
 
 export type ApiProjectCreateRequest = {
   name: string;
-  slug: string;
   description?: string | null;
   location?: string | null;
 };
