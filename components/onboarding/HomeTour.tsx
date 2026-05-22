@@ -22,13 +22,13 @@ const STEPS: CoachmarkStep[] = [
   {
     targetSelector: '[data-tour="home-settings"]',
     title: 'Project settings',
-    body: 'Rename rooms, upload a floorplan, draw room hotspots, manage members — everything project-level lives in Settings.',
+    body: 'Rename rooms, upload a floorplan, draw room hotspots, manage members, everything project-level lives in Settings.',
     placement: 'bottom',
   },
   {
     targetSelector: '[data-tour="sidebar-nav"]',
     title: 'Sidebar navigation',
-    body: 'Use the sidebar to jump between Home, the full projects list, and (for admins) the platform admin panel.',
+    body: 'Use the sidebar to jump between Home, the full projects list.',
     placement: 'right',
   },
   {

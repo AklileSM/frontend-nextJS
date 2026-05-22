@@ -44,7 +44,7 @@ const STEPS: CoachmarkStep[] = [
   {
     targetSelector: '[data-tour="upload-staging"]',
     title: 'Review and confirm',
-    body: 'This is the staging view. Review files, remove anything you don\'t want, then click "Upload" at the bottom. Click "Got it" to end the tour — the demo file will be discarded.',
+    body: 'This is the staging view. Review files, remove anything you don\'t want, duplicate files are detected and rejected here then click "Upload" at the bottom. Click "Got it" to end the tour',
     placement: 'auto',
   },
 ];
