@@ -5,7 +5,7 @@
  *  upload permission so in-flight uploads survive a manual "close uploader". */
 
 import { useEffect, useState } from 'react';
-import { UploadZone } from '@/components/explorer/UploadZone';
+import { UploadZone, type UploadDemoMode } from '@/components/explorer/UploadZone';
 import type { ApiMediaFile, ApiRoom } from '@/types/api';
 
 type Props = {
@@ -14,9 +14,10 @@ type Props = {
   onUploaded: (type: ApiMediaFile['type']) => void;
   onClose?: () => void;
   visible?: boolean;
+  demoMode?: UploadDemoMode;
 };
 
-export function Uploader({ rooms, captureDate, onUploaded, onClose, visible }: Props) {
+export function Uploader({ rooms, captureDate, onUploaded, onClose, visible, demoMode }: Props) {
   const [roomId, setRoomId] = useState(rooms[0]?.id ?? '');
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
@@ -39,7 +40,7 @@ export function Uploader({ rooms, captureDate, onUploaded, onClose, visible }: P
     <div className="rounded-lg border border-base-800 bg-base-900/30 p-5">
       <div className="mb-4 flex flex-wrap items-center gap-4">
         {/* Room combobox */}
-        <div className="flex items-center gap-2">
+        <div data-tour="upload-room-picker" className="flex items-center gap-2">
           <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-300">Room</span>
           <div className="relative">
             <input
@@ -80,7 +81,7 @@ export function Uploader({ rooms, captureDate, onUploaded, onClose, visible }: P
           />
         </div>
       </div>
-      <UploadZone roomId={roomId} roomSlug={selectedRoom.slug} captureDate={uploadDate} onUploaded={onUploaded} onClose={onClose} visible={visible} />
+      <UploadZone roomId={roomId} roomSlug={selectedRoom.slug} captureDate={uploadDate} onUploaded={onUploaded} onClose={onClose} visible={visible} demoMode={demoMode} />
     </div>
   );
 }

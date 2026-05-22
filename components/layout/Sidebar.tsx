@@ -122,7 +122,7 @@ export function Sidebar() {
           </button>
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-3 py-4">
+        <nav data-tour="sidebar-nav" className="flex-1 overflow-y-auto px-3 py-4">
           {/* Home — always shown, links to current project home if known */}
           <NavLink
             href={currentSlug ? `/app/projects/${currentSlug}` : '/projects'}
@@ -142,7 +142,7 @@ export function Sidebar() {
           />
 
           {/* Current project accordion — always shown */}
-          <div className="mt-2">
+          <div data-tour="sidebar-project-accordion" className="mt-2">
             {currentProject && currentRooms !== null ? (
               <ul className="space-y-0.5">
                 <li>
@@ -177,7 +177,7 @@ export function Sidebar() {
           )}
         </nav>
 
-        <div className={`border-t border-base-800 ${open ? 'block' : 'hidden lg:hidden'}`}>
+        <div data-tour="sidebar-calendar" className={`border-t border-base-800 ${open ? 'block' : 'hidden lg:hidden'}`}>
           <SectionLabel expanded={open} className="pt-3">
             Calendar
           </SectionLabel>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useState, type RefObject } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useState, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
@@ -14,12 +14,23 @@ export type CoachmarkStep = {
   title?: string;
   body: string;
   placement?: Placement;
+  /** Hide the Next button and advance only when the user really clicks the
+   *  spotlit target. The popover's Prev / X / Don't show again still work. */
+  waitForClick?: boolean;
 };
 
 type Props = {
   id: string;
   steps: CoachmarkStep[];
   enabled?: boolean;
+  /** Block clicks anywhere outside the spotlit target and the popover. The
+   *  scrim becomes click-blocking; users can only interact with the
+   *  highlighted element or the popover controls. Default false. */
+  lockBackground?: boolean;
+  /** Fires whenever the current step index changes (including step 0 on open). */
+  onStepChange?: (index: number) => void;
+  /** Fires when the tour closes for the current view (Got it / X / Esc / Don't show again). */
+  onClose?: () => void;
 };
 
 const POPOVER_W = 320;
@@ -29,10 +40,14 @@ const PAD = 6;
 
 type Rect = { top: number; left: number; width: number; height: number };
 
+function getTargetEl(step: CoachmarkStep): Element | null {
+  if (step.targetRef?.current) return step.targetRef.current;
+  if (step.targetSelector) return document.querySelector(step.targetSelector);
+  return null;
+}
+
 function getTargetRect(step: CoachmarkStep): Rect | null {
-  let el: Element | null = null;
-  if (step.targetRef?.current) el = step.targetRef.current;
-  else if (step.targetSelector) el = document.querySelector(step.targetSelector);
+  const el = getTargetEl(step);
   if (!el) return null;
   const r = el.getBoundingClientRect();
   if (r.width === 0 && r.height === 0) return null;
@@ -55,7 +70,7 @@ function placePopover(target: Rect, preferred: Placement, vw: number, vh: number
   } else {
     if (p === 'bottom' && !fitsBelow && fitsAbove) p = 'top';
     else if (p === 'top' && !fitsAbove && fitsBelow) p = 'bottom';
-    else if (p === 'right' && !fitsRight && fitsLeft) p = 'left';
+    else if (p === 'right' && !fitsRight && fitsLeft) p = 'right';
     else if (p === 'left' && !fitsLeft && fitsRight) p = 'right';
   }
 
@@ -82,14 +97,45 @@ function placePopover(target: Rect, preferred: Placement, vw: number, vh: number
   return { top, left, placement: p };
 }
 
-export function CoachmarkTour({ id, steps, enabled = true }: Props) {
-  const { state, mounted, complete, dismiss } = useCoachmark(id);
+export function CoachmarkTour({ id, steps, enabled = true, lockBackground = false, onStepChange, onClose }: Props) {
+  const { state, mounted, dismiss } = useCoachmark(id);
   const [index, setIndex] = useState(0);
+  const [closedThisView, setClosedThisView] = useState(false);
   const [target, setTarget] = useState<Rect | null>(null);
   const [pop, setPop] = useState<{ top: number; left: number; placement: Placement } | null>(null);
 
-  const isOpen = mounted && enabled && state === 'pending' && steps.length > 0;
+  const isOpen = mounted && enabled && state === 'pending' && !closedThisView && steps.length > 0;
   const step = steps[index];
+
+  // Notify parent on step change while open (covers initial mount and advance/back).
+  useEffect(() => {
+    if (isOpen) onStepChange?.(index);
+  }, [isOpen, index, onStepChange]);
+
+  const closeForView = useCallback(() => {
+    setIndex(0);
+    setClosedThisView(true);
+    onClose?.();
+  }, [onClose]);
+  const advance = useCallback(() => {
+    setIndex((i) => {
+      if (i < steps.length - 1) return i + 1;
+      // Last step — close.
+      setClosedThisView(true);
+      onClose?.();
+      return 0;
+    });
+  }, [steps.length, onClose]);
+  const back = useCallback(() => {
+    setIndex((i) => (i > 0 ? i - 1 : i));
+  }, []);
+
+  const dismissAndClose = useCallback(() => {
+    dismiss();
+    setIndex(0);
+    setClosedThisView(true);
+    onClose?.();
+  }, [dismiss, onClose]);
 
   useLayoutEffect(() => {
     if (!isOpen || !step) return;
@@ -130,24 +176,56 @@ export function CoachmarkTour({ id, steps, enabled = true }: Props) {
   useEffect(() => {
     if (!isOpen) return;
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') { e.preventDefault(); dismiss(); }
-      else if (e.key === 'ArrowRight' || e.key === 'Enter') { e.preventDefault(); advance(); }
+      if (e.key === 'Escape') { e.preventDefault(); closeForView(); }
+      else if (e.key === 'ArrowRight' || e.key === 'Enter') {
+        if (step?.waitForClick) return;
+        e.preventDefault();
+        advance();
+      }
       else if (e.key === 'ArrowLeft') { e.preventDefault(); back(); }
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, index]);
+  }, [isOpen, step, advance, back, closeForView]);
+
+  // Click-locking: prevent clicks outside the spotlit target / popover when
+  // lockBackground is on. Uses capture-phase so it runs before any handler.
+  useEffect(() => {
+    if (!isOpen || !lockBackground) return;
+    function block(e: MouseEvent) {
+      const node = e.target as Node | null;
+      if (!node) return;
+      const popoverEl = document.querySelector('[data-coachmark-popover]');
+      if (popoverEl && popoverEl.contains(node)) return;
+      const targetEl = step ? getTargetEl(step) : null;
+      if (targetEl && targetEl.contains(node)) return;
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    document.addEventListener('mousedown', block, true);
+    document.addEventListener('click', block, true);
+    document.addEventListener('pointerdown', block, true);
+    return () => {
+      document.removeEventListener('mousedown', block, true);
+      document.removeEventListener('click', block, true);
+      document.removeEventListener('pointerdown', block, true);
+    };
+  }, [isOpen, lockBackground, step]);
+
+  // waitForClick: advance when the user actually clicks the spotlit target.
+  useEffect(() => {
+    if (!isOpen || !step?.waitForClick) return;
+    const el = getTargetEl(step);
+    if (!el) return;
+    function onClick() {
+      // Defer one tick so the target's own handler runs first.
+      setTimeout(() => advance(), 0);
+    }
+    el.addEventListener('click', onClick);
+    return () => el.removeEventListener('click', onClick);
+  }, [isOpen, step, index, advance]);
 
   if (typeof document === 'undefined') return null;
-
-  function advance() {
-    if (index < steps.length - 1) setIndex((i) => i + 1);
-    else complete();
-  }
-  function back() {
-    if (index > 0) setIndex((i) => i - 1);
-  }
 
   const isLast = index === steps.length - 1;
 
@@ -191,6 +269,7 @@ export function CoachmarkTour({ id, steps, enabled = true }: Props) {
           {pop && step && (
             <motion.div
               key={`pop-${index}`}
+              data-coachmark-popover
               className="pointer-events-auto absolute rounded-lg border border-base-700 bg-base-900 p-4 shadow-2xl shadow-black/60"
               style={{ top: pop.top, left: pop.left, width: POPOVER_W }}
               initial={{ opacity: 0, y: 4 }}
@@ -205,8 +284,8 @@ export function CoachmarkTour({ id, steps, enabled = true }: Props) {
                 </span>
                 <button
                   type="button"
-                  onClick={dismiss}
-                  aria-label="Skip tour"
+                  onClick={closeForView}
+                  aria-label="Close tour"
                   className="inline-flex h-7 w-7 items-center justify-center rounded-md text-ink-400 transition-colors hover:bg-base-800 hover:text-white"
                 >
                   <X size={14} />
@@ -223,7 +302,7 @@ export function CoachmarkTour({ id, steps, enabled = true }: Props) {
               <div className="mt-4 flex items-center justify-between">
                 <button
                   type="button"
-                  onClick={dismiss}
+                  onClick={dismissAndClose}
                   className="text-[11.5px] text-ink-400 transition-colors hover:text-white"
                 >
                   Don&apos;t show again
@@ -239,14 +318,21 @@ export function CoachmarkTour({ id, steps, enabled = true }: Props) {
                   >
                     <ChevronLeft size={14} />
                   </button>
-                  <button
-                    type="button"
-                    onClick={advance}
-                    className="inline-flex items-center gap-1 rounded-md bg-amber-500 px-3 py-1.5 text-[12.5px] font-semibold text-base-950 transition-colors hover:bg-amber-400"
-                  >
-                    {isLast ? 'Got it' : 'Next'}
-                    {!isLast && <ChevronRight size={13} />}
-                  </button>
+                  {!step.waitForClick && (
+                    <button
+                      type="button"
+                      onClick={advance}
+                      className="inline-flex items-center gap-1 rounded-md bg-amber-500 px-3 py-1.5 text-[12.5px] font-semibold text-base-950 transition-colors hover:bg-amber-400"
+                    >
+                      {isLast ? 'Got it' : 'Next'}
+                      {!isLast && <ChevronRight size={13} />}
+                    </button>
+                  )}
+                  {step.waitForClick && (
+                    <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-amber-400/70">
+                      Click to continue
+                    </span>
+                  )}
                 </div>
               </div>
             </motion.div>

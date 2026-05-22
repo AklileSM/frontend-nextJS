@@ -22,6 +22,7 @@ import { BulkActionBar } from '@/components/explorer/BulkActionBar';
 import { MediaTabs, type MediaTab } from '@/components/explorer/MediaTabs';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { UploadTour } from '@/components/onboarding/UploadTour';
 import type {
   ApiMediaFile,
   ApiProject,
@@ -47,6 +48,7 @@ export default function FileExplorerPage() {
   const [tab, setTab] = useState<MediaTab>('images');
   const [pendingDelete, setPendingDelete] = useState<ApiMediaFile | null>(null);
   const [showUploader, setShowUploader] = useState(false);
+  const [demoActive, setDemoActive] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
   const [roomFilter, setRoomFilter] = useState<Set<string> | null>(null);
   const [visibleCount, setVisibleCount] = useState(10);
@@ -349,6 +351,7 @@ export default function FileExplorerPage() {
           {canUpload && (
             <button
               type="button"
+              data-tour="upload-button"
               onClick={() => setShowUploader((v) => !v)}
               className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-[13px] font-semibold transition-colors ${
                 showUploader
@@ -384,6 +387,11 @@ export default function FileExplorerPage() {
             }}
             onClose={() => setShowUploader(false)}
             visible={showUploader}
+            demoMode={{
+              active: demoActive,
+              onAttemptUpload: () => setDemoActive(false),
+              onCancel: () => setDemoActive(false),
+            }}
           />
         </motion.div>
       )}
@@ -471,6 +479,15 @@ export default function FileExplorerPage() {
           onDelete={() => setBulkConfirmDelete(true)}
           onDownload={runBulkDownload}
           onClear={clearSelection}
+        />
+      )}
+
+      {canUpload && (
+        <UploadTour
+          uploaderOpen={showUploader}
+          onOpenUploader={() => setShowUploader(true)}
+          onActivateDemo={() => { setShowUploader(true); setDemoActive(true); }}
+          onDeactivateDemo={() => setDemoActive(false)}
         />
       )}
     </div>

@@ -31,6 +31,18 @@ import { Modal } from '@/components/ui/Modal';
 import type { ApiMediaFile } from '@/types/api';
 import { FileTile, detectMediaType, makeThumbUrl, type Job } from './upload/FileTile';
 
+/** Walkthrough hook: when active, UploadZone stages a synthetic demo file and
+ *  short-circuits the real upload kickoff. Used by the upload-flow tour to
+ *  show the staging UI without sending anything to the server. */
+export type UploadDemoMode = {
+  active: boolean;
+  /** Fired when the user hits the staging "Upload" button while demo is
+   *  active — instead of running the upload. */
+  onAttemptUpload?: () => void;
+  /** Fired when the user cancels staging while demo is active. */
+  onCancel?: () => void;
+};
+
 type Props = {
   roomId: string;
   roomSlug: string;
@@ -46,9 +58,34 @@ type Props = {
    *  is fixed-positioned and would otherwise overlay the explorer even with
    *  the parent panel hidden. State is preserved either way. */
   visible?: boolean;
+  /** Walkthrough hook — see UploadDemoMode. */
+  demoMode?: UploadDemoMode;
 };
 
-export function UploadZone({ roomId, roomSlug, captureDate, onUploaded, onClose, visible = true }: Props) {
+const DEMO_JOB_PREFIX = 'demo-';
+
+async function makeDemoFile(): Promise<File> {
+  const canvas = document.createElement('canvas');
+  canvas.width = 480;
+  canvas.height = 360;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    ctx.fillStyle = '#f59e0b';
+    ctx.fillRect(0, 0, 480, 360);
+    ctx.fillStyle = '#0c0a09';
+    ctx.font = 'bold 28px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('DEMO PHOTO', 240, 170);
+    ctx.font = '14px sans-serif';
+    ctx.fillText('(walkthrough preview — not uploaded)', 240, 200);
+  }
+  const blob: Blob = await new Promise((resolve) => {
+    canvas.toBlob((b) => resolve(b ?? new Blob()), 'image/jpeg', 0.82);
+  });
+  return new File([blob], 'demo-walkthrough.jpg', { type: 'image/jpeg' });
+}
+
+export function UploadZone({ roomId, roomSlug, captureDate, onUploaded, onClose, visible = true, demoMode }: Props) {
   const [dragOver, setDragOver] = useState(false);
   const [staged, setStaged] = useState<Job[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -192,8 +229,46 @@ export function UploadZone({ roomId, roomSlug, captureDate, onUploaded, onClose,
     }
   };
 
+  // Demo mode: stage one synthetic file when active; clear it when inactive.
+  // The demo file is generated on the client (canvas → jpeg) and never sent
+  // to the backend — startUpload + cancelStaging short-circuit when any demo
+  // job is in the staging list.
+  useEffect(() => {
+    if (!demoMode?.active) {
+      setStaged((prev) => {
+        const demos = prev.filter((j) => j.id.startsWith(DEMO_JOB_PREFIX));
+        if (demos.length === 0) return prev;
+        demos.forEach((j) => j.thumbUrl && URL.revokeObjectURL(j.thumbUrl));
+        return prev.filter((j) => !j.id.startsWith(DEMO_JOB_PREFIX));
+      });
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const file = await makeDemoFile();
+      if (cancelled) return;
+      const job: Job = {
+        id: `${DEMO_JOB_PREFIX}${Date.now()}`,
+        file,
+        thumbUrl: makeThumbUrl(file),
+        progress: 0,
+        state: 'staging',
+        dedupe: 'ok',
+      };
+      setStaged((prev) => (prev.some((j) => j.id.startsWith(DEMO_JOB_PREFIX)) ? prev : [...prev, job]));
+    })();
+    return () => { cancelled = true; };
+  }, [demoMode?.active]);
+
   const startUpload = async () => {
     if (!staged.length) return;
+    if (demoMode?.active || staged.some((j) => j.id.startsWith(DEMO_JOB_PREFIX))) {
+      // Demo: don't upload; clear staging and notify the tour to advance.
+      staged.forEach((j) => j.thumbUrl && URL.revokeObjectURL(j.thumbUrl));
+      setStaged([]);
+      demoMode?.onAttemptUpload?.();
+      return;
+    }
     // Drop duplicates entirely — the precheck has already told us the server
     // has these. Drop tiles still in 'checking' too: the Upload button is
     // disabled while any are pending, so this is a defensive filter.
@@ -225,6 +300,7 @@ export function UploadZone({ roomId, roomSlug, captureDate, onUploaded, onClose,
   const cancelStaging = () => {
     staged.forEach((j) => j.thumbUrl && URL.revokeObjectURL(j.thumbUrl));
     setStaged([]);
+    if (demoMode?.active) demoMode.onCancel?.();
   };
 
   const removeFromStaging = (id: string) => {
@@ -358,6 +434,7 @@ export function UploadZone({ roomId, roomSlug, captureDate, onUploaded, onClose,
         }
       >
         <div
+          data-tour="upload-staging"
           onDragOver={(e) => e.preventDefault()}
           onDrop={onDropStaging}
           className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4"
@@ -393,6 +470,7 @@ export function UploadZone({ roomId, roomSlug, captureDate, onUploaded, onClose,
       {/* Drop zone — only when no batch is staged or running */}
       {phase === 'idle' && (
         <motion.div
+          data-tour="upload-zone"
           onDragOver={(e) => {
             e.preventDefault();
             setDragOver(true);

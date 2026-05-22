@@ -2,15 +2,14 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-export type CoachmarkState = 'pending' | 'completed' | 'dismissed';
+export type CoachmarkState = 'pending' | 'dismissed';
 
 const storageKey = (id: string) => `a6.coachmark.${id}`;
 
 function read(id: string): CoachmarkState {
   if (typeof window === 'undefined') return 'pending';
   try {
-    const v = window.localStorage.getItem(storageKey(id));
-    if (v === 'completed' || v === 'dismissed') return v;
+    if (window.localStorage.getItem(storageKey(id)) === 'dismissed') return 'dismissed';
   } catch { /* ignore */ }
   return 'pending';
 }
@@ -32,9 +31,8 @@ export function useCoachmark(id: string) {
     setMounted(true);
   }, [id]);
 
-  const complete = useCallback(() => { write(id, 'completed'); setState('completed'); }, [id]);
   const dismiss = useCallback(() => { write(id, 'dismissed'); setState('dismissed'); }, [id]);
   const reset = useCallback(() => { write(id, 'pending'); setState('pending'); }, [id]);
 
-  return { state, mounted, isDone: state !== 'pending', complete, dismiss, reset };
+  return { state, mounted, isDismissed: state === 'dismissed', dismiss, reset };
 }

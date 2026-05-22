@@ -3,7 +3,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { useParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
-import { FolderOpen, Settings } from 'lucide-react';
+import { Settings } from 'lucide-react';
 import Link from 'next/link';
 import { listProjects, listRooms } from '@/services/apiClient';
 import { useAuth } from '@/context/AuthContext';
@@ -13,6 +13,7 @@ import { ChartAll } from '@/components/home/ChartAll';
 import { ChartLocation } from '@/components/home/ChartLocation';
 import { MiniCalendar } from '@/components/layout/MiniCalendar';
 import { RecentFiles } from '@/components/home/RecentFiles';
+import { HomeTour } from '@/components/onboarding/HomeTour';
 import type { ApiProject, ApiRoom } from '@/types/api';
 
 export const dynamic = 'force-dynamic';
@@ -86,16 +87,10 @@ export default function ProjectHomePage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href={`/app/projects/${slug}/files`}
-            className="inline-flex items-center gap-2 rounded-md bg-amber-500 px-3 py-1.5 text-[13px] font-semibold text-base-950 transition-colors hover:bg-amber-400"
-          >
-            <FolderOpen size={14} />
-            File explorer
-          </Link>
           {showSettings && (
             <Link
               href={`/projects/${slug}/settings`}
+              data-tour="home-settings"
               className="inline-flex items-center gap-2 rounded-md border border-base-700 px-3 py-1.5 text-[13px] font-medium text-ink-200 transition-colors hover:border-ink-400 hover:text-white"
             >
               <Settings size={13} />
@@ -107,8 +102,11 @@ export default function ProjectHomePage() {
 
       <RecentFiles projectSlug={slug} />
 
+      <HomeTour />
+
       <div className="mt-10 grid grid-cols-1 gap-6 lg:grid-cols-[2fr_1fr] lg:gap-8">
         <motion.div
+          data-tour="home-floorplan"
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.55, delay: 0.05, ease: [0.22, 1, 0.36, 1] }}
@@ -127,6 +125,7 @@ export default function ProjectHomePage() {
         </motion.div>
 
         <motion.div
+          data-tour="home-charts"
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.55, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
