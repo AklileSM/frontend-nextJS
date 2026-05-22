@@ -10,7 +10,6 @@ import { listProjects } from '@/services/apiClient';
 import { useAuth } from '@/context/AuthContext';
 import { StandaloneShell } from '@/components/layout/StandaloneShell';
 import { CreateProjectWizard } from '@/components/projects/CreateProjectWizard';
-import { FirstTimeUserTour } from '@/components/onboarding/FirstTimeUserTour';
 import type { ApiProject } from '@/types/api';
 
 export const dynamic = 'force-dynamic';
@@ -100,7 +99,6 @@ export default function ProjectsHubPage() {
             <button
               type="button"
               onClick={() => setShowCreate(true)}
-              data-tour="new-project"
               className="inline-flex items-center gap-2 rounded-md bg-amber-500 px-5 py-2.5 text-[13px] font-semibold text-base-950 shadow-[0_8px_24px_-10px_rgba(245,158,11,0.5)] transition-all hover:bg-amber-400 hover:shadow-[0_8px_32px_-8px_rgba(245,158,11,0.65)]"
             >
               <Plus size={15} strokeWidth={2.5} />
@@ -152,8 +150,6 @@ export default function ProjectsHubPage() {
           />
         )}
       </AnimatePresence>
-
-      {!fetching && <FirstTimeUserTour />}
     </StandaloneShell>
   );
 }
@@ -248,7 +244,6 @@ function EmptyState({ onNew }: { onNew: () => void }) {
         <button
           type="button"
           onClick={onNew}
-          data-tour="new-project"
           className="mt-8 inline-flex items-center gap-2 rounded-lg bg-amber-500 px-6 py-3 text-[14px] font-semibold text-base-950 shadow-[0_8px_24px_-10px_rgba(245,158,11,0.55)] transition-all hover:bg-amber-400 hover:shadow-[0_8px_32px_-8px_rgba(245,158,11,0.7)]"
         >
           <Plus size={15} strokeWidth={2.5} />
