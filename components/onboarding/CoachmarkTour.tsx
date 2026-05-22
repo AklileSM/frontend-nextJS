@@ -139,10 +139,26 @@ export function CoachmarkTour({ id, steps, enabled = true, lockBackground = fals
 
   useLayoutEffect(() => {
     if (!isOpen || !step) return;
+    function centerPop() {
+      return {
+        top: Math.max((window.innerHeight - POPOVER_H_EST) / 2, 12),
+        left: Math.max((window.innerWidth - POPOVER_W) / 2, 12),
+        placement: 'bottom' as Placement,
+      };
+    }
     function recompute() {
+      const hasTargetSpec = !!(step.targetRef?.current || step.targetSelector);
       const r = getTargetRect(step);
       setTarget(r);
-      setPop(r ? placePopover(r, step.placement ?? 'auto', window.innerWidth, window.innerHeight) : null);
+      if (r) {
+        setPop(placePopover(r, step.placement ?? 'auto', window.innerWidth, window.innerHeight));
+      } else if (!hasTargetSpec) {
+        // Step with no target (e.g. welcome) — center the popover.
+        setPop(centerPop());
+      } else {
+        // Target spec given but not in DOM yet — leave pop null; tick() will retry.
+        setPop(null);
+      }
     }
     recompute();
     const t = window.setTimeout(recompute, 60);
@@ -158,6 +174,8 @@ export function CoachmarkTour({ id, steps, enabled = true, lockBackground = fals
   // Re-probe for a few frames after step change in case the target is still mounting.
   useEffect(() => {
     if (!isOpen || !step) return;
+    const hasTargetSpec = !!(step.targetRef?.current || step.targetSelector);
+    if (!hasTargetSpec) return;
     let raf = 0;
     let n = 0;
     function tick() {
@@ -241,7 +259,7 @@ export function CoachmarkTour({ id, steps, enabled = true, lockBackground = fals
       {isOpen && (
         <motion.div
           key="coachmark"
-          className="fixed inset-0 z-[55]"
+          className="pointer-events-none fixed inset-0 z-[55]"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
