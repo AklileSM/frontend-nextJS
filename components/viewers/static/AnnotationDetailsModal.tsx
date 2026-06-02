@@ -18,6 +18,9 @@ type Props = {
    *  used for the title and for resolving the "linked" cross-reference. */
   index: number;
   annotations: ApiAnnotation[];
+  /** When false the Edit/Delete actions are hidden (viewer role, or not the
+   *  annotation's creator). Read-only view in that case. */
+  canModify: boolean;
   onClose: () => void;
   onEdit: (a: ApiAnnotation) => void;
   onDelete: (a: ApiAnnotation) => void;
@@ -29,6 +32,7 @@ export function AnnotationDetailsModal({
   annotation,
   index,
   annotations,
+  canModify,
   onClose,
   onEdit,
   onDelete,
@@ -64,22 +68,24 @@ export function AnnotationDetailsModal({
       }
       size="lg"
       footer={
-        <>
-          <button
-            type="button"
-            onClick={() => onEdit(annotation)}
-            className="rounded-md border border-base-700 px-3.5 py-1.5 text-[13px] font-medium text-white transition-colors hover:border-ink-300 hover:bg-base-800"
-          >
-            Edit
-          </button>
-          <button
-            type="button"
-            onClick={() => onDelete(annotation)}
-            className="rounded-md border border-red-800/50 px-3.5 py-1.5 text-[13px] font-medium text-red-200 transition-colors hover:border-red-600/60 hover:bg-red-950/50"
-          >
-            Delete
-          </button>
-        </>
+        canModify ? (
+          <>
+            <button
+              type="button"
+              onClick={() => onEdit(annotation)}
+              className="rounded-md border border-base-700 px-3.5 py-1.5 text-[13px] font-medium text-white transition-colors hover:border-ink-300 hover:bg-base-800"
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              onClick={() => onDelete(annotation)}
+              className="rounded-md border border-red-800/50 px-3.5 py-1.5 text-[13px] font-medium text-red-200 transition-colors hover:border-red-600/60 hover:bg-red-950/50"
+            >
+              Delete
+            </button>
+          </>
+        ) : undefined
       }
     >
       <div className="space-y-4 text-[13px] leading-relaxed text-ink-200">

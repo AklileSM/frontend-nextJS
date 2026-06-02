@@ -87,7 +87,7 @@ export default function FileExplorerPage() {
   useEffect(() => {
     if (!project || !date) return;
     let cancelled = false;
-    getExplorerByDate(date).then((r) => { if (!cancelled) setResponse(r); });
+    getExplorerByDate(date, slug).then((r) => { if (!cancelled) setResponse(r); });
     return () => { cancelled = true; };
   }, [date, project, reloadToken]);
 

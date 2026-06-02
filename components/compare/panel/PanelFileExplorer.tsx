@@ -11,6 +11,7 @@ import type { FileSelection } from './types';
 
 export function PanelFileExplorer({
   projectId,
+  projectSlug,
   selectedDate,
   disabledFileUrl,
   onFileSelect,
@@ -18,6 +19,7 @@ export function PanelFileExplorer({
   tabRailId,
 }: {
   projectId: string;
+  projectSlug?: string;
   selectedDate: string;
   disabledFileUrl: string | null;
   onFileSelect: (sel: FileSelection) => void;
@@ -38,12 +40,12 @@ export function PanelFileExplorer({
     let cancelled = false;
     setLoading(true);
     setError(null);
-    getExplorerByDateForProject(projectId, selectedDate)
+    getExplorerByDateForProject(projectId, selectedDate, projectSlug)
       .then((res) => { if (!cancelled) setRoomsForDate(res.rooms || {}); })
       .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load files.'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [selectedDate, projectId]);
+  }, [selectedDate, projectId, projectSlug]);
 
   const roomSlugs = Object.keys(roomsForDate);
 

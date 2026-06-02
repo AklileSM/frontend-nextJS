@@ -231,6 +231,9 @@ export interface ApiAnnotation {
   linked_annotation_id?: string | null;
   // Backend-served attachment URL when an image is attached. Null otherwise.
   attachment_url?: string | null;
+  // The user who placed the annotation. Only the creator (or an admin) may
+  // edit/delete it; null for legacy pins created before this was tracked.
+  created_by_user_id?: string | null;
   created_at: string;
 }
 

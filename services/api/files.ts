@@ -17,16 +17,29 @@ import { listProjectRooms, listRooms } from './rooms';
 // Explorer (by date / by room / dates summary)
 // ---------------------------------------------------------------------------
 
-export function getExplorerByDate(date: string): Promise<ExplorerByDateResponse> {
-  return getJson<ExplorerByDateResponse>(`/files/explorer/date/${date}`);
+export function getExplorerByDate(
+  date: string,
+  projectSlug?: string,
+): Promise<ExplorerByDateResponse> {
+  // When a project slug is supplied the backend scopes + membership-gates the
+  // result server-side; without it the route returns all projects' captures.
+  const qs = projectSlug ? `?project_slug=${encodeURIComponent(projectSlug)}` : '';
+  return getJson<ExplorerByDateResponse>(`/files/explorer/date/${date}${qs}`);
 }
 
 export async function getExplorerByDateForProject(
   projectId: string,
   date: string,
+  projectSlug?: string,
 ): Promise<ExplorerByDateResponse> {
+  // Preferred: scope + membership-gate server-side, so no other project's file
+  // metadata is sent over the wire. Falls back to the legacy global-fetch +
+  // client-side room filter only when the caller doesn't have the slug.
+  if (projectSlug) {
+    return getExplorerByDate(date, projectSlug);
+  }
   const [res, rooms] = await Promise.all([
-    getJson<ExplorerByDateResponse>(`/files/explorer/date/${date}`),
+    getExplorerByDate(date),
     listProjectRooms(projectId),
   ]);
   // The API may key rooms by name OR slug, accept either.

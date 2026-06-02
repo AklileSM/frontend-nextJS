@@ -12,6 +12,7 @@ type RawAnnotation = {
   flag?: string | null;
   linked_annotation_id?: string | null;
   attachment_url?: string | null;
+  created_by_user_id?: string | null;
   created_at: string;
 };
 
@@ -38,6 +39,7 @@ function normalizeAnnotation(
         : null,
     linked_annotation_id: item.linked_annotation_id ?? null,
     attachment_url: item.attachment_url ?? null,
+    created_by_user_id: item.created_by_user_id ?? null,
     created_at: item.created_at,
   };
 }

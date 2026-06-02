@@ -11,9 +11,12 @@ import {
   deleteAnnotation,
   deleteAnnotationAttachment,
   listAnnotations,
+  listProjects,
   updateAnnotation,
   uploadAnnotationAttachment,
 } from '@/services/apiClient';
+import { useAuth } from '@/context/AuthContext';
+import { useMyProjectRole } from '@/hooks/useMyProjectRole';
 import { ReportBuilder } from '@/components/reports/ReportBuilder';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { CoachmarkTour, type CoachmarkStep } from '@/components/onboarding/CoachmarkTour';
@@ -27,6 +30,25 @@ import type { AnnotationFormState } from './static/types';
 
 export function StaticViewer() {
   const { ctx, loading, fallbackHref } = useViewerContext();
+  const { user } = useAuth();
+  // Resolve the file's project id from the viewer-context slug so we can read
+  // the caller's project role. Annotation tools are owner/editor/admin only.
+  const [projectId, setProjectId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!ctx) { setProjectId(null); return; }
+    let cancelled = false;
+    listProjects()
+      .then((ps) => { if (!cancelled) setProjectId(ps.find((p) => p.slug === ctx.projectSlug)?.id ?? null); })
+      .catch(() => { if (!cancelled) setProjectId(null); });
+    return () => { cancelled = true; };
+  }, [ctx?.projectSlug]);
+  const { canDelete: canAnnotate } = useMyProjectRole(projectId);
+  // Edit/delete are creator-only (admins may override). Legacy pins with no
+  // recorded creator stay editable by any write-role user — mirrors the
+  // backend's _require_owner.
+  const canModifyAnnotation = (a: ApiAnnotation | null): boolean =>
+    !!a && canAnnotate &&
+    (!!user?.is_admin || !a.created_by_user_id || a.created_by_user_id === user?.id);
   const [scale, setScale] = useState(1);
   const [aiDescription, setAiDescription] = useState('');
   const [analyzing, setAnalyzing] = useState(false);
@@ -305,17 +327,19 @@ export function StaticViewer() {
           >
             {analyzing ? 'Generating...' : 'Generate Description'}
           </button>
-          <button
-            ref={newAnnotationBtnRef}
-            type="button"
-            onClick={() => {
-              setPlacingAnnotation((v) => !v);
-              setAnnotationForm(null);
-            }}
-            className="rounded border border-base-700 px-2 py-1 text-[12px]"
-          >
-            {placingAnnotation ? 'Cancel Annotation' : 'New Annotation'}
-          </button>
+          {canAnnotate && (
+            <button
+              ref={newAnnotationBtnRef}
+              type="button"
+              onClick={() => {
+                setPlacingAnnotation((v) => !v);
+                setAnnotationForm(null);
+              }}
+              className="rounded border border-base-700 px-2 py-1 text-[12px]"
+            >
+              {placingAnnotation ? 'Cancel Annotation' : 'New Annotation'}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setShowAnnotations((v) => !v)}
@@ -444,6 +468,7 @@ export function StaticViewer() {
         annotation={detailsAnnotation}
         index={detailsAnnotationIndex}
         annotations={annotations}
+        canModify={canModifyAnnotation(detailsAnnotation)}
         onClose={() => setDetailsForId(null)}
         onEdit={openEditForm}
         onDelete={(a) => {

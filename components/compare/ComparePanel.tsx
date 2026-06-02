@@ -578,6 +578,7 @@ export function ComparePanel() {
                   {panel === 'explorer' && selectedDate && (
                     <PanelFileExplorer
                       projectId={project?.id ?? ''}
+                      projectSlug={project?.slug}
                       selectedDate={selectedDate}
                       disabledFileUrl={otherFile?.fileUrl ?? null}
                       onFileSelect={(sel) => handleFileSelect(side, sel)}

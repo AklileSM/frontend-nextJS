@@ -13,6 +13,7 @@ import {
   listRooms,
 } from '@/services/apiClient';
 import { useAuth } from '@/context/AuthContext';
+import { useMyProjectRole } from '@/hooks/useMyProjectRole';
 import { BulkActionBar } from '@/components/explorer/BulkActionBar';
 import { MediaTabs, type MediaTab } from '@/components/explorer/MediaTabs';
 import { DateFilterMenu } from '@/components/explorer/DateFilterMenu';
@@ -193,6 +194,16 @@ function Inner() {
     const room = allRooms.find((r) => r.slug === activeSlug);
     return projects.find((p) => p.id === room?.project_id)?.slug ?? '';
   }, [activeSlug, allRooms, projects]);
+
+  // Bulk actions are gated on delete permission (admin OR owner/editor) to match
+  // the project File Explorer, rather than admin-only. The backend enforces the
+  // same per-asset gate, so this only aligns which actions the UI exposes.
+  const activeProjectId = useMemo(
+    () => allRooms.find((r) => r.slug === activeSlug)?.project_id ?? null,
+    [allRooms, activeSlug],
+  );
+  const { canDelete: roleCanDelete } = useMyProjectRole(activeProjectId);
+  const canDelete = (user?.is_admin ?? false) || roleCanDelete;
 
   const counts = useMemo(() => {
     const result: Record<MediaTab, number> = { images: 0, videos: 0, pointclouds: 0, pdfs: 0 };
@@ -408,7 +419,7 @@ function Inner() {
                 onDelete={setPendingDelete}
                 batchActive={selectedIds.size > 0}
                 selectedIds={selectedIds}
-                onToggleSelect={user?.is_admin ? onToggleSelect : undefined}
+                onToggleSelect={canDelete ? onToggleSelect : undefined}
               />
             );
           })}
@@ -446,7 +457,7 @@ function Inner() {
         onCancel={() => setBulkConfirmDelete(false)}
       />
 
-      {user?.is_admin && (
+      {canDelete && (
         <BulkActionBar
           count={selectedIds.size}
           busy={bulkBusy}
