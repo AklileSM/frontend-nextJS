@@ -2,6 +2,8 @@
 
 import { CoachmarkTour, type CoachmarkStep } from './CoachmarkTour';
 
+const SETTINGS_SELECTOR = '[data-tour="home-settings"]';
+
 const STEPS: CoachmarkStep[] = [
   {
     title: 'Welcome to your project',
@@ -20,7 +22,7 @@ const STEPS: CoachmarkStep[] = [
     placement: 'left',
   },
   {
-    targetSelector: '[data-tour="home-settings"]',
+    targetSelector: SETTINGS_SELECTOR,
     title: 'Project settings',
     body: 'Rename rooms, upload a floorplan, draw room hotspots, manage members, everything project-level lives in Settings.',
     placement: 'bottom',
@@ -46,6 +48,15 @@ const STEPS: CoachmarkStep[] = [
   },
 ];
 
-export function HomeTour() {
-  return <CoachmarkTour id="home-tour" steps={STEPS} lockBackground />;
+type Props = {
+  showSettingsStep: boolean;
+  enabled?: boolean;
+};
+
+export function HomeTour({ showSettingsStep, enabled = true }: Props) {
+  const steps = showSettingsStep
+    ? STEPS
+    : STEPS.filter((step) => step.targetSelector !== SETTINGS_SELECTOR);
+
+  return <CoachmarkTour id="home-tour" steps={steps} enabled={enabled} lockBackground />;
 }

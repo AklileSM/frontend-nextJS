@@ -34,8 +34,10 @@ export default function ProjectHomePage() {
   const [tab, setTab] = useState<Tab>('rooms');
 
   const isAdmin = user?.is_admin ?? false;
-  const { canManageSettings } = useMyProjectRole(project?.id);
-  const showSettings = isAdmin || canManageSettings;
+  const { role, canManageSettings } = useMyProjectRole(project?.id);
+  const isProjectOwner = Boolean(user && project?.owner_id === user.id);
+  const showSettings = isAdmin || isProjectOwner || canManageSettings;
+  const homeTourReady = isAdmin || isProjectOwner || role !== null;
 
   useEffect(() => {
     let cancelled = false;
@@ -102,7 +104,7 @@ export default function ProjectHomePage() {
 
       <RecentFiles projectSlug={slug} />
 
-      <HomeTour />
+      <HomeTour showSettingsStep={showSettings} enabled={homeTourReady} />
 
       <div className="mt-10 grid grid-cols-1 gap-6 lg:grid-cols-[2fr_1fr] lg:gap-8">
         <motion.div
