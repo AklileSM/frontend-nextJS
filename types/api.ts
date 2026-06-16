@@ -41,6 +41,58 @@ export interface ApiProjectMember {
   joined_at: string;
 }
 
+export interface ApiRobotPresence {
+  robot_id: string;
+  status: string;
+  current_mission_id: string | null;
+  hostname: string | null;
+  last_seen_at: string;
+}
+
+export interface ApiRobotSummary {
+  robot_id: string;
+  username: string;
+  status: string | null;
+  current_mission_id: string | null;
+  hostname: string | null;
+  last_seen_at: string | null;
+}
+
+export interface ApiRobotMissionStep {
+  id: string;
+  sequence_index: number;
+  waypoint_name: string;
+  room_slug: string | null;
+  status: string;
+  error_message: string | null;
+  navigation_goal_id: string | null;
+  navigation_result: string | null;
+  uploaded_file_id: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+}
+
+export interface ApiRobotMission {
+  id: string;
+  robot_id: string;
+  project_id: string;
+  project_slug: string;
+  status: string;
+  capture_mode: string;
+  capture_date: string;
+  waypoints: string[];
+  room_slug_map: Record<string, string>;
+  retry_policy: Record<string, unknown>;
+  robot_meta: Record<string, unknown>;
+  created_at: string;
+  dispatched_at: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  cancelled_at: string | null;
+  steps: ApiRobotMissionStep[];
+  result: Record<string, unknown> | null;
+}
+
 export interface AdminUser {
   id: string;
   username: string;

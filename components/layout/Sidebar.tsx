@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ChevronsLeft, ChevronsRight, Home, LayoutGrid, ShieldCheck } from 'lucide-react';
+import { Bot, ChevronsLeft, ChevronsRight, Home, LayoutGrid, ShieldCheck } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useSidebar } from './SidebarContext';
 import { MiniCalendar } from './MiniCalendar';
@@ -139,6 +139,14 @@ export function Sidebar() {
             label="All projects"
             expanded={open}
             isActive={false}
+          />
+
+          <NavLink
+            href="/app/robots"
+            icon={<Bot size={14} />}
+            label="Robot missions"
+            expanded={open}
+            isActive={pathname === '/app/robots'}
           />
 
           {/* Current project accordion — always shown */}

@@ -23,3 +23,4 @@ export * from './api/ai';
 export * from './api/annotations';
 export * from './api/reports';
 export * from './api/feedback';
+export * from './api/robots';
