@@ -2,14 +2,17 @@
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import { motion } from 'framer-motion';
-import { Bot, Loader2, RefreshCcw, Send } from 'lucide-react';
+import { Bot, Loader2, RefreshCcw, Send, Trash2, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import {
+  cancelRobotMission,
   createRobotMission,
+  deleteRobotMission,
   listProjects,
   listRobotMissions,
   listRobots,
 } from '@/services/apiClient';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { formatIsoDate } from '@/services/dateFormat';
 import type { ApiProject, ApiRobotMission, ApiRobotSummary } from '@/types/api';
 
@@ -41,6 +44,14 @@ function formatLastSeen(value: string | null): string {
   return new Date(value).toLocaleString();
 }
 
+function canCancelMission(status: string): boolean {
+  return ['queued', 'dispatched', 'running'].includes(status);
+}
+
+function canDeleteMission(status: string): boolean {
+  return ['queued', 'dispatched', 'running', 'cancelled', 'failed', 'succeeded'].includes(status);
+}
+
 export default function RobotMissionsPage() {
   const [robots, setRobots] = useState<ApiRobotSummary[]>([]);
   const [projects, setProjects] = useState<ApiProject[]>([]);
@@ -48,6 +59,7 @@ export default function RobotMissionsPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, startRefresh] = useTransition();
   const [submitting, startSubmit] = useTransition();
+  const [pendingAction, setPendingAction] = useState<{ type: 'cancel' | 'delete'; mission: ApiRobotMission } | null>(null);
 
   const [robotId, setRobotId] = useState('');
   const [projectSlug, setProjectSlug] = useState('');
@@ -94,6 +106,8 @@ export default function RobotMissionsPage() {
   }, [refresh]);
 
   const parsedWaypoints = useMemo(() => parseWaypoints(waypointText), [waypointText]);
+  const pendingMission = pendingAction?.mission ?? null;
+  const pendingActionType = pendingAction?.type ?? null;
 
   const handleSubmit = useCallback(() => {
     if (!robotId || !projectSlug) {
@@ -127,6 +141,21 @@ export default function RobotMissionsPage() {
         });
     });
   }, [captureDate, continueOnFailure, parsedWaypoints, projectSlug, refresh, robotId, sensor]);
+
+  const runPendingAction = useCallback(async () => {
+    if (!pendingAction) return;
+
+    if (pendingAction.type === 'cancel') {
+      await cancelRobotMission(pendingAction.mission.id);
+      toast.success(`Cancelled mission ${pendingAction.mission.id.slice(0, 8)}`);
+    } else {
+      await deleteRobotMission(pendingAction.mission.id);
+      toast.success(`Deleted mission ${pendingAction.mission.id.slice(0, 8)}`);
+    }
+
+    setPendingAction(null);
+    await refresh();
+  }, [pendingAction, refresh]);
 
   return (
     <div className="px-6 py-10 sm:px-10 lg:px-12 xl:px-16">
@@ -380,6 +409,29 @@ export default function RobotMissionsPage() {
                     ))}
                   </div>
 
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {canCancelMission(mission.status) && (
+                      <button
+                        type="button"
+                        onClick={() => setPendingAction({ type: 'cancel', mission })}
+                        className="inline-flex items-center gap-2 rounded-xl border border-amber-600/40 px-3 py-2 text-[12px] text-amber-200 transition hover:bg-amber-500/10"
+                      >
+                        <XCircle size={13} />
+                        Cancel
+                      </button>
+                    )}
+                    {canDeleteMission(mission.status) && (
+                      <button
+                        type="button"
+                        onClick={() => setPendingAction({ type: 'delete', mission })}
+                        className="inline-flex items-center gap-2 rounded-xl border border-red-700/40 px-3 py-2 text-[12px] text-red-200 transition hover:bg-red-500/10"
+                      >
+                        <Trash2 size={13} />
+                        Delete
+                      </button>
+                    )}
+                  </div>
+
                   {mission.steps.some((step) => step.error_message) && (
                     <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/5 px-3 py-3 text-[12px] text-red-200">
                       {mission.steps.find((step) => step.error_message)?.error_message}
@@ -391,6 +443,36 @@ export default function RobotMissionsPage() {
           </div>
         </section>
       </div>
+
+      <ConfirmDialog
+        open={!!pendingAction}
+        title={
+          pendingActionType === 'delete'
+            ? 'Delete this mission?'
+            : 'Cancel this mission?'
+        }
+        body={
+          pendingActionType === 'delete' ? (
+            <>
+              <code className="rounded bg-base-800 px-1.5 py-0.5 font-mono text-[12px] text-ink-100">
+                {pendingMission?.id}
+              </code>{' '}
+              will be removed from the mission queue and history. If the robot is already executing it, later status updates from the robot may be ignored because the mission row will no longer exist.
+            </>
+          ) : (
+            <>
+              <code className="rounded bg-base-800 px-1.5 py-0.5 font-mono text-[12px] text-ink-100">
+                {pendingMission?.id}
+              </code>{' '}
+              will be marked cancelled. Running steps will stop being tracked, and queued steps will be cancelled.
+            </>
+          )
+        }
+        confirmLabel={pendingActionType === 'delete' ? 'Delete mission' : 'Cancel mission'}
+        danger={pendingActionType === 'delete'}
+        onConfirm={runPendingAction}
+        onCancel={() => setPendingAction(null)}
+      />
     </div>
   );
 }

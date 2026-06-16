@@ -3,7 +3,7 @@ import type {
   ApiRobotPresence,
   ApiRobotSummary,
 } from '@/types/api';
-import { getJson } from './core';
+import { apiFetch, getJson, parseApiError } from './core';
 
 export type ApiRobotMissionCreateRequest = {
   robot_id: string;
@@ -47,4 +47,19 @@ export function createRobotMission(body: ApiRobotMissionCreateRequest): Promise<
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
+}
+
+export function cancelRobotMission(missionId: string): Promise<ApiRobotMission> {
+  return getJson<ApiRobotMission>(`/robot/missions/${encodeURIComponent(missionId)}/cancel`, {
+    method: 'POST',
+  });
+}
+
+export async function deleteRobotMission(missionId: string): Promise<void> {
+  const response = await apiFetch(`/robot/missions/${encodeURIComponent(missionId)}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
 }
