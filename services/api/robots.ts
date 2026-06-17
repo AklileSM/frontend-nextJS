@@ -1,5 +1,6 @@
 import type {
   ApiRobotMission,
+  ApiRobotPairingToken,
   ApiRobotPresence,
   ApiRobotSummary,
 } from '@/types/api';
@@ -14,6 +15,14 @@ export type ApiRobotMissionCreateRequest = {
   capture_date: string;
   retry_policy?: Record<string, unknown>;
   robot_meta?: Record<string, unknown>;
+};
+
+export type ApiRobotPairingTokenCreateRequest = {
+  robot_id: string;
+  robot_password: string;
+  default_project_slug?: string | null;
+  note?: string | null;
+  expires_in_hours?: number;
 };
 
 export type ApiRobotMissionListParams = {
@@ -62,4 +71,24 @@ export async function deleteRobotMission(missionId: string): Promise<void> {
   if (!response.ok) {
     throw new Error(await parseApiError(response));
   }
+}
+
+export function listRobotPairingTokens(): Promise<ApiRobotPairingToken[]> {
+  return getJson<ApiRobotPairingToken[]>('/robot-pairings');
+}
+
+export function createRobotPairingToken(
+  body: ApiRobotPairingTokenCreateRequest,
+): Promise<ApiRobotPairingToken> {
+  return getJson<ApiRobotPairingToken>('/robot-pairings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export function revokeRobotPairingToken(pairingId: string): Promise<ApiRobotPairingToken> {
+  return getJson<ApiRobotPairingToken>(`/robot-pairings/${encodeURIComponent(pairingId)}/revoke`, {
+    method: 'POST',
+  });
 }

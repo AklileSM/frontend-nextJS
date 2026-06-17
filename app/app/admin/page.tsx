@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { Users, Folder, ShieldCheck } from 'lucide-react';
+import { Users, Folder, KeyRound, ShieldCheck } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,6 +18,12 @@ const CARDS = [
     icon: Folder,
     title: 'Projects',
     description: 'View and delete all projects across the platform',
+  },
+  {
+    href: '/app/admin/robots',
+    icon: KeyRound,
+    title: 'Robot pairing',
+    description: 'Create and revoke bootstrap pairing tokens for robot agents',
   },
 ];
 

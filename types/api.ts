@@ -93,12 +93,26 @@ export interface ApiRobotMission {
   result: Record<string, unknown> | null;
 }
 
+export interface ApiRobotPairingToken {
+  id: string;
+  robot_id: string;
+  token: string;
+  default_project_slug: string | null;
+  note: string | null;
+  expires_at: string | null;
+  claimed_at: string | null;
+  claimed_hostname: string | null;
+  revoked_at: string | null;
+  created_at: string;
+}
+
 export interface AdminUser {
   id: string;
   username: string;
   email: string | null;
   is_admin: boolean;
   is_active: boolean;
+  is_robot: boolean;
   created_at: string;
 }
 
