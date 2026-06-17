@@ -1,4 +1,5 @@
 import type {
+  ApiProject,
   ApiRobotMission,
   ApiRobotPairingToken,
   ApiRobotPresence,
@@ -75,6 +76,10 @@ export async function deleteRobotMission(missionId: string): Promise<void> {
 
 export function listRobotPairingTokens(): Promise<ApiRobotPairingToken[]> {
   return getJson<ApiRobotPairingToken[]>('/robot-pairings');
+}
+
+export function listPairableProjects(): Promise<ApiProject[]> {
+  return getJson<ApiProject[]>('/robot-pairings/projects');
 }
 
 export function createRobotPairingToken(

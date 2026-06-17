@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Bot, Loader2, RefreshCcw, Send, Trash2, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
@@ -185,6 +186,13 @@ export default function RobotMissionsPage() {
           {refreshing ? <Loader2 size={14} className="animate-spin" /> : <RefreshCcw size={14} />}
           Refresh
         </button>
+        <Link
+          href="/app/robots/pairing"
+          className="inline-flex items-center gap-2 rounded border border-base-700 px-3 py-2 text-[12px] text-white transition hover:border-ink-400"
+        >
+          <Bot size={14} />
+          Pair robot
+        </Link>
       </motion.section>
 
       <div className="mt-8 grid gap-4 lg:grid-cols-3">
