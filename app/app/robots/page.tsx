@@ -237,9 +237,7 @@ export default function RobotMissionsPage() {
       <div className="mt-8 grid gap-8 xl:grid-cols-[minmax(320px,420px)_1fr]">
         <section className="rounded-3xl border border-base-800 bg-base-900/60 p-6">
           <div className="flex items-center gap-3">
-            <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-500/15 text-amber-300">
-              <Bot size={18} />
-            </div>
+            
             <div>
               <h2 className="font-display text-[24px] text-white">Queue a mission</h2>
               <p className="text-[13px] text-ink-300">Waypoint names must match the robot navigation map.</p>

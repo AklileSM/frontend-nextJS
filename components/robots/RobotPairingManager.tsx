@@ -136,9 +136,7 @@ export function RobotPairingManager({ headingPrefix, heading, intro }: Props) {
       <div className="mt-8 grid gap-8 xl:grid-cols-[minmax(320px,430px)_1fr]">
         <section className="rounded-3xl border border-base-800 bg-base-900/60 p-6">
           <div className="flex items-center gap-3">
-            <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-500/15 text-amber-300">
-              <KeyRound size={18} />
-            </div>
+            
             <div>
               <h2 className="font-display text-[24px] text-white">Create pairing token</h2>
               <p className="text-[13px] text-ink-300">Project owners can only pair robots into projects they own.</p>
@@ -235,7 +233,7 @@ export function RobotPairingManager({ headingPrefix, heading, intro }: Props) {
 
         <section className="rounded-3xl border border-base-800 bg-base-900/45 p-6">
           <div className="flex items-start gap-3">
-            <ShieldAlert size={18} className="mt-1 text-amber-400" />
+            
             <div>
               <h2 className="font-display text-[24px] text-white">Issued tokens</h2>
               <p className="mt-1 text-[13px] text-ink-300">
