@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
-import type { MouseEvent, PointerEvent } from 'react';
+import type { MouseEvent, PointerEvent, WheelEvent } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Bot, Check, Loader2, MapPin, Plus, RefreshCcw, RotateCcw, Send, Trash2, XCircle, ZoomIn, ZoomOut } from 'lucide-react';
@@ -254,13 +254,26 @@ export default function RobotMissionsPage() {
     setMapZoom((current) => Math.max(0.5, Number((current - 0.25).toFixed(2))));
   }, []);
 
-  const getMapMarkerFromEvent = useCallback((event: MouseEvent<HTMLDivElement>) => {
-    const rect = event.currentTarget.getBoundingClientRect();
+  const handleMapWheel = useCallback((event: WheelEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const direction = event.deltaY > 0 ? -1 : 1;
+    setMapZoom((current) => {
+      const next = current + direction * 0.15;
+      return Math.min(5, Math.max(0.5, Number(next.toFixed(2))));
+    });
+  }, []);
+
+  const getMapMarkerFromElement = useCallback((element: HTMLDivElement, clientX: number, clientY: number) => {
+    const rect = element.getBoundingClientRect();
     return {
-      x: Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width)),
-      y: Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height)),
+      x: Math.min(1, Math.max(0, (clientX - rect.left) / rect.width)),
+      y: Math.min(1, Math.max(0, (clientY - rect.top) / rect.height)),
     };
   }, []);
+
+  const getMapMarkerFromEvent = useCallback((event: MouseEvent<HTMLDivElement>) => {
+    return getMapMarkerFromElement(event.currentTarget, event.clientX, event.clientY);
+  }, [getMapMarkerFromElement]);
 
   const setNewPointPoseFromMarkers = useCallback((position: { x: number; y: number }, facing?: { x: number; y: number } | null) => {
     if (!robotMap) return;
@@ -276,17 +289,6 @@ export default function RobotMissionsPage() {
       setNewPointYaw(yaw.toFixed(4));
     }
   }, [robotMap]);
-
-  const handleRobotMapClick = useCallback((event: MouseEvent<HTMLDivElement>) => {
-    if (!robotMap || !addingCapturePoint) return;
-    if (mapDragRef.current?.moved) return;
-    const marker = getMapMarkerFromEvent(event);
-    if (!newPointMapMarker) {
-      setNewPointPoseFromMarkers(marker, null);
-      return;
-    }
-    setNewPointPoseFromMarkers(newPointMapMarker, marker);
-  }, [addingCapturePoint, getMapMarkerFromEvent, newPointMapMarker, robotMap, setNewPointPoseFromMarkers]);
 
   const handleRobotMapMouseMove = useCallback((event: MouseEvent<HTMLDivElement>) => {
     if (!robotMap || !addingCapturePoint || !newPointMapMarker) return;
@@ -316,12 +318,21 @@ export default function RobotMissionsPage() {
   }, []);
 
   const handleMapPointerUp = useCallback((event: PointerEvent<HTMLDivElement>) => {
-    if (mapDragRef.current?.pointerId === event.pointerId) {
+    const drag = mapDragRef.current;
+    if (drag?.pointerId === event.pointerId) {
+      if (!drag.moved && addingCapturePoint && robotMap) {
+        const marker = getMapMarkerFromElement(event.currentTarget, event.clientX, event.clientY);
+        if (!newPointMapMarker) {
+          setNewPointPoseFromMarkers(marker, null);
+        } else {
+          setNewPointPoseFromMarkers(newPointMapMarker, marker);
+        }
+      }
       window.setTimeout(() => {
         mapDragRef.current = null;
       }, 0);
     }
-  }, []);
+  }, [addingCapturePoint, getMapMarkerFromElement, newPointMapMarker, robotMap, setNewPointPoseFromMarkers]);
 
   const handleCreateCapturePoint = useCallback(() => {
     if (!selectedProject) {
@@ -932,16 +943,16 @@ export default function RobotMissionsPage() {
 
             <div
               className="relative flex-1 overflow-hidden bg-base-950"
-              onPointerDown={handleMapPointerDown}
-              onPointerMove={handleMapPointerMove}
-              onPointerUp={handleMapPointerUp}
-              onPointerCancel={handleMapPointerUp}
+              onWheel={handleMapWheel}
             >
               <div
                 role={addingCapturePoint ? 'button' : undefined}
                 tabIndex={addingCapturePoint ? 0 : undefined}
-                onClick={handleRobotMapClick}
                 onMouseMove={handleRobotMapMouseMove}
+                onPointerDown={handleMapPointerDown}
+                onPointerMove={handleMapPointerMove}
+                onPointerUp={handleMapPointerUp}
+                onPointerCancel={handleMapPointerUp}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' || event.key === ' ') event.preventDefault();
                 }}
