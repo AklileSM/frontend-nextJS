@@ -297,6 +297,18 @@ export default function RobotMissionsPage() {
   }, [addingCapturePoint, getMapMarkerFromEvent, newPointMapMarker, robotMap, setNewPointPoseFromMarkers]);
 
   const handleMapPointerDown = useCallback((event: PointerEvent<HTMLDivElement>) => {
+    if (addingCapturePoint) {
+      mapDragRef.current = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        panX: mapPan.x,
+        panY: mapPan.y,
+        moved: false,
+      };
+      event.currentTarget.setPointerCapture(event.pointerId);
+      return;
+    }
     mapDragRef.current = {
       pointerId: event.pointerId,
       startX: event.clientX,
@@ -306,7 +318,7 @@ export default function RobotMissionsPage() {
       moved: false,
     };
     event.currentTarget.setPointerCapture(event.pointerId);
-  }, [mapPan.x, mapPan.y]);
+  }, [addingCapturePoint, mapPan.x, mapPan.y]);
 
   const handleMapPointerMove = useCallback((event: PointerEvent<HTMLDivElement>) => {
     const drag = mapDragRef.current;
@@ -314,13 +326,14 @@ export default function RobotMissionsPage() {
     const dx = event.clientX - drag.startX;
     const dy = event.clientY - drag.startY;
     if (Math.abs(dx) > 3 || Math.abs(dy) > 3) drag.moved = true;
+    if (addingCapturePoint) return;
     setMapPan({ x: drag.panX + dx, y: drag.panY + dy });
-  }, []);
+  }, [addingCapturePoint]);
 
   const handleMapPointerUp = useCallback((event: PointerEvent<HTMLDivElement>) => {
     const drag = mapDragRef.current;
     if (drag?.pointerId === event.pointerId) {
-      if (!drag.moved && addingCapturePoint && robotMap) {
+      if (addingCapturePoint && robotMap) {
         const marker = getMapMarkerFromElement(event.currentTarget, event.clientX, event.clientY);
         if (!newPointMapMarker) {
           setNewPointPoseFromMarkers(marker, null);
@@ -988,14 +1001,28 @@ export default function RobotMissionsPage() {
                         viewBox="0 0 100 100"
                         preserveAspectRatio="none"
                       >
+                        <defs>
+                          <marker
+                            id="capture-point-arrowhead"
+                            markerWidth="7"
+                            markerHeight="7"
+                            refX="6"
+                            refY="3.5"
+                            orient="auto"
+                            markerUnits="strokeWidth"
+                          >
+                            <path d="M0,0 L7,3.5 L0,7 Z" fill="rgb(251 191 36)" />
+                          </marker>
+                        </defs>
                         <line
                           x1={newPointMapMarker.x * 100}
                           y1={newPointMapMarker.y * 100}
                           x2={newPointFacingMarker.x * 100}
                           y2={newPointFacingMarker.y * 100}
                           stroke="rgb(251 191 36)"
-                          strokeWidth="0.65"
+                          strokeWidth="0.8"
                           strokeLinecap="round"
+                          markerEnd="url(#capture-point-arrowhead)"
                         />
                       </svg>
                     ) : null}
