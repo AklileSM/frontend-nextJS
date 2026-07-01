@@ -122,7 +122,7 @@ export default function RobotMissionsPage() {
     setLoading(true);
     refresh()
       .catch((err) => {
-        if (!cancelled) toast.error(err instanceof Error ? err.message : 'Failed to load robot missions');
+        if (!cancelled) toast.error(err instanceof Error ? err.message : 'Failed to load robot tasks');
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -444,11 +444,11 @@ export default function RobotMissionsPage() {
         robot_meta: { sensor },
       })
         .then((mission) => {
-          toast.success(`Queued mission ${mission.id.slice(0, 8)}`);
+          toast.success(`Queued task ${mission.id.slice(0, 8)}`);
           return refresh();
         })
         .catch((err) => {
-          toast.error(err instanceof Error ? err.message : 'Failed to create mission');
+          toast.error(err instanceof Error ? err.message : 'Failed to create task');
         });
     });
   }, [captureDate, continueOnFailure, projectSlug, refresh, robotId, selectedCapturePointIds, sensor]);
@@ -458,10 +458,10 @@ export default function RobotMissionsPage() {
 
     if (pendingAction.type === 'cancel') {
       await cancelRobotMission(pendingAction.mission.id);
-      toast.success(`Cancelled mission ${pendingAction.mission.id.slice(0, 8)}`);
+      toast.success(`Cancelled task ${pendingAction.mission.id.slice(0, 8)}`);
     } else {
       await deleteRobotMission(pendingAction.mission.id);
-      toast.success(`Deleted mission ${pendingAction.mission.id.slice(0, 8)}`);
+      toast.success(`Deleted task ${pendingAction.mission.id.slice(0, 8)}`);
     }
 
     setPendingAction(null);
@@ -481,10 +481,10 @@ export default function RobotMissionsPage() {
             Operations · Robots
           </p>
           <h1 className="mt-3 font-display text-[36px] font-semibold tracking-tight text-white">
-            Mission control
+            Task control
           </h1>
           <p className="mt-2 max-w-2xl text-[14px] text-ink-300">
-            Queue waypoint missions, watch robot heartbeat, and inspect mission progress without using Swagger or SSH.
+            Queue waypoint tasks, watch robot heartbeat, and inspect task progress without using Swagger or SSH.
           </p>
         </div>
         <button
@@ -527,7 +527,7 @@ export default function RobotMissionsPage() {
               </div>
               <dl className="mt-4 space-y-2 text-[12px] text-ink-300">
                 <div className="flex justify-between gap-3">
-                  <dt>Current mission</dt>
+                  <dt>Current task</dt>
                   <dd className="font-mono text-[11px] text-white">{robot.current_mission_id ?? '—'}</dd>
                 </div>
                 <div className="flex justify-between gap-3">
@@ -551,7 +551,7 @@ export default function RobotMissionsPage() {
               <Bot size={18} />
             </div>
             <div>
-              <h2 className="font-display text-[24px] text-white">Queue a mission</h2>
+              <h2 className="font-display text-[24px] text-white">Queue a task</h2>
               <p className="text-[13px] text-ink-300">Select saved capture points for the robot to visit.</p>
             </div>
           </div>
@@ -756,7 +756,7 @@ export default function RobotMissionsPage() {
             </label>
 
             <div className="rounded-2xl border border-base-800 bg-base-950/60 p-4">
-              <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-400">Mission preview</p>
+              <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-400">Task preview</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 {selectedCapturePoints.length > 0 ? selectedCapturePoints.map((point) => (
                   <span
@@ -778,7 +778,7 @@ export default function RobotMissionsPage() {
               className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-amber-500 px-4 py-3 text-[14px] font-medium text-base-950 transition hover:bg-amber-400 disabled:opacity-60"
             >
               {submitting ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-              Queue mission
+              Queue task
             </button>
           </div>
         </section>
@@ -786,8 +786,8 @@ export default function RobotMissionsPage() {
         <section className="rounded-3xl border border-base-800 bg-base-900/45 p-6">
           <div className="flex items-end justify-between gap-4">
             <div>
-              <h2 className="font-display text-[24px] text-white">Recent missions</h2>
-              <p className="mt-1 text-[13px] text-ink-300">Latest queued and completed robot runs from the backend.</p>
+              <h2 className="font-display text-[24px] text-white">Recent tasks</h2>
+              <p className="mt-1 text-[13px] text-ink-300">Latest queued and completed robot tasks from the backend.</p>
             </div>
             <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-500">
               {missions.length} loaded
@@ -801,7 +801,7 @@ export default function RobotMissionsPage() {
               ))
             ) : missions.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-base-700 px-4 py-10 text-center text-[14px] text-ink-400">
-                No missions yet.
+                No tasks yet.
               </div>
             ) : (
               missions.map((mission) => (
@@ -1063,8 +1063,8 @@ export default function RobotMissionsPage() {
         open={!!pendingAction}
         title={
           pendingActionType === 'delete'
-            ? 'Delete this mission?'
-            : 'Cancel this mission?'
+            ? 'Delete this task?'
+            : 'Cancel this task?'
         }
         body={
           pendingActionType === 'delete' ? (
@@ -1072,7 +1072,7 @@ export default function RobotMissionsPage() {
               <code className="rounded bg-base-800 px-1.5 py-0.5 font-mono text-[12px] text-ink-100">
                 {pendingMission?.id}
               </code>{' '}
-              will be removed from the mission queue and history. If the robot is already executing it, later status updates from the robot may be ignored because the mission row will no longer exist.
+              will be removed from the task queue and history. If the robot is already executing it, later status updates from the robot may be ignored because the task row will no longer exist.
             </>
           ) : (
             <>
@@ -1083,7 +1083,7 @@ export default function RobotMissionsPage() {
             </>
           )
         }
-        confirmLabel={pendingActionType === 'delete' ? 'Delete mission' : 'Cancel mission'}
+        confirmLabel={pendingActionType === 'delete' ? 'Delete task' : 'Cancel task'}
         danger={pendingActionType === 'delete'}
         onConfirm={runPendingAction}
         onCancel={() => setPendingAction(null)}
