@@ -97,6 +97,7 @@ export default function RobotMissionsPage() {
   const [newPointYaw, setNewPointYaw] = useState('0');
   const [newPointMapMarker, setNewPointMapMarker] = useState<{ x: number; y: number } | null>(null);
   const [newPointFacingMarker, setNewPointFacingMarker] = useState<{ x: number; y: number } | null>(null);
+  const [newPointYawLocked, setNewPointYawLocked] = useState(false);
   const [robotMapYamlFile, setRobotMapYamlFile] = useState<File | null>(null);
   const [robotMapImageFile, setRobotMapImageFile] = useState<File | null>(null);
   const [uploadingRobotMap, setUploadingRobotMap] = useState(false);
@@ -213,6 +214,7 @@ export default function RobotMissionsPage() {
     setNewPointYaw('0');
     setNewPointMapMarker(null);
     setNewPointFacingMarker(null);
+    setNewPointYawLocked(false);
   }, []);
 
   const resetMapView = useCallback(() => {
@@ -242,6 +244,7 @@ export default function RobotMissionsPage() {
     setNewPointYaw('0');
     setNewPointMapMarker(null);
     setNewPointFacingMarker(null);
+    setNewPointYawLocked(false);
     setMapModalOpen(true);
     resetMapView();
   }, [resetMapView, robotMap]);
@@ -275,7 +278,7 @@ export default function RobotMissionsPage() {
     return getMapMarkerFromElement(event.currentTarget, event.clientX, event.clientY);
   }, [getMapMarkerFromElement]);
 
-  const setNewPointPoseFromMarkers = useCallback((position: { x: number; y: number }, facing?: { x: number; y: number } | null) => {
+  const setNewPointPoseFromMarkers = useCallback((position: { x: number; y: number }, facing?: { x: number; y: number } | null, lockYaw = false) => {
     if (!robotMap) return;
     const mapPosition = normalizedToMapPose(robotMap, position);
     setNewPointMapMarker(position);
@@ -287,13 +290,25 @@ export default function RobotMissionsPage() {
       const yaw = Math.atan2(mapFacing.y - mapPosition.y, mapFacing.x - mapPosition.x);
       setNewPointFacingMarker(facing);
       setNewPointYaw(yaw.toFixed(4));
+      if (lockYaw) setNewPointYawLocked(true);
     }
   }, [robotMap]);
 
   const handleRobotMapMouseMove = useCallback((event: MouseEvent<HTMLDivElement>) => {
-    if (!robotMap || !addingCapturePoint || !newPointMapMarker) return;
+    if (!robotMap || !addingCapturePoint || !newPointMapMarker || newPointYawLocked) return;
     if (mapDragRef.current?.moved) return;
     setNewPointPoseFromMarkers(newPointMapMarker, getMapMarkerFromEvent(event));
+  }, [addingCapturePoint, getMapMarkerFromEvent, newPointMapMarker, newPointYawLocked, robotMap, setNewPointPoseFromMarkers]);
+
+  const handleMapSelectionClick = useCallback((event: MouseEvent<HTMLDivElement>) => {
+    if (!addingCapturePoint || !robotMap) return;
+    const marker = getMapMarkerFromEvent(event);
+    if (!newPointMapMarker) {
+      setNewPointPoseFromMarkers(marker, null);
+      setNewPointYawLocked(false);
+      return;
+    }
+    setNewPointPoseFromMarkers(newPointMapMarker, marker, true);
   }, [addingCapturePoint, getMapMarkerFromEvent, newPointMapMarker, robotMap, setNewPointPoseFromMarkers]);
 
   const handleMapPointerDown = useCallback((event: PointerEvent<HTMLDivElement>) => {
@@ -337,8 +352,9 @@ export default function RobotMissionsPage() {
         const marker = getMapMarkerFromElement(event.currentTarget, event.clientX, event.clientY);
         if (!newPointMapMarker) {
           setNewPointPoseFromMarkers(marker, null);
+          setNewPointYawLocked(false);
         } else {
-          setNewPointPoseFromMarkers(newPointMapMarker, marker);
+          setNewPointPoseFromMarkers(newPointMapMarker, marker, true);
         }
       }
       window.setTimeout(() => {
@@ -359,7 +375,7 @@ export default function RobotMissionsPage() {
       toast.error('Name the capture point');
       return;
     }
-    if (!newPointMapMarker || !newPointFacingMarker) {
+    if (!newPointMapMarker || !newPointFacingMarker || !newPointYawLocked) {
       toast.error('Place the point and choose its facing direction on the map');
       return;
     }
@@ -393,6 +409,7 @@ export default function RobotMissionsPage() {
     newPointName,
     newPointYaw,
     newPointFacingMarker,
+    newPointYawLocked,
     handleCancelCapturePoint,
     refreshCapturePoints,
     selectedProject,
@@ -913,7 +930,7 @@ export default function RobotMissionsPage() {
                       {newPointMapMarker ? 'Position selected' : 'Click to place point'}
                     </span>
                     <span className="rounded-lg border border-base-800 bg-base-900 px-2 py-1">
-                      {newPointFacingMarker ? `Facing ${radiansToDegrees(Number(newPointYaw || 0))} deg` : 'Choose facing direction'}
+                      {newPointYawLocked ? `Facing ${radiansToDegrees(Number(newPointYaw || 0))} deg` : 'Click to lock facing'}
                     </span>
                   </>
                 ) : (
@@ -961,6 +978,7 @@ export default function RobotMissionsPage() {
               <div
                 role={addingCapturePoint ? 'button' : undefined}
                 tabIndex={addingCapturePoint ? 0 : undefined}
+                onClick={handleMapSelectionClick}
                 onMouseMove={handleRobotMapMouseMove}
                 onPointerDown={handleMapPointerDown}
                 onPointerMove={handleMapPointerMove}
@@ -1004,14 +1022,14 @@ export default function RobotMissionsPage() {
                         <defs>
                           <marker
                             id="capture-point-arrowhead"
-                            markerWidth="7"
-                            markerHeight="7"
-                            refX="6"
-                            refY="3.5"
+                            markerWidth="4"
+                            markerHeight="4"
+                            refX="3.6"
+                            refY="2"
                             orient="auto"
                             markerUnits="strokeWidth"
                           >
-                            <path d="M0,0 L7,3.5 L0,7 Z" fill="rgb(251 191 36)" />
+                            <path d="M0,0 L4,2 L0,4 Z" fill="rgb(251 191 36)" />
                           </marker>
                         </defs>
                         <line
@@ -1020,7 +1038,7 @@ export default function RobotMissionsPage() {
                           x2={newPointFacingMarker.x * 100}
                           y2={newPointFacingMarker.y * 100}
                           stroke="rgb(251 191 36)"
-                          strokeWidth="0.8"
+                          strokeWidth="0.45"
                           strokeLinecap="round"
                           markerEnd="url(#capture-point-arrowhead)"
                         />
