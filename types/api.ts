@@ -80,7 +80,7 @@ export interface ApiRobotMission {
   status: string;
   capture_mode: string;
   capture_date: string;
-  waypoints: string[];
+  waypoints: unknown[];
   room_slug_map: Record<string, string>;
   retry_policy: Record<string, unknown>;
   robot_meta: Record<string, unknown>;
@@ -91,6 +91,35 @@ export interface ApiRobotMission {
   cancelled_at: string | null;
   steps: ApiRobotMissionStep[];
   result: Record<string, unknown> | null;
+}
+
+export interface ApiRobotCapturePoint {
+  id: string;
+  project_id: string;
+  name: string;
+  room_slug: string | null;
+  map_x: number;
+  map_y: number;
+  yaw: number;
+  floorplan_x: number | null;
+  floorplan_y: number | null;
+  source: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ApiRobotMap {
+  image_url: string;
+  width: number;
+  height: number;
+  resolution: number;
+  origin_x: number;
+  origin_y: number;
+  origin_yaw: number;
+  frame: string;
+  yaml_object_name: string | null;
+  image_object_name: string | null;
 }
 
 export interface ApiRobotPairingToken {

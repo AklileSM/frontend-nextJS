@@ -1,21 +1,27 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import type { MouseEvent } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { Bot, Loader2, RefreshCcw, Send, Trash2, XCircle } from 'lucide-react';
+import { Bot, Loader2, MapPin, Plus, RefreshCcw, Send, Trash2, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   cancelRobotMission,
+  createRobotCapturePoint,
   createRobotMission,
+  deleteRobotCapturePoint,
   deleteRobotMission,
+  getRobotMap,
+  listRobotCapturePoints,
   listProjects,
   listRobotMissions,
   listRobots,
+  uploadRobotMap,
 } from '@/services/apiClient';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { formatIsoDate } from '@/services/dateFormat';
-import type { ApiProject, ApiRobotMission, ApiRobotSummary } from '@/types/api';
+import type { ApiProject, ApiRobotCapturePoint, ApiRobotMap, ApiRobotMission, ApiRobotSummary } from '@/types/api';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,13 +37,6 @@ const STATUS_STYLES: Record<string, string> = {
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
-}
-
-function parseWaypoints(value: string): string[] {
-  return value
-    .split(/[\n,]/)
-    .map((part) => part.trim())
-    .filter(Boolean);
 }
 
 function formatLastSeen(value: string | null): string {
@@ -56,6 +55,9 @@ function canDeleteMission(status: string): boolean {
 export default function RobotMissionsPage() {
   const [robots, setRobots] = useState<ApiRobotSummary[]>([]);
   const [projects, setProjects] = useState<ApiProject[]>([]);
+  const [capturePoints, setCapturePoints] = useState<ApiRobotCapturePoint[]>([]);
+  const [robotMap, setRobotMap] = useState<ApiRobotMap | null>(null);
+  const [robotMapError, setRobotMapError] = useState<string | null>(null);
   const [missions, setMissions] = useState<ApiRobotMission[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, startRefresh] = useTransition();
@@ -65,7 +67,16 @@ export default function RobotMissionsPage() {
   const [robotId, setRobotId] = useState('');
   const [projectSlug, setProjectSlug] = useState('');
   const [captureDate, setCaptureDate] = useState(todayIso());
-  const [waypointText, setWaypointText] = useState('room1\nroom2');
+  const [selectedCapturePointIds, setSelectedCapturePointIds] = useState<string[]>([]);
+  const [newPointName, setNewPointName] = useState('');
+  const [newPointRoomSlug, setNewPointRoomSlug] = useState('');
+  const [newPointMapX, setNewPointMapX] = useState('');
+  const [newPointMapY, setNewPointMapY] = useState('');
+  const [newPointYaw, setNewPointYaw] = useState('0');
+  const [newPointMapMarker, setNewPointMapMarker] = useState<{ x: number; y: number } | null>(null);
+  const [robotMapYamlFile, setRobotMapYamlFile] = useState<File | null>(null);
+  const [robotMapImageFile, setRobotMapImageFile] = useState<File | null>(null);
+  const [uploadingRobotMap, setUploadingRobotMap] = useState(false);
   const [sensor, setSensor] = useState('insta360-x4');
   const [continueOnFailure, setContinueOnFailure] = useState(false);
 
@@ -106,28 +117,163 @@ export default function RobotMissionsPage() {
     return () => window.clearInterval(timer);
   }, [refresh]);
 
-  const parsedWaypoints = useMemo(() => parseWaypoints(waypointText), [waypointText]);
+  const selectedProject = useMemo(
+    () => projects.find((project) => project.slug === projectSlug) ?? null,
+    [projectSlug, projects],
+  );
+  const selectedCapturePoints = useMemo(
+    () => selectedCapturePointIds
+      .map((id) => capturePoints.find((point) => point.id === id))
+      .filter((point): point is ApiRobotCapturePoint => Boolean(point)),
+    [capturePoints, selectedCapturePointIds],
+  );
   const pendingMission = pendingAction?.mission ?? null;
   const pendingActionType = pendingAction?.type ?? null;
+
+  const refreshCapturePoints = useCallback(async (projectId: string) => {
+    const points = await listRobotCapturePoints(projectId);
+    setCapturePoints(points);
+    setSelectedCapturePointIds((current) => current.filter((id) => points.some((point) => point.id === id)));
+  }, []);
+
+  useEffect(() => {
+    if (!selectedProject) {
+      setCapturePoints([]);
+      setSelectedCapturePointIds([]);
+      setRobotMap(null);
+      return;
+    }
+    refreshCapturePoints(selectedProject.id).catch((err) => {
+      toast.error(err instanceof Error ? err.message : 'Failed to load capture points');
+    });
+    getRobotMap(selectedProject.id)
+      .then((map) => {
+        setRobotMap(map);
+        setRobotMapError(null);
+      })
+      .catch((err) => {
+        setRobotMap(null);
+        setRobotMapError(err instanceof Error ? err.message : 'Robot map is not available');
+      });
+  }, [refreshCapturePoints, selectedProject]);
+
+  const handleUploadRobotMap = useCallback(() => {
+    if (!selectedProject) {
+      toast.error('Select a project first');
+      return;
+    }
+    if (!robotMapYamlFile || !robotMapImageFile) {
+      toast.error('Choose both the map YAML and map image');
+      return;
+    }
+    setUploadingRobotMap(true);
+    uploadRobotMap(selectedProject.id, robotMapYamlFile, robotMapImageFile)
+      .then((map) => {
+        setRobotMap(map);
+        setRobotMapError(null);
+        setRobotMapYamlFile(null);
+        setRobotMapImageFile(null);
+        toast.success('Robot map uploaded');
+      })
+      .catch((err) => {
+        toast.error(err instanceof Error ? err.message : 'Failed to upload robot map');
+      })
+      .finally(() => setUploadingRobotMap(false));
+  }, [robotMapImageFile, robotMapYamlFile, selectedProject]);
+
+  const handleRobotMapClick = useCallback((event: MouseEvent<HTMLDivElement>) => {
+    if (!robotMap) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const marker = {
+      x: Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width)),
+      y: Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height)),
+    };
+    const pixelX = marker.x * robotMap.width;
+    const pixelY = marker.y * robotMap.height;
+    const localX = pixelX * robotMap.resolution;
+    const localY = (robotMap.height - pixelY) * robotMap.resolution;
+    const cos = Math.cos(robotMap.origin_yaw);
+    const sin = Math.sin(robotMap.origin_yaw);
+    const mapX = robotMap.origin_x + localX * cos - localY * sin;
+    const mapY = robotMap.origin_y + localX * sin + localY * cos;
+    setNewPointMapMarker(marker);
+    setNewPointMapX(mapX.toFixed(3));
+    setNewPointMapY(mapY.toFixed(3));
+  }, [robotMap]);
+
+  const handleCreateCapturePoint = useCallback(() => {
+    if (!selectedProject) {
+      toast.error('Select a project first');
+      return;
+    }
+    const mapX = Number(newPointMapX);
+    const mapY = Number(newPointMapY);
+    const yaw = Number(newPointYaw || 0);
+    if (!newPointName.trim()) {
+      toast.error('Name the capture point');
+      return;
+    }
+    if (!Number.isFinite(mapX) || !Number.isFinite(mapY) || !Number.isFinite(yaw)) {
+      toast.error('Map X, Map Y, and yaw must be numbers');
+      return;
+    }
+    createRobotCapturePoint(selectedProject.id, {
+      name: newPointName.trim(),
+      room_slug: newPointRoomSlug.trim() || null,
+      map_x: mapX,
+      map_y: mapY,
+      yaw,
+      floorplan_x: newPointMapMarker?.x ?? null,
+      floorplan_y: newPointMapMarker?.y ?? null,
+      source: newPointMapMarker ? 'robot_map_click' : 'manual',
+    })
+      .then((point) => {
+        toast.success(`Saved capture point ${point.name}`);
+        setNewPointName('');
+        setNewPointRoomSlug('');
+        setNewPointMapX('');
+        setNewPointMapY('');
+        setNewPointYaw('0');
+        setNewPointMapMarker(null);
+        return refreshCapturePoints(selectedProject.id);
+      })
+      .catch((err) => {
+        toast.error(err instanceof Error ? err.message : 'Failed to save capture point');
+      });
+  }, [
+    newPointMapX,
+    newPointMapY,
+    newPointMapMarker,
+    newPointName,
+    newPointRoomSlug,
+    newPointYaw,
+    refreshCapturePoints,
+    selectedProject,
+  ]);
+
+  const toggleCapturePoint = useCallback((pointId: string) => {
+    setSelectedCapturePointIds((current) => (
+      current.includes(pointId)
+        ? current.filter((id) => id !== pointId)
+        : [...current, pointId]
+    ));
+  }, []);
 
   const handleSubmit = useCallback(() => {
     if (!robotId || !projectSlug) {
       toast.error('Select a robot and project first');
       return;
     }
-    if (parsedWaypoints.length === 0) {
-      toast.error('Add at least one waypoint');
+    if (selectedCapturePointIds.length === 0) {
+      toast.error('Select at least one capture point');
       return;
     }
-
-    const roomSlugMap = Object.fromEntries(parsedWaypoints.map((waypoint) => [waypoint, waypoint]));
 
     startSubmit(() => {
       createRobotMission({
         robot_id: robotId,
         project_slug: projectSlug,
-        waypoints: parsedWaypoints,
-        room_slug_map: roomSlugMap,
+        capture_point_ids: selectedCapturePointIds,
         capture_mode: 'panorama',
         capture_date: captureDate,
         retry_policy: { continue_on_failure: continueOnFailure },
@@ -141,7 +287,7 @@ export default function RobotMissionsPage() {
           toast.error(err instanceof Error ? err.message : 'Failed to create mission');
         });
     });
-  }, [captureDate, continueOnFailure, parsedWaypoints, projectSlug, refresh, robotId, sensor]);
+  }, [captureDate, continueOnFailure, projectSlug, refresh, robotId, selectedCapturePointIds, sensor]);
 
   const runPendingAction = useCallback(async () => {
     if (!pendingAction) return;
@@ -237,10 +383,12 @@ export default function RobotMissionsPage() {
       <div className="mt-8 grid gap-8 xl:grid-cols-[minmax(320px,420px)_1fr]">
         <section className="rounded-3xl border border-base-800 bg-base-900/60 p-6">
           <div className="flex items-center gap-3">
-            
+            <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-500/15 text-amber-300">
+              <Bot size={18} />
+            </div>
             <div>
               <h2 className="font-display text-[24px] text-white">Queue a mission</h2>
-              <p className="text-[13px] text-ink-300">Waypoint names must match the robot navigation map.</p>
+              <p className="text-[13px] text-ink-300">Select saved capture points for the robot to visit.</p>
             </div>
           </div>
 
@@ -298,19 +446,182 @@ export default function RobotMissionsPage() {
               </label>
             </div>
 
-            <label className="block">
-              <span className="mb-2 block font-mono text-[11px] uppercase tracking-[0.16em] text-ink-400">Waypoints</span>
-              <textarea
-                value={waypointText}
-                onChange={(event) => setWaypointText(event.target.value)}
-                rows={7}
-                placeholder={'room1\nroom2\nroom3'}
-                className="w-full rounded-2xl border border-base-700 bg-base-950 px-3 py-3 text-[14px] text-white outline-none transition focus:border-amber-500"
-              />
-              <p className="mt-2 text-[12px] text-ink-400">
-                One waypoint per line or comma-separated. Current room mapping mirrors waypoint names.
-              </p>
-            </label>
+            <div className="rounded-2xl border border-base-800 bg-base-950/60 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-400">Capture points</p>
+                <span className="text-[12px] text-ink-500">{capturePoints.length} saved</span>
+              </div>
+              <div className="mt-3 space-y-2">
+                {capturePoints.length > 0 ? capturePoints.map((point) => {
+                  const selected = selectedCapturePointIds.includes(point.id);
+                  return (
+                    <div
+                      key={point.id}
+                      className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2 ${selected ? 'border-amber-500/60 bg-amber-500/10' : 'border-base-800 bg-base-900/70'}`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => toggleCapturePoint(point.id)}
+                        className="min-w-0 flex-1 text-left"
+                      >
+                        <span className="block truncate text-[13px] text-white">{point.name}</span>
+                        <span className="mt-0.5 block font-mono text-[11px] text-ink-400">
+                          x {point.map_x.toFixed(2)} · y {point.map_y.toFixed(2)} · yaw {point.yaw.toFixed(2)}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!selectedProject) return;
+                          deleteRobotCapturePoint(selectedProject.id, point.id)
+                            .then(() => refreshCapturePoints(selectedProject.id))
+                            .catch((err) => toast.error(err instanceof Error ? err.message : 'Failed to delete capture point'));
+                        }}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-700/40 text-red-200 transition hover:bg-red-500/10"
+                        title="Delete capture point"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  );
+                }) : (
+                  <div className="rounded-xl border border-dashed border-base-700 px-3 py-5 text-center text-[13px] text-ink-400">
+                    No capture points saved for this project.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-base-800 bg-base-950/60 p-4">
+              <div className="flex items-center gap-2">
+                <MapPin size={14} className="text-amber-300" />
+                <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-400">Add capture point</p>
+              </div>
+
+              {robotMap ? (
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={handleRobotMapClick}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') event.preventDefault();
+                  }}
+                  className="relative mt-3 overflow-hidden rounded-xl border border-base-800 bg-base-900"
+                  style={{ aspectRatio: `${robotMap.width} / ${robotMap.height}` }}
+                >
+                  <img
+                    src={robotMap.image_url}
+                    alt=""
+                    className="h-full w-full"
+                  />
+                  {capturePoints.map((point) => (
+                    point.floorplan_x !== null && point.floorplan_y !== null ? (
+                      <span
+                        key={point.id}
+                        className="absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-base-950 bg-emerald-400 shadow"
+                        style={{ left: `${point.floorplan_x * 100}%`, top: `${point.floorplan_y * 100}%` }}
+                        title={point.name}
+                      />
+                    ) : null
+                  ))}
+                  {newPointMapMarker ? (
+                    <span
+                      className="absolute h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-base-950 bg-amber-400 shadow"
+                      style={{ left: `${newPointMapMarker.x * 100}%`, top: `${newPointMapMarker.y * 100}%` }}
+                    />
+                  ) : null}
+                  <div className="absolute bottom-2 left-2 rounded bg-base-950/80 px-2 py-1 font-mono text-[10px] text-ink-300">
+                    {robotMap.resolution} m/px · {robotMap.frame}
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-3 rounded-xl border border-dashed border-base-700 bg-base-900/50 px-3 py-4">
+                  <p className="text-center text-[13px] text-ink-300">
+                    {robotMapError || 'No robot map uploaded for this project.'}
+                  </p>
+                  <div className="mt-4 grid gap-3">
+                    <label className="block">
+                      <span className="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.14em] text-ink-500">Map YAML</span>
+                      <input
+                        type="file"
+                        accept=".yaml,.yml,text/yaml,text/plain"
+                        onChange={(event) => setRobotMapYamlFile(event.target.files?.[0] ?? null)}
+                        className="block w-full text-[12px] text-ink-300 file:mr-3 file:rounded-lg file:border-0 file:bg-base-800 file:px-3 file:py-2 file:text-[12px] file:text-white"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.14em] text-ink-500">Map image</span>
+                      <input
+                        type="file"
+                        accept=".pgm,.png,.jpg,.jpeg,.webp,image/*"
+                        onChange={(event) => setRobotMapImageFile(event.target.files?.[0] ?? null)}
+                        className="block w-full text-[12px] text-ink-300 file:mr-3 file:rounded-lg file:border-0 file:bg-base-800 file:px-3 file:py-2 file:text-[12px] file:text-white"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleUploadRobotMap}
+                      disabled={uploadingRobotMap}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-amber-500/40 px-3 py-2.5 text-[13px] text-amber-200 transition hover:bg-amber-500/10 disabled:opacity-50"
+                    >
+                      {uploadingRobotMap ? <Loader2 size={14} className="animate-spin" /> : <MapPin size={14} />}
+                      Upload robot map
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-4 grid gap-3">
+                <input
+                  type="text"
+                  value={newPointName}
+                  onChange={(event) => setNewPointName(event.target.value)}
+                  placeholder="Capture point name"
+                  className="w-full rounded-xl border border-base-700 bg-base-950 px-3 py-2.5 text-[14px] text-white outline-none transition focus:border-amber-500"
+                />
+                <input
+                  type="text"
+                  value={newPointRoomSlug}
+                  onChange={(event) => setNewPointRoomSlug(event.target.value)}
+                  placeholder="Room slug"
+                  className="w-full rounded-xl border border-base-700 bg-base-950 px-3 py-2.5 text-[14px] text-white outline-none transition focus:border-amber-500"
+                />
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={newPointMapX}
+                    onChange={(event) => setNewPointMapX(event.target.value)}
+                    placeholder="Map X"
+                    className="w-full rounded-xl border border-base-700 bg-base-950 px-3 py-2.5 text-[14px] text-white outline-none transition focus:border-amber-500"
+                  />
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={newPointMapY}
+                    onChange={(event) => setNewPointMapY(event.target.value)}
+                    placeholder="Map Y"
+                    className="w-full rounded-xl border border-base-700 bg-base-950 px-3 py-2.5 text-[14px] text-white outline-none transition focus:border-amber-500"
+                  />
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={newPointYaw}
+                    onChange={(event) => setNewPointYaw(event.target.value)}
+                    placeholder="Yaw"
+                    className="w-full rounded-xl border border-base-700 bg-base-950 px-3 py-2.5 text-[14px] text-white outline-none transition focus:border-amber-500"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCreateCapturePoint}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-amber-500/40 px-3 py-2.5 text-[13px] text-amber-200 transition hover:bg-amber-500/10"
+                >
+                  <Plus size={14} />
+                  Save capture point
+                </button>
+              </div>
+            </div>
 
             <label className="flex items-center gap-3 rounded-2xl border border-base-800 bg-base-950/70 px-3 py-3 text-[13px] text-ink-200">
               <input
@@ -325,15 +636,15 @@ export default function RobotMissionsPage() {
             <div className="rounded-2xl border border-base-800 bg-base-950/60 p-4">
               <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-400">Mission preview</p>
               <div className="mt-3 flex flex-wrap gap-2">
-                {parsedWaypoints.length > 0 ? parsedWaypoints.map((waypoint) => (
+                {selectedCapturePoints.length > 0 ? selectedCapturePoints.map((point) => (
                   <span
-                    key={waypoint}
+                    key={point.id}
                     className="rounded-full border border-base-700 bg-base-900 px-2.5 py-1 font-mono text-[11px] text-white"
                   >
-                    {waypoint}
+                    {point.name}
                   </span>
                 )) : (
-                  <span className="text-[13px] text-ink-400">No valid waypoints yet.</span>
+                  <span className="text-[13px] text-ink-400">No capture points selected.</span>
                 )}
               </div>
             </div>

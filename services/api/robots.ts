@@ -1,5 +1,7 @@
 import type {
   ApiProject,
+  ApiRobotCapturePoint,
+  ApiRobotMap,
   ApiRobotMission,
   ApiRobotPairingToken,
   ApiRobotPresence,
@@ -10,12 +12,25 @@ import { apiFetch, getJson, parseApiError } from './core';
 export type ApiRobotMissionCreateRequest = {
   robot_id: string;
   project_slug: string;
-  waypoints: string[];
+  waypoints?: unknown[];
+  capture_point_ids?: string[];
   room_slug_map?: Record<string, string>;
   capture_mode?: string;
   capture_date: string;
   retry_policy?: Record<string, unknown>;
   robot_meta?: Record<string, unknown>;
+};
+
+export type ApiRobotCapturePointCreateRequest = {
+  name: string;
+  room_slug?: string | null;
+  map_x: number;
+  map_y: number;
+  yaw?: number;
+  floorplan_x?: number | null;
+  floorplan_y?: number | null;
+  source?: string;
+  metadata?: Record<string, unknown>;
 };
 
 export type ApiRobotPairingTokenCreateRequest = {
@@ -41,6 +56,37 @@ export function getRobotStatus(robotId: string): Promise<ApiRobotPresence> {
   return getJson<ApiRobotPresence>(`/robots/${encodeURIComponent(robotId)}/status`);
 }
 
+export function getRobotMap(projectId: string): Promise<ApiRobotMap> {
+  return getJson<ApiRobotMap>(`/projects/${encodeURIComponent(projectId)}/robot-map`);
+}
+
+export async function uploadRobotMap(
+  projectId: string,
+  yamlFile: File,
+  imageFile: File,
+): Promise<ApiRobotMap> {
+  const form = new FormData();
+  form.append('yaml_file', yamlFile);
+  form.append('image_file', imageFile);
+  const response = await apiFetch(`/projects/${encodeURIComponent(projectId)}/robot-map`, {
+    method: 'POST',
+    body: form,
+  });
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
+  return response.json() as Promise<ApiRobotMap>;
+}
+
+export async function deleteRobotMap(projectId: string): Promise<void> {
+  const response = await apiFetch(`/projects/${encodeURIComponent(projectId)}/robot-map`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
+}
+
 export function listRobotMissions(params?: ApiRobotMissionListParams): Promise<ApiRobotMission[]> {
   const search = new URLSearchParams();
   if (params?.robotId) search.set('robot_id', params.robotId);
@@ -57,6 +103,36 @@ export function createRobotMission(body: ApiRobotMissionCreateRequest): Promise<
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
+}
+
+export function listRobotCapturePoints(projectId: string): Promise<ApiRobotCapturePoint[]> {
+  return getJson<ApiRobotCapturePoint[]>(
+    `/projects/${encodeURIComponent(projectId)}/robot-capture-points`,
+  );
+}
+
+export function createRobotCapturePoint(
+  projectId: string,
+  body: ApiRobotCapturePointCreateRequest,
+): Promise<ApiRobotCapturePoint> {
+  return getJson<ApiRobotCapturePoint>(
+    `/projects/${encodeURIComponent(projectId)}/robot-capture-points`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    },
+  );
+}
+
+export async function deleteRobotCapturePoint(projectId: string, pointId: string): Promise<void> {
+  const response = await apiFetch(
+    `/projects/${encodeURIComponent(projectId)}/robot-capture-points/${encodeURIComponent(pointId)}`,
+    { method: 'DELETE' },
+  );
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
 }
 
 export function cancelRobotMission(missionId: string): Promise<ApiRobotMission> {
