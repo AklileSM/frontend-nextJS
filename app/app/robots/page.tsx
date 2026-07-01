@@ -1,10 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import type { MouseEvent } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { Bot, Loader2, MapPin, Plus, RefreshCcw, Send, Trash2, XCircle } from 'lucide-react';
+import { Bot, Check, Loader2, MapPin, Maximize2, Plus, RefreshCcw, Send, Trash2, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   cancelRobotMission,
@@ -52,6 +52,23 @@ function canDeleteMission(status: string): boolean {
   return ['queued', 'dispatched', 'running', 'cancelled', 'failed', 'succeeded'].includes(status);
 }
 
+function normalizedToMapPose(robotMap: ApiRobotMap, marker: { x: number; y: number }): { x: number; y: number } {
+  const pixelX = marker.x * robotMap.width;
+  const pixelY = marker.y * robotMap.height;
+  const localX = pixelX * robotMap.resolution;
+  const localY = (robotMap.height - pixelY) * robotMap.resolution;
+  const cos = Math.cos(robotMap.origin_yaw);
+  const sin = Math.sin(robotMap.origin_yaw);
+  return {
+    x: robotMap.origin_x + localX * cos - localY * sin,
+    y: robotMap.origin_y + localX * sin + localY * cos,
+  };
+}
+
+function radiansToDegrees(value: number): number {
+  return Math.round((value * 180) / Math.PI);
+}
+
 export default function RobotMissionsPage() {
   const [robots, setRobots] = useState<ApiRobotSummary[]>([]);
   const [projects, setProjects] = useState<ApiProject[]>([]);
@@ -63,17 +80,19 @@ export default function RobotMissionsPage() {
   const [refreshing, startRefresh] = useTransition();
   const [submitting, startSubmit] = useTransition();
   const [pendingAction, setPendingAction] = useState<{ type: 'cancel' | 'delete'; mission: ApiRobotMission } | null>(null);
+  const robotMapRef = useRef<HTMLDivElement | null>(null);
 
   const [robotId, setRobotId] = useState('');
   const [projectSlug, setProjectSlug] = useState('');
   const [captureDate, setCaptureDate] = useState(todayIso());
   const [selectedCapturePointIds, setSelectedCapturePointIds] = useState<string[]>([]);
+  const [addingCapturePoint, setAddingCapturePoint] = useState(false);
   const [newPointName, setNewPointName] = useState('');
-  const [newPointRoomSlug, setNewPointRoomSlug] = useState('');
   const [newPointMapX, setNewPointMapX] = useState('');
   const [newPointMapY, setNewPointMapY] = useState('');
   const [newPointYaw, setNewPointYaw] = useState('0');
   const [newPointMapMarker, setNewPointMapMarker] = useState<{ x: number; y: number } | null>(null);
+  const [newPointFacingMarker, setNewPointFacingMarker] = useState<{ x: number; y: number } | null>(null);
   const [robotMapYamlFile, setRobotMapYamlFile] = useState<File | null>(null);
   const [robotMapImageFile, setRobotMapImageFile] = useState<File | null>(null);
   const [uploadingRobotMap, setUploadingRobotMap] = useState(false);
@@ -141,6 +160,7 @@ export default function RobotMissionsPage() {
       setCapturePoints([]);
       setSelectedCapturePointIds([]);
       setRobotMap(null);
+      setAddingCapturePoint(false);
       return;
     }
     refreshCapturePoints(selectedProject.id).catch((err) => {
@@ -181,25 +201,59 @@ export default function RobotMissionsPage() {
       .finally(() => setUploadingRobotMap(false));
   }, [robotMapImageFile, robotMapYamlFile, selectedProject]);
 
-  const handleRobotMapClick = useCallback((event: MouseEvent<HTMLDivElement>) => {
-    if (!robotMap) return;
+  const handleCancelCapturePoint = useCallback(() => {
+    setAddingCapturePoint(false);
+    setNewPointName('');
+    setNewPointMapX('');
+    setNewPointMapY('');
+    setNewPointYaw('0');
+    setNewPointMapMarker(null);
+    setNewPointFacingMarker(null);
+  }, []);
+
+  const getMapMarkerFromEvent = useCallback((event: MouseEvent<HTMLDivElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
-    const marker = {
+    return {
       x: Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width)),
       y: Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height)),
     };
-    const pixelX = marker.x * robotMap.width;
-    const pixelY = marker.y * robotMap.height;
-    const localX = pixelX * robotMap.resolution;
-    const localY = (robotMap.height - pixelY) * robotMap.resolution;
-    const cos = Math.cos(robotMap.origin_yaw);
-    const sin = Math.sin(robotMap.origin_yaw);
-    const mapX = robotMap.origin_x + localX * cos - localY * sin;
-    const mapY = robotMap.origin_y + localX * sin + localY * cos;
-    setNewPointMapMarker(marker);
-    setNewPointMapX(mapX.toFixed(3));
-    setNewPointMapY(mapY.toFixed(3));
+  }, []);
+
+  const setNewPointPoseFromMarkers = useCallback((position: { x: number; y: number }, facing?: { x: number; y: number } | null) => {
+    if (!robotMap) return;
+    const mapPosition = normalizedToMapPose(robotMap, position);
+    setNewPointMapMarker(position);
+    setNewPointMapX(mapPosition.x.toFixed(3));
+    setNewPointMapY(mapPosition.y.toFixed(3));
+
+    if (facing) {
+      const mapFacing = normalizedToMapPose(robotMap, facing);
+      const yaw = Math.atan2(mapFacing.y - mapPosition.y, mapFacing.x - mapPosition.x);
+      setNewPointFacingMarker(facing);
+      setNewPointYaw(yaw.toFixed(4));
+    }
   }, [robotMap]);
+
+  const handleRobotMapClick = useCallback((event: MouseEvent<HTMLDivElement>) => {
+    if (!robotMap || !addingCapturePoint) return;
+    const marker = getMapMarkerFromEvent(event);
+    if (!newPointMapMarker) {
+      setNewPointPoseFromMarkers(marker, null);
+      return;
+    }
+    setNewPointPoseFromMarkers(newPointMapMarker, marker);
+  }, [addingCapturePoint, getMapMarkerFromEvent, newPointMapMarker, robotMap, setNewPointPoseFromMarkers]);
+
+  const handleRobotMapMouseMove = useCallback((event: MouseEvent<HTMLDivElement>) => {
+    if (!robotMap || !addingCapturePoint || !newPointMapMarker) return;
+    setNewPointPoseFromMarkers(newPointMapMarker, getMapMarkerFromEvent(event));
+  }, [addingCapturePoint, getMapMarkerFromEvent, newPointMapMarker, robotMap, setNewPointPoseFromMarkers]);
+
+  const handleFullscreenMap = useCallback(() => {
+    const target = robotMapRef.current;
+    if (!target?.requestFullscreen) return;
+    target.requestFullscreen().catch(() => toast.error('Could not open the map full screen'));
+  }, []);
 
   const handleCreateCapturePoint = useCallback(() => {
     if (!selectedProject) {
@@ -213,13 +267,17 @@ export default function RobotMissionsPage() {
       toast.error('Name the capture point');
       return;
     }
+    if (!newPointMapMarker || !newPointFacingMarker) {
+      toast.error('Place the point and choose its facing direction on the map');
+      return;
+    }
     if (!Number.isFinite(mapX) || !Number.isFinite(mapY) || !Number.isFinite(yaw)) {
-      toast.error('Map X, Map Y, and yaw must be numbers');
+      toast.error('Capture point pose could not be read');
       return;
     }
     createRobotCapturePoint(selectedProject.id, {
       name: newPointName.trim(),
-      room_slug: newPointRoomSlug.trim() || null,
+      room_slug: null,
       map_x: mapX,
       map_y: mapY,
       yaw,
@@ -229,12 +287,7 @@ export default function RobotMissionsPage() {
     })
       .then((point) => {
         toast.success(`Saved capture point ${point.name}`);
-        setNewPointName('');
-        setNewPointRoomSlug('');
-        setNewPointMapX('');
-        setNewPointMapY('');
-        setNewPointYaw('0');
-        setNewPointMapMarker(null);
+        handleCancelCapturePoint();
         return refreshCapturePoints(selectedProject.id);
       })
       .catch((err) => {
@@ -245,8 +298,9 @@ export default function RobotMissionsPage() {
     newPointMapY,
     newPointMapMarker,
     newPointName,
-    newPointRoomSlug,
     newPointYaw,
+    newPointFacingMarker,
+    handleCancelCapturePoint,
     refreshCapturePoints,
     selectedProject,
   ]);
@@ -446,11 +500,11 @@ export default function RobotMissionsPage() {
               </label>
             </div>
 
-            <div className="rounded-2xl border border-base-800 bg-base-950/60 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-400">Capture points</p>
-                <span className="text-[12px] text-ink-500">{capturePoints.length} saved</span>
-              </div>
+	            <div className="rounded-2xl border border-base-800 bg-base-950/60 p-4">
+	              <div className="flex items-center justify-between gap-3">
+	                <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-400">Capture points</p>
+	                <span className="text-[12px] text-ink-500">{capturePoints.length} saved</span>
+	              </div>
               <div className="mt-3 space-y-2">
                 {capturePoints.length > 0 ? capturePoints.map((point) => {
                   const selected = selectedCapturePointIds.includes(point.id);
@@ -487,31 +541,67 @@ export default function RobotMissionsPage() {
                 }) : (
                   <div className="rounded-xl border border-dashed border-base-700 px-3 py-5 text-center text-[13px] text-ink-400">
                     No capture points saved for this project.
-                  </div>
-                )}
-              </div>
-            </div>
+	                  </div>
+	                )}
+	              </div>
+	              <div className="mt-4 flex flex-wrap gap-2">
+	                <button
+	                  type="button"
+	                  onClick={() => {
+	                    if (!robotMap) {
+	                      toast.error('Upload a robot map before adding capture points');
+	                      return;
+	                    }
+	                    setAddingCapturePoint(true);
+	                    setNewPointName('');
+	                    setNewPointMapX('');
+	                    setNewPointMapY('');
+	                    setNewPointYaw('0');
+	                    setNewPointMapMarker(null);
+	                    setNewPointFacingMarker(null);
+	                  }}
+	                  className="inline-flex items-center gap-2 rounded-xl border border-amber-500/40 px-3 py-2 text-[12px] text-amber-200 transition hover:bg-amber-500/10"
+	                >
+	                  <Plus size={13} />
+	                  Add capture point
+	                </button>
+	              </div>
+	            </div>
 
-            <div className="rounded-2xl border border-base-800 bg-base-950/60 p-4">
-              <div className="flex items-center gap-2">
-                <MapPin size={14} className="text-amber-300" />
-                <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-400">Add capture point</p>
-              </div>
+	            <div className="rounded-2xl border border-base-800 bg-base-950/60 p-4">
+	              <div className="flex items-center justify-between gap-3">
+	                <div className="flex items-center gap-2">
+	                  <MapPin size={14} className="text-amber-300" />
+	                  <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-400">Robot map</p>
+	                </div>
+	                {robotMap ? (
+	                  <button
+	                    type="button"
+	                    onClick={handleFullscreenMap}
+	                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-base-700 text-ink-200 transition hover:border-ink-400"
+	                    title="Open map full screen"
+	                  >
+	                    <Maximize2 size={13} />
+	                  </button>
+	                ) : null}
+	              </div>
 
-              {robotMap ? (
-                <div
-                  role="button"
-                  tabIndex={0}
-                  onClick={handleRobotMapClick}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') event.preventDefault();
-                  }}
-                  className="relative mt-3 overflow-hidden rounded-xl border border-base-800 bg-base-900"
-                  style={{ aspectRatio: `${robotMap.width} / ${robotMap.height}` }}
-                >
-                  <img
-                    src={robotMap.image_url}
-                    alt=""
+	              {robotMap ? (
+	                <div
+	                  ref={robotMapRef}
+	                  role={addingCapturePoint ? 'button' : undefined}
+	                  tabIndex={addingCapturePoint ? 0 : undefined}
+	                  onClick={handleRobotMapClick}
+	                  onMouseMove={handleRobotMapMouseMove}
+	                  onKeyDown={(event) => {
+	                    if (event.key === 'Enter' || event.key === ' ') event.preventDefault();
+	                  }}
+	                  className={`relative mt-3 overflow-hidden rounded-xl border border-base-800 bg-base-900 ${addingCapturePoint ? 'cursor-crosshair' : ''}`}
+	                  style={{ aspectRatio: `${robotMap.width} / ${robotMap.height}` }}
+	                >
+	                  <img
+	                    src={robotMap.image_url}
+	                    alt=""
                     className="h-full w-full"
                   />
                   {capturePoints.map((point) => (
@@ -521,20 +611,46 @@ export default function RobotMissionsPage() {
                         className="absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-base-950 bg-emerald-400 shadow"
                         style={{ left: `${point.floorplan_x * 100}%`, top: `${point.floorplan_y * 100}%` }}
                         title={point.name}
-                      />
-                    ) : null
-                  ))}
-                  {newPointMapMarker ? (
-                    <span
-                      className="absolute h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-base-950 bg-amber-400 shadow"
-                      style={{ left: `${newPointMapMarker.x * 100}%`, top: `${newPointMapMarker.y * 100}%` }}
-                    />
-                  ) : null}
-                  <div className="absolute bottom-2 left-2 rounded bg-base-950/80 px-2 py-1 font-mono text-[10px] text-ink-300">
-                    {robotMap.resolution} m/px · {robotMap.frame}
-                  </div>
-                </div>
-              ) : (
+	                      />
+	                    ) : null
+	                  ))}
+	                  {newPointMapMarker ? (
+	                    <>
+	                      {newPointFacingMarker ? (
+	                        <svg
+	                          className="pointer-events-none absolute inset-0 h-full w-full"
+	                          viewBox="0 0 100 100"
+	                          preserveAspectRatio="none"
+	                        >
+	                          <line
+	                            x1={newPointMapMarker.x * 100}
+	                            y1={newPointMapMarker.y * 100}
+	                            x2={newPointFacingMarker.x * 100}
+	                            y2={newPointFacingMarker.y * 100}
+	                            stroke="rgb(251 191 36)"
+	                            strokeWidth="0.65"
+	                            strokeLinecap="round"
+	                          />
+	                        </svg>
+	                      ) : null}
+	                      <span
+	                        className="absolute h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-base-950 bg-amber-400 shadow"
+	                        style={{ left: `${newPointMapMarker.x * 100}%`, top: `${newPointMapMarker.y * 100}%` }}
+	                      />
+	                    </>
+	                  ) : null}
+	                  <div className="absolute bottom-2 left-2 rounded bg-base-950/80 px-2 py-1 font-mono text-[10px] text-ink-300">
+	                    {robotMap.resolution} m/px · {robotMap.frame}
+	                  </div>
+	                  {addingCapturePoint ? (
+	                    <div className="absolute right-2 top-2 rounded bg-base-950/85 px-2 py-1 text-[11px] text-amber-100">
+	                      {newPointMapMarker
+	                        ? `Choose facing direction${newPointFacingMarker ? ` · ${radiansToDegrees(Number(newPointYaw || 0))}°` : ''}`
+	                        : 'Click to place point'}
+	                    </div>
+	                  ) : null}
+	                </div>
+	              ) : (
                 <div className="mt-3 rounded-xl border border-dashed border-base-700 bg-base-900/50 px-3 py-4">
                   <p className="text-center text-[13px] text-ink-300">
                     {robotMapError || 'No robot map uploaded for this project.'}
@@ -568,60 +684,47 @@ export default function RobotMissionsPage() {
                       Upload robot map
                     </button>
                   </div>
-                </div>
-              )}
+	                </div>
+	              )}
 
-              <div className="mt-4 grid gap-3">
-                <input
-                  type="text"
-                  value={newPointName}
-                  onChange={(event) => setNewPointName(event.target.value)}
-                  placeholder="Capture point name"
-                  className="w-full rounded-xl border border-base-700 bg-base-950 px-3 py-2.5 text-[14px] text-white outline-none transition focus:border-amber-500"
-                />
-                <input
-                  type="text"
-                  value={newPointRoomSlug}
-                  onChange={(event) => setNewPointRoomSlug(event.target.value)}
-                  placeholder="Room slug"
-                  className="w-full rounded-xl border border-base-700 bg-base-950 px-3 py-2.5 text-[14px] text-white outline-none transition focus:border-amber-500"
-                />
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={newPointMapX}
-                    onChange={(event) => setNewPointMapX(event.target.value)}
-                    placeholder="Map X"
-                    className="w-full rounded-xl border border-base-700 bg-base-950 px-3 py-2.5 text-[14px] text-white outline-none transition focus:border-amber-500"
-                  />
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={newPointMapY}
-                    onChange={(event) => setNewPointMapY(event.target.value)}
-                    placeholder="Map Y"
-                    className="w-full rounded-xl border border-base-700 bg-base-950 px-3 py-2.5 text-[14px] text-white outline-none transition focus:border-amber-500"
-                  />
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={newPointYaw}
-                    onChange={(event) => setNewPointYaw(event.target.value)}
-                    placeholder="Yaw"
-                    className="w-full rounded-xl border border-base-700 bg-base-950 px-3 py-2.5 text-[14px] text-white outline-none transition focus:border-amber-500"
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={handleCreateCapturePoint}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-amber-500/40 px-3 py-2.5 text-[13px] text-amber-200 transition hover:bg-amber-500/10"
-                >
-                  <Plus size={14} />
-                  Save capture point
-                </button>
-              </div>
-            </div>
+	              {addingCapturePoint ? (
+	                <div className="mt-4 grid gap-3 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">
+	                  <input
+	                    type="text"
+	                    value={newPointName}
+	                    onChange={(event) => setNewPointName(event.target.value)}
+	                    placeholder="Capture point name"
+	                    className="w-full rounded-xl border border-base-700 bg-base-950 px-3 py-2.5 text-[14px] text-white outline-none transition focus:border-amber-500"
+	                  />
+	                  <div className="flex flex-wrap gap-2 text-[12px] text-ink-300">
+	                    <span className="rounded-lg border border-base-800 bg-base-950 px-2 py-1">
+	                      {newPointMapMarker ? 'Position selected' : 'Position needed'}
+	                    </span>
+	                    <span className="rounded-lg border border-base-800 bg-base-950 px-2 py-1">
+	                      {newPointFacingMarker ? `Facing ${radiansToDegrees(Number(newPointYaw || 0))}°` : 'Facing direction needed'}
+	                    </span>
+	                  </div>
+	                  <div className="flex flex-wrap gap-2">
+	                    <button
+	                      type="button"
+	                      onClick={handleCreateCapturePoint}
+	                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-amber-500/40 px-3 py-2.5 text-[13px] text-amber-200 transition hover:bg-amber-500/10"
+	                    >
+	                      <Check size={14} />
+	                      Save capture point
+	                    </button>
+	                    <button
+	                      type="button"
+	                      onClick={handleCancelCapturePoint}
+	                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-base-700 px-3 py-2.5 text-[13px] text-ink-200 transition hover:border-ink-400"
+	                    >
+	                      <XCircle size={14} />
+	                      Cancel
+	                    </button>
+	                  </div>
+	                </div>
+	              ) : null}
+	            </div>
 
             <label className="flex items-center gap-3 rounded-2xl border border-base-800 bg-base-950/70 px-3 py-3 text-[13px] text-ink-200">
               <input
