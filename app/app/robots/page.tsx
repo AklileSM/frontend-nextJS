@@ -1,10 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
-import type { MouseEvent } from 'react';
+import type { MouseEvent, PointerEvent } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { Bot, Check, Loader2, MapPin, Maximize2, Plus, RefreshCcw, Send, Trash2, XCircle } from 'lucide-react';
+import { Bot, Check, Loader2, MapPin, Plus, RefreshCcw, RotateCcw, Send, Trash2, XCircle, ZoomIn, ZoomOut } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   cancelRobotMission,
@@ -20,6 +20,7 @@ import {
   uploadRobotMap,
 } from '@/services/apiClient';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { Modal } from '@/components/ui/Modal';
 import { formatIsoDate } from '@/services/dateFormat';
 import type { ApiProject, ApiRobotCapturePoint, ApiRobotMap, ApiRobotMission, ApiRobotSummary } from '@/types/api';
 
@@ -80,12 +81,15 @@ export default function RobotMissionsPage() {
   const [refreshing, startRefresh] = useTransition();
   const [submitting, startSubmit] = useTransition();
   const [pendingAction, setPendingAction] = useState<{ type: 'cancel' | 'delete'; mission: ApiRobotMission } | null>(null);
-  const robotMapRef = useRef<HTMLDivElement | null>(null);
+  const mapDragRef = useRef<{ pointerId: number; startX: number; startY: number; panX: number; panY: number; moved: boolean } | null>(null);
 
   const [robotId, setRobotId] = useState('');
   const [projectSlug, setProjectSlug] = useState('');
   const [captureDate, setCaptureDate] = useState(todayIso());
   const [selectedCapturePointIds, setSelectedCapturePointIds] = useState<string[]>([]);
+  const [mapModalOpen, setMapModalOpen] = useState(false);
+  const [mapZoom, setMapZoom] = useState(1);
+  const [mapPan, setMapPan] = useState({ x: 0, y: 0 });
   const [addingCapturePoint, setAddingCapturePoint] = useState(false);
   const [newPointName, setNewPointName] = useState('');
   const [newPointMapX, setNewPointMapX] = useState('');
@@ -211,6 +215,45 @@ export default function RobotMissionsPage() {
     setNewPointFacingMarker(null);
   }, []);
 
+  const resetMapView = useCallback(() => {
+    setMapZoom(1);
+    setMapPan({ x: 0, y: 0 });
+  }, []);
+
+  const openMapModal = useCallback(() => {
+    setMapModalOpen(true);
+    resetMapView();
+  }, [resetMapView]);
+
+  const closeMapModal = useCallback(() => {
+    if (addingCapturePoint) handleCancelCapturePoint();
+    setMapModalOpen(false);
+  }, [addingCapturePoint, handleCancelCapturePoint]);
+
+  const beginAddCapturePoint = useCallback(() => {
+    if (!robotMap) {
+      toast.error('Upload a robot map before adding capture points');
+      return;
+    }
+    setAddingCapturePoint(true);
+    setNewPointName('');
+    setNewPointMapX('');
+    setNewPointMapY('');
+    setNewPointYaw('0');
+    setNewPointMapMarker(null);
+    setNewPointFacingMarker(null);
+    setMapModalOpen(true);
+    resetMapView();
+  }, [resetMapView, robotMap]);
+
+  const handleMapZoomIn = useCallback(() => {
+    setMapZoom((current) => Math.min(5, Number((current + 0.25).toFixed(2))));
+  }, []);
+
+  const handleMapZoomOut = useCallback(() => {
+    setMapZoom((current) => Math.max(0.5, Number((current - 0.25).toFixed(2))));
+  }, []);
+
   const getMapMarkerFromEvent = useCallback((event: MouseEvent<HTMLDivElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
     return {
@@ -236,6 +279,7 @@ export default function RobotMissionsPage() {
 
   const handleRobotMapClick = useCallback((event: MouseEvent<HTMLDivElement>) => {
     if (!robotMap || !addingCapturePoint) return;
+    if (mapDragRef.current?.moved) return;
     const marker = getMapMarkerFromEvent(event);
     if (!newPointMapMarker) {
       setNewPointPoseFromMarkers(marker, null);
@@ -246,13 +290,37 @@ export default function RobotMissionsPage() {
 
   const handleRobotMapMouseMove = useCallback((event: MouseEvent<HTMLDivElement>) => {
     if (!robotMap || !addingCapturePoint || !newPointMapMarker) return;
+    if (mapDragRef.current?.moved) return;
     setNewPointPoseFromMarkers(newPointMapMarker, getMapMarkerFromEvent(event));
   }, [addingCapturePoint, getMapMarkerFromEvent, newPointMapMarker, robotMap, setNewPointPoseFromMarkers]);
 
-  const handleFullscreenMap = useCallback(() => {
-    const target = robotMapRef.current;
-    if (!target?.requestFullscreen) return;
-    target.requestFullscreen().catch(() => toast.error('Could not open the map full screen'));
+  const handleMapPointerDown = useCallback((event: PointerEvent<HTMLDivElement>) => {
+    mapDragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      panX: mapPan.x,
+      panY: mapPan.y,
+      moved: false,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }, [mapPan.x, mapPan.y]);
+
+  const handleMapPointerMove = useCallback((event: PointerEvent<HTMLDivElement>) => {
+    const drag = mapDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const dx = event.clientX - drag.startX;
+    const dy = event.clientY - drag.startY;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) drag.moved = true;
+    setMapPan({ x: drag.panX + dx, y: drag.panY + dy });
+  }, []);
+
+  const handleMapPointerUp = useCallback((event: PointerEvent<HTMLDivElement>) => {
+    if (mapDragRef.current?.pointerId === event.pointerId) {
+      window.setTimeout(() => {
+        mapDragRef.current = null;
+      }, 0);
+    }
   }, []);
 
   const handleCreateCapturePoint = useCallback(() => {
@@ -288,6 +356,7 @@ export default function RobotMissionsPage() {
       .then((point) => {
         toast.success(`Saved capture point ${point.name}`);
         handleCancelCapturePoint();
+        setMapModalOpen(false);
         return refreshCapturePoints(selectedProject.id);
       })
       .catch((err) => {
@@ -500,11 +569,11 @@ export default function RobotMissionsPage() {
               </label>
             </div>
 
-	            <div className="rounded-2xl border border-base-800 bg-base-950/60 p-4">
-	              <div className="flex items-center justify-between gap-3">
-	                <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-400">Capture points</p>
-	                <span className="text-[12px] text-ink-500">{capturePoints.length} saved</span>
-	              </div>
+            <div className="rounded-2xl border border-base-800 bg-base-950/60 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-400">Capture points</p>
+                <span className="text-[12px] text-ink-500">{capturePoints.length} saved</span>
+              </div>
               <div className="mt-3 space-y-2">
                 {capturePoints.length > 0 ? capturePoints.map((point) => {
                   const selected = selectedCapturePointIds.includes(point.id);
@@ -541,69 +610,47 @@ export default function RobotMissionsPage() {
                 }) : (
                   <div className="rounded-xl border border-dashed border-base-700 px-3 py-5 text-center text-[13px] text-ink-400">
                     No capture points saved for this project.
-	                  </div>
-	                )}
-	              </div>
-	              <div className="mt-4 flex flex-wrap gap-2">
-	                <button
-	                  type="button"
-	                  onClick={() => {
-	                    if (!robotMap) {
-	                      toast.error('Upload a robot map before adding capture points');
-	                      return;
-	                    }
-	                    setAddingCapturePoint(true);
-	                    setNewPointName('');
-	                    setNewPointMapX('');
-	                    setNewPointMapY('');
-	                    setNewPointYaw('0');
-	                    setNewPointMapMarker(null);
-	                    setNewPointFacingMarker(null);
-	                  }}
-	                  className="inline-flex items-center gap-2 rounded-xl border border-amber-500/40 px-3 py-2 text-[12px] text-amber-200 transition hover:bg-amber-500/10"
-	                >
-	                  <Plus size={13} />
-	                  Add capture point
-	                </button>
-	              </div>
-	            </div>
+                  </div>
+                )}
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={beginAddCapturePoint}
+                  className="inline-flex items-center gap-2 rounded-xl border border-amber-500/40 px-3 py-2 text-[12px] text-amber-200 transition hover:bg-amber-500/10"
+                >
+                  <Plus size={13} />
+                  Add capture point
+                </button>
+              </div>
+            </div>
 
-	            <div className="rounded-2xl border border-base-800 bg-base-950/60 p-4">
-	              <div className="flex items-center justify-between gap-3">
-	                <div className="flex items-center gap-2">
-	                  <MapPin size={14} className="text-amber-300" />
-	                  <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-400">Robot map</p>
-	                </div>
-	                {robotMap ? (
-	                  <button
-	                    type="button"
-	                    onClick={handleFullscreenMap}
-	                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-base-700 text-ink-200 transition hover:border-ink-400"
-	                    title="Open map full screen"
-	                  >
-	                    <Maximize2 size={13} />
-	                  </button>
-	                ) : null}
-	              </div>
+            <div className="rounded-2xl border border-base-800 bg-base-950/60 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <MapPin size={14} className="text-amber-300" />
+                  <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-400">Robot map</p>
+                </div>
+                {robotMap ? (
+                  <button
+                    type="button"
+                    onClick={openMapModal}
+                    className="inline-flex items-center gap-2 rounded-lg border border-base-700 px-2.5 py-1.5 text-[12px] text-ink-200 transition hover:border-ink-400"
+                  >
+                    <ZoomIn size={13} />
+                    Open
+                  </button>
+                ) : null}
+              </div>
 
-	              {robotMap ? (
-	                <div
-	                  ref={robotMapRef}
-	                  role={addingCapturePoint ? 'button' : undefined}
-	                  tabIndex={addingCapturePoint ? 0 : undefined}
-	                  onClick={handleRobotMapClick}
-	                  onMouseMove={handleRobotMapMouseMove}
-	                  onKeyDown={(event) => {
-	                    if (event.key === 'Enter' || event.key === ' ') event.preventDefault();
-	                  }}
-	                  className={`relative mt-3 overflow-hidden rounded-xl border border-base-800 bg-base-900 ${addingCapturePoint ? 'cursor-crosshair' : ''}`}
-	                  style={{ aspectRatio: `${robotMap.width} / ${robotMap.height}` }}
-	                >
-	                  <img
-	                    src={robotMap.image_url}
-	                    alt=""
-                    className="h-full w-full"
-                  />
+              {robotMap ? (
+                <button
+                  type="button"
+                  onClick={openMapModal}
+                  className="relative mt-3 block w-full overflow-hidden rounded-xl border border-base-800 bg-base-900 text-left"
+                  style={{ aspectRatio: `${robotMap.width} / ${robotMap.height}` }}
+                >
+                  <img src={robotMap.image_url} alt="" className="h-full w-full" />
                   {capturePoints.map((point) => (
                     point.floorplan_x !== null && point.floorplan_y !== null ? (
                       <span
@@ -611,46 +658,14 @@ export default function RobotMissionsPage() {
                         className="absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-base-950 bg-emerald-400 shadow"
                         style={{ left: `${point.floorplan_x * 100}%`, top: `${point.floorplan_y * 100}%` }}
                         title={point.name}
-	                      />
-	                    ) : null
-	                  ))}
-	                  {newPointMapMarker ? (
-	                    <>
-	                      {newPointFacingMarker ? (
-	                        <svg
-	                          className="pointer-events-none absolute inset-0 h-full w-full"
-	                          viewBox="0 0 100 100"
-	                          preserveAspectRatio="none"
-	                        >
-	                          <line
-	                            x1={newPointMapMarker.x * 100}
-	                            y1={newPointMapMarker.y * 100}
-	                            x2={newPointFacingMarker.x * 100}
-	                            y2={newPointFacingMarker.y * 100}
-	                            stroke="rgb(251 191 36)"
-	                            strokeWidth="0.65"
-	                            strokeLinecap="round"
-	                          />
-	                        </svg>
-	                      ) : null}
-	                      <span
-	                        className="absolute h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-base-950 bg-amber-400 shadow"
-	                        style={{ left: `${newPointMapMarker.x * 100}%`, top: `${newPointMapMarker.y * 100}%` }}
-	                      />
-	                    </>
-	                  ) : null}
-	                  <div className="absolute bottom-2 left-2 rounded bg-base-950/80 px-2 py-1 font-mono text-[10px] text-ink-300">
-	                    {robotMap.resolution} m/px · {robotMap.frame}
-	                  </div>
-	                  {addingCapturePoint ? (
-	                    <div className="absolute right-2 top-2 rounded bg-base-950/85 px-2 py-1 text-[11px] text-amber-100">
-	                      {newPointMapMarker
-	                        ? `Choose facing direction${newPointFacingMarker ? ` · ${radiansToDegrees(Number(newPointYaw || 0))}°` : ''}`
-	                        : 'Click to place point'}
-	                    </div>
-	                  ) : null}
-	                </div>
-	              ) : (
+                      />
+                    ) : null
+                  ))}
+                  <div className="absolute bottom-2 left-2 rounded bg-base-950/80 px-2 py-1 font-mono text-[10px] text-ink-300">
+                    {robotMap.resolution} m/px · {robotMap.frame}
+                  </div>
+                </button>
+              ) : (
                 <div className="mt-3 rounded-xl border border-dashed border-base-700 bg-base-900/50 px-3 py-4">
                   <p className="text-center text-[13px] text-ink-300">
                     {robotMapError || 'No robot map uploaded for this project.'}
@@ -684,47 +699,10 @@ export default function RobotMissionsPage() {
                       Upload robot map
                     </button>
                   </div>
-	                </div>
-	              )}
+                </div>
+              )}
 
-	              {addingCapturePoint ? (
-	                <div className="mt-4 grid gap-3 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">
-	                  <input
-	                    type="text"
-	                    value={newPointName}
-	                    onChange={(event) => setNewPointName(event.target.value)}
-	                    placeholder="Capture point name"
-	                    className="w-full rounded-xl border border-base-700 bg-base-950 px-3 py-2.5 text-[14px] text-white outline-none transition focus:border-amber-500"
-	                  />
-	                  <div className="flex flex-wrap gap-2 text-[12px] text-ink-300">
-	                    <span className="rounded-lg border border-base-800 bg-base-950 px-2 py-1">
-	                      {newPointMapMarker ? 'Position selected' : 'Position needed'}
-	                    </span>
-	                    <span className="rounded-lg border border-base-800 bg-base-950 px-2 py-1">
-	                      {newPointFacingMarker ? `Facing ${radiansToDegrees(Number(newPointYaw || 0))}°` : 'Facing direction needed'}
-	                    </span>
-	                  </div>
-	                  <div className="flex flex-wrap gap-2">
-	                    <button
-	                      type="button"
-	                      onClick={handleCreateCapturePoint}
-	                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-amber-500/40 px-3 py-2.5 text-[13px] text-amber-200 transition hover:bg-amber-500/10"
-	                    >
-	                      <Check size={14} />
-	                      Save capture point
-	                    </button>
-	                    <button
-	                      type="button"
-	                      onClick={handleCancelCapturePoint}
-	                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-base-700 px-3 py-2.5 text-[13px] text-ink-200 transition hover:border-ink-400"
-	                    >
-	                      <XCircle size={14} />
-	                      Cancel
-	                    </button>
-	                  </div>
-	                </div>
-	              ) : null}
-	            </div>
+            </div>
 
             <label className="flex items-center gap-3 rounded-2xl border border-base-800 bg-base-950/70 px-3 py-3 text-[13px] text-ink-200">
               <input
@@ -863,6 +841,167 @@ export default function RobotMissionsPage() {
           </div>
         </section>
       </div>
+
+      <Modal
+        open={mapModalOpen}
+        onClose={closeMapModal}
+        title={addingCapturePoint ? 'Add capture point' : 'Robot map'}
+        subtitle={addingCapturePoint ? 'Click to place the point, then point the arrow toward the robot facing direction.' : 'Drag to pan and use the controls to zoom.'}
+        size="2xl"
+        bodyClassName="flex-1 overflow-hidden p-0"
+      >
+        {robotMap ? (
+          <div className="flex h-[72vh] flex-col bg-base-950">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-base-800 px-4 py-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleMapZoomOut}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-base-700 text-ink-200 transition hover:border-ink-400"
+                  title="Zoom out"
+                >
+                  <ZoomOut size={14} />
+                </button>
+                <span className="min-w-14 rounded-lg border border-base-800 bg-base-900 px-2 py-1 text-center font-mono text-[11px] text-ink-200">
+                  {Math.round(mapZoom * 100)}%
+                </span>
+                <button
+                  type="button"
+                  onClick={handleMapZoomIn}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-base-700 text-ink-200 transition hover:border-ink-400"
+                  title="Zoom in"
+                >
+                  <ZoomIn size={14} />
+                </button>
+                <button
+                  type="button"
+                  onClick={resetMapView}
+                  className="inline-flex items-center gap-2 rounded-lg border border-base-700 px-2.5 py-1.5 text-[12px] text-ink-200 transition hover:border-ink-400"
+                >
+                  <RotateCcw size={13} />
+                  Reset
+                </button>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-[12px] text-ink-300">
+                {addingCapturePoint ? (
+                  <>
+                    <span className="rounded-lg border border-base-800 bg-base-900 px-2 py-1">
+                      {newPointMapMarker ? 'Position selected' : 'Click to place point'}
+                    </span>
+                    <span className="rounded-lg border border-base-800 bg-base-900 px-2 py-1">
+                      {newPointFacingMarker ? `Facing ${radiansToDegrees(Number(newPointYaw || 0))} deg` : 'Choose facing direction'}
+                    </span>
+                  </>
+                ) : (
+                  <span className="rounded-lg border border-base-800 bg-base-900 px-2 py-1">
+                    {capturePoints.length} capture point{capturePoints.length === 1 ? '' : 's'}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {addingCapturePoint ? (
+              <div className="grid gap-3 border-b border-base-800 bg-amber-500/5 px-4 py-3 lg:grid-cols-[1fr_auto]">
+                <input
+                  type="text"
+                  value={newPointName}
+                  onChange={(event) => setNewPointName(event.target.value)}
+                  placeholder="Capture point name"
+                  className="w-full rounded-xl border border-base-700 bg-base-950 px-3 py-2 text-[14px] text-white outline-none transition focus:border-amber-500"
+                />
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCreateCapturePoint}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-amber-500/40 px-3 py-2 text-[13px] text-amber-200 transition hover:bg-amber-500/10"
+                  >
+                    <Check size={14} />
+                    Save capture point
+                  </button>
+                  <button
+                    type="button"
+                    onClick={closeMapModal}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-base-700 px-3 py-2 text-[13px] text-ink-200 transition hover:border-ink-400"
+                  >
+                    <XCircle size={14} />
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            <div
+              className="relative flex-1 overflow-hidden bg-base-950"
+              onPointerDown={handleMapPointerDown}
+              onPointerMove={handleMapPointerMove}
+              onPointerUp={handleMapPointerUp}
+              onPointerCancel={handleMapPointerUp}
+            >
+              <div
+                role={addingCapturePoint ? 'button' : undefined}
+                tabIndex={addingCapturePoint ? 0 : undefined}
+                onClick={handleRobotMapClick}
+                onMouseMove={handleRobotMapMouseMove}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') event.preventDefault();
+                }}
+                className={`absolute left-1/2 top-1/2 overflow-hidden border border-base-800 bg-base-900 shadow-2xl shadow-black/40 ${addingCapturePoint ? 'cursor-crosshair' : 'cursor-grab active:cursor-grabbing'}`}
+                style={{
+                  width: 'min(100%, 840px)',
+                  aspectRatio: `${robotMap.width} / ${robotMap.height}`,
+                  transform: `translate(calc(-50% + ${mapPan.x}px), calc(-50% + ${mapPan.y}px)) scale(${mapZoom})`,
+                  transformOrigin: 'center center',
+                }}
+              >
+                <img
+                  src={robotMap.image_url}
+                  alt=""
+                  draggable={false}
+                  className="h-full w-full select-none"
+                />
+                {capturePoints.map((point) => (
+                  point.floorplan_x !== null && point.floorplan_y !== null ? (
+                    <span
+                      key={point.id}
+                      className="absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-base-950 bg-emerald-400 shadow"
+                      style={{ left: `${point.floorplan_x * 100}%`, top: `${point.floorplan_y * 100}%` }}
+                      title={point.name}
+                    />
+                  ) : null
+                ))}
+                {newPointMapMarker ? (
+                  <>
+                    {newPointFacingMarker ? (
+                      <svg
+                        className="pointer-events-none absolute inset-0 h-full w-full"
+                        viewBox="0 0 100 100"
+                        preserveAspectRatio="none"
+                      >
+                        <line
+                          x1={newPointMapMarker.x * 100}
+                          y1={newPointMapMarker.y * 100}
+                          x2={newPointFacingMarker.x * 100}
+                          y2={newPointFacingMarker.y * 100}
+                          stroke="rgb(251 191 36)"
+                          strokeWidth="0.65"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                    ) : null}
+                    <span
+                      className="absolute h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-base-950 bg-amber-400 shadow"
+                      style={{ left: `${newPointMapMarker.x * 100}%`, top: `${newPointMapMarker.y * 100}%` }}
+                    />
+                  </>
+                ) : null}
+                <div className="absolute bottom-2 left-2 rounded bg-base-950/80 px-2 py-1 font-mono text-[10px] text-ink-300">
+                  {robotMap.resolution} m/px · {robotMap.frame}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
 
       <ConfirmDialog
         open={!!pendingAction}
