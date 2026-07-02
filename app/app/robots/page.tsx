@@ -53,6 +53,13 @@ function canDeleteMission(status: string): boolean {
   return ['queued', 'dispatched', 'running', 'cancelled', 'failed', 'succeeded'].includes(status);
 }
 
+function missionFailureMessage(mission: ApiRobotMission): string | null {
+  const stepError = mission.steps.find((step) => step.error_message)?.error_message;
+  if (stepError) return stepError;
+  const resultError = mission.result?.['error'];
+  return typeof resultError === 'string' && resultError.trim() ? resultError : null;
+}
+
 function normalizedToMapPose(robotMap: ApiRobotMap, marker: { x: number; y: number }): { x: number; y: number } {
   const pixelX = marker.x * robotMap.width;
   const pixelY = marker.y * robotMap.height;
@@ -871,9 +878,9 @@ export default function RobotMissionsPage() {
                     )}
                   </div>
 
-                  {mission.steps.some((step) => step.error_message) && (
+                  {missionFailureMessage(mission) && (
                     <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/5 px-3 py-3 text-[12px] text-red-200">
-                      {mission.steps.find((step) => step.error_message)?.error_message}
+                      {missionFailureMessage(mission)}
                     </div>
                   )}
                 </article>
