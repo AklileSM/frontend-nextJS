@@ -23,7 +23,6 @@ import {
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Modal } from '@/components/ui/Modal';
 import { MoreMenu } from '@/components/ui/MoreMenu';
-import { formatIsoDate } from '@/services/dateFormat';
 import type { ApiProject, ApiRobotCapturePoint, ApiRobotMap, ApiRobotMission, ApiRobotSummary } from '@/types/api';
 
 export const dynamic = 'force-dynamic';
@@ -94,7 +93,6 @@ export default function RobotMissionsPage() {
 
   const [robotId, setRobotId] = useState('');
   const [projectSlug, setProjectSlug] = useState('');
-  const [captureDate, setCaptureDate] = useState(todayIso());
   const [selectedCapturePointIds, setSelectedCapturePointIds] = useState<string[]>([]);
   const [mapModalOpen, setMapModalOpen] = useState(false);
   const [mapZoom, setMapZoom] = useState(1);
@@ -114,7 +112,6 @@ export default function RobotMissionsPage() {
   const [robotMapYamlFile, setRobotMapYamlFile] = useState<File | null>(null);
   const [robotMapImageFile, setRobotMapImageFile] = useState<File | null>(null);
   const [uploadingRobotMap, setUploadingRobotMap] = useState(false);
-  const [sensor, setSensor] = useState('insta360-x4');
   const [continueOnFailure, setContinueOnFailure] = useState(false);
 
   const refresh = useCallback(async () => {
@@ -508,9 +505,8 @@ export default function RobotMissionsPage() {
         project_slug: projectSlug,
         capture_point_ids: selectedCapturePointIds,
         capture_mode: 'panorama',
-        capture_date: captureDate,
+        capture_date: todayIso(),
         retry_policy: { continue_on_failure: continueOnFailure },
-        robot_meta: { sensor },
       })
         .then((mission) => {
           toast.success(`Queued task ${mission.id.slice(0, 8)}`);
@@ -520,7 +516,7 @@ export default function RobotMissionsPage() {
           toast.error(err instanceof Error ? err.message : 'Failed to create task');
         });
     });
-  }, [captureDate, continueOnFailure, projectSlug, refresh, robotId, selectedCapturePointIds, sensor]);
+  }, [continueOnFailure, projectSlug, refresh, robotId, selectedCapturePointIds]);
 
   const runPendingAction = useCallback(async () => {
     if (!pendingAction) return;
@@ -641,43 +637,6 @@ export default function RobotMissionsPage() {
                 ))}
               </select>
             </label>
-
-            <label className="block">
-              <span className="mb-2 block font-mono text-[11px] uppercase tracking-[0.16em] text-ink-400">Project</span>
-              <select
-                value={projectSlug}
-                onChange={(event) => setProjectSlug(event.target.value)}
-                className="w-full rounded-xl border border-base-700 bg-base-950 px-3 py-2.5 text-[14px] text-white outline-none transition focus:border-amber-500"
-              >
-                <option value="">Select project</option>
-                {projects.map((project) => (
-                  <option key={project.id} value={project.slug}>
-                    {project.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="block">
-                <span className="mb-2 block font-mono text-[11px] uppercase tracking-[0.16em] text-ink-400">Capture date</span>
-                <input
-                  type="date"
-                  value={captureDate}
-                  onChange={(event) => setCaptureDate(event.target.value)}
-                  className="w-full rounded-xl border border-base-700 bg-base-950 px-3 py-2.5 text-[14px] text-white outline-none transition focus:border-amber-500"
-                />
-              </label>
-              <label className="block">
-                <span className="mb-2 block font-mono text-[11px] uppercase tracking-[0.16em] text-ink-400">Sensor</span>
-                <input
-                  type="text"
-                  value={sensor}
-                  onChange={(event) => setSensor(event.target.value)}
-                  className="w-full rounded-xl border border-base-700 bg-base-950 px-3 py-2.5 text-[14px] text-white outline-none transition focus:border-amber-500"
-                />
-              </label>
-            </div>
 
             <div className="rounded-2xl border border-base-800 bg-base-950/60 p-4">
               <div className="flex items-center justify-between gap-3">
@@ -907,7 +866,7 @@ export default function RobotMissionsPage() {
                         {mission.robot_id} → {mission.project_slug}
                       </h3>
                       <p className="mt-1 text-[13px] text-ink-300">
-                        {mission.waypoints.length} waypoint{mission.waypoints.length === 1 ? '' : 's'} · capture {formatIsoDate(mission.capture_date)}
+                        {mission.waypoints.length} waypoint{mission.waypoints.length === 1 ? '' : 's'}
                       </p>
                     </div>
                     <dl className="grid gap-2 text-[12px] text-ink-300 sm:grid-cols-2 lg:text-right">
