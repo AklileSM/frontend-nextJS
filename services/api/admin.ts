@@ -6,6 +6,14 @@ export function listAdminUsers(): Promise<AdminUser[]> {
   return getJson<AdminUser[]>('/admin/users');
 }
 
+export function createRobotAccount(body: { username: string; password: string }): Promise<AdminUser> {
+  return getJson<AdminUser>('/admin/robot-accounts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
 /** Used by the project member picker, not admin-gated despite the path. */
 export function searchUsers(q: string): Promise<AdminUser[]> {
   return getJson<AdminUser[]>(`/admin/user-search?q=${encodeURIComponent(q)}`);

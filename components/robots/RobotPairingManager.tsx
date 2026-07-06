@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { KeyRound, Loader2, ShieldAlert } from 'lucide-react';
 import {
+  createRobotAccount,
   createRobotPairingToken,
   listPairableProjects,
   listRobotPairingTokens,
@@ -12,6 +13,7 @@ import {
   revokeRobotPairingToken,
 } from '@/services/apiClient';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { useAuth } from '@/context/AuthContext';
 import type { ApiProject, ApiRobotPairingToken, ApiRobotSummary } from '@/types/api';
 
 function formatDateTime(value: string | null): string {
@@ -40,13 +42,18 @@ type Props = {
 };
 
 export function RobotPairingManager({ headingPrefix, heading, intro }: Props) {
+  const { user } = useAuth();
+  const isAdmin = user?.is_admin ?? false;
   const [robots, setRobots] = useState<ApiRobotSummary[]>([]);
   const [projects, setProjects] = useState<ApiProject[]>([]);
   const [tokens, setTokens] = useState<ApiRobotPairingToken[]>([]);
   const [loading, setLoading] = useState(true);
+  const [creatingRobot, setCreatingRobot] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [pendingRevoke, setPendingRevoke] = useState<ApiRobotPairingToken | null>(null);
 
+  const [newRobotId, setNewRobotId] = useState('');
+  const [newRobotPassword, setNewRobotPassword] = useState('');
   const [robotId, setRobotId] = useState('');
   const [robotPassword, setRobotPassword] = useState('');
   const [defaultProjectSlug, setDefaultProjectSlug] = useState('');
@@ -76,6 +83,32 @@ export function RobotPairingManager({ headingPrefix, heading, intro }: Props) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const handleCreateRobot = useCallback(async () => {
+    const username = newRobotId.trim();
+    if (!username || !newRobotPassword) {
+      toast.error('Robot username and password are required');
+      return;
+    }
+
+    setCreatingRobot(true);
+    try {
+      const created = await createRobotAccount({
+        username,
+        password: newRobotPassword,
+      });
+      setNewRobotId('');
+      setRobotPassword(newRobotPassword);
+      setNewRobotPassword('');
+      setRobotId(created.username);
+      toast.success(`Created robot account ${created.username}`);
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to create robot account');
+    } finally {
+      setCreatingRobot(false);
+    }
+  }, [load, newRobotId, newRobotPassword]);
 
   const handleCreate = useCallback(async () => {
     if (!robotId || !robotPassword) {
@@ -133,13 +166,84 @@ export function RobotPairingManager({ headingPrefix, heading, intro }: Props) {
         </p>
       </motion.section>
 
+      <section className="mt-6 rounded-2xl border border-base-800 bg-base-900/55 p-5">
+        <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-400">Setup flow</p>
+        <ol className="mt-3 grid gap-2 text-[13px] text-ink-300">
+          {isAdmin ? (
+            <li><span className="text-white">1.</span> Create the robot account with a strong password.</li>
+          ) : null}
+          <li><span className="text-white">{isAdmin ? '2' : '1'}.</span> Create a pairing token for the robot and choose its default project.</li>
+          <li><span className="text-white">{isAdmin ? '3' : '2'}.</span> Copy the active token, then claim it once from the robot terminal.</li>
+          <li><span className="text-white">{isAdmin ? '4' : '3'}.</span> Restart the robot agent and confirm the robot appears online in Mission control.</li>
+        </ol>
+        <pre className="mt-4 overflow-x-auto rounded-xl border border-base-800 bg-base-950 p-3 font-mono text-[11px] leading-relaxed text-ink-300">
+{`cd /home/unitree/SiteScope/robot
+python3 robot_agent.py \\
+  --claim-pairing-token '<PAIRING_TOKEN>' \\
+  --pairing-base-url 'http://<sitescope-host>:3004' \\
+  --config /home/unitree/SiteScope/robot/robot_agent_config.json
+sudo systemctl restart sitescope-agent.service`}
+        </pre>
+      </section>
+
       <div className="mt-8 grid gap-8 xl:grid-cols-[minmax(320px,430px)_1fr]">
         <section className="rounded-3xl border border-base-800 bg-base-900/60 p-6">
+          {isAdmin ? (
+            <div>
+              <div className="flex items-center gap-3">
+                <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-500/15 text-amber-300">
+                  <KeyRound size={18} />
+                </div>
+                <div>
+                  <h2 className="font-display text-[24px] text-white">Add a robot</h2>
+                  <p className="text-[13px] text-ink-300">Create the robot service account first, then issue a pairing token for it.</p>
+                </div>
+              </div>
+
+              <div className="mt-6 space-y-4">
+                <label className="block">
+                  <span className="mb-2 block font-mono text-[11px] uppercase tracking-[0.16em] text-ink-400">Robot username</span>
+                  <input
+                    type="text"
+                    value={newRobotId}
+                    onChange={(event) => setNewRobotId(event.target.value)}
+                    placeholder="go2w-002"
+                    className="w-full rounded-xl border border-base-700 bg-base-950 px-3 py-2.5 text-[14px] text-white outline-none transition focus:border-amber-500"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="mb-2 block font-mono text-[11px] uppercase tracking-[0.16em] text-ink-400">Robot password</span>
+                  <input
+                    type="password"
+                    value={newRobotPassword}
+                    onChange={(event) => setNewRobotPassword(event.target.value)}
+                    className="w-full rounded-xl border border-base-700 bg-base-950 px-3 py-2.5 text-[14px] text-white outline-none transition focus:border-amber-500"
+                  />
+                </label>
+
+                <button
+                  type="button"
+                  onClick={() => void handleCreateRobot()}
+                  disabled={creatingRobot}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-amber-500/40 px-4 py-3 text-[14px] font-medium text-amber-200 transition hover:bg-amber-500/10 disabled:opacity-60"
+                >
+                  {creatingRobot ? <Loader2 size={16} className="animate-spin" /> : <KeyRound size={16} />}
+                  Create robot account
+                </button>
+              </div>
+
+              <div className="my-6 border-t border-base-800" />
+            </div>
+          ) : null}
+
           <div className="flex items-center gap-3">
-            
+            <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-500/15 text-amber-300">
+              <KeyRound size={18} />
+            </div>
             <div>
               <h2 className="font-display text-[24px] text-white">Create pairing token</h2>
-              <p className="text-[13px] text-ink-300">Project owners can only pair robots into projects they own.</p>
+              <p className="text-[13px] text-ink-300">Use this once on the robot to write its local agent config.</p>
             </div>
           </div>
 
@@ -233,7 +337,7 @@ export function RobotPairingManager({ headingPrefix, heading, intro }: Props) {
 
         <section className="rounded-3xl border border-base-800 bg-base-900/45 p-6">
           <div className="flex items-start gap-3">
-            
+            <ShieldAlert size={18} className="mt-1 text-amber-400" />
             <div>
               <h2 className="font-display text-[24px] text-white">Issued tokens</h2>
               <p className="mt-1 text-[13px] text-ink-300">
