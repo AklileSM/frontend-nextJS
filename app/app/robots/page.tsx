@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import type { MouseEvent, PointerEvent, WheelEvent } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { Bot, Check, Loader2, MapPin, Plus, RefreshCcw, RotateCcw, Send, Trash2, XCircle, ZoomIn, ZoomOut } from 'lucide-react';
+import { Bot, Check, ChevronDown, Loader2, MapPin, Plus, RefreshCcw, RotateCcw, Send, Trash2, XCircle, ZoomIn, ZoomOut } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   cancelRobotMission,
@@ -37,8 +37,21 @@ const STATUS_STYLES: Record<string, string> = {
   pending: 'bg-base-800 text-ink-300',
 };
 
+type CaptureOutput = 'image' | 'pointcloud';
+
+const CAPTURE_OUTPUT_OPTIONS: Array<{ value: CaptureOutput; label: string }> = [
+  { value: 'image', label: 'Image' },
+  { value: 'pointcloud', label: 'PCD' },
+];
+
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+function formatCaptureOutputs(outputs: CaptureOutput[]): string {
+  if (outputs.includes('image') && outputs.includes('pointcloud')) return 'Image + PCD';
+  if (outputs.includes('pointcloud')) return 'PCD only';
+  return 'Image only';
 }
 
 function formatLastSeen(value: string | null): string {
@@ -90,6 +103,7 @@ export default function RobotMissionsPage() {
   const [submitting, startSubmit] = useTransition();
   const [pendingAction, setPendingAction] = useState<{ type: 'cancel' | 'delete'; mission: ApiRobotMission } | null>(null);
   const mapDragRef = useRef<{ pointerId: number; startX: number; startY: number; panX: number; panY: number; moved: boolean } | null>(null);
+  const captureOutputMenuRef = useRef<HTMLDivElement>(null);
 
   const [robotId, setRobotId] = useState('');
   const [projectSlug, setProjectSlug] = useState('');
@@ -109,6 +123,8 @@ export default function RobotMissionsPage() {
   const [renamingCapturePoint, setRenamingCapturePoint] = useState<ApiRobotCapturePoint | null>(null);
   const [renameCapturePointName, setRenameCapturePointName] = useState('');
   const [savingCapturePointRename, setSavingCapturePointRename] = useState(false);
+  const [captureOutputs, setCaptureOutputs] = useState<CaptureOutput[]>(['image']);
+  const [captureOutputMenuOpen, setCaptureOutputMenuOpen] = useState(false);
   const [robotMapYamlFile, setRobotMapYamlFile] = useState<File | null>(null);
   const [robotMapImageFile, setRobotMapImageFile] = useState<File | null>(null);
   const [uploadingRobotMap, setUploadingRobotMap] = useState(false);
@@ -150,6 +166,24 @@ export default function RobotMissionsPage() {
     }, 10000);
     return () => window.clearInterval(timer);
   }, [refresh]);
+
+  useEffect(() => {
+    if (!captureOutputMenuOpen) return undefined;
+    const onPointerDown = (event: globalThis.PointerEvent) => {
+      if (captureOutputMenuRef.current && !captureOutputMenuRef.current.contains(event.target as Node)) {
+        setCaptureOutputMenuOpen(false);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setCaptureOutputMenuOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [captureOutputMenuOpen]);
 
   const selectedProject = useMemo(
     () => projects.find((project) => project.slug === projectSlug) ?? null,
@@ -489,6 +523,16 @@ export default function RobotMissionsPage() {
       .catch((err) => toast.error(err instanceof Error ? err.message : 'Failed to delete capture point'));
   }, [refreshCapturePoints, selectedProject]);
 
+  const toggleCaptureOutput = useCallback((output: CaptureOutput) => {
+    setCaptureOutputs((current) => {
+      if (current.includes(output)) {
+        if (current.length === 1) return current;
+        return current.filter((item) => item !== output);
+      }
+      return [...current, output];
+    });
+  }, []);
+
   const handleSubmit = useCallback(() => {
     if (!robotId || !projectSlug) {
       toast.error('Select a robot and project first');
@@ -498,15 +542,22 @@ export default function RobotMissionsPage() {
       toast.error('Select at least one capture point');
       return;
     }
+    if (captureOutputs.length === 0) {
+      toast.error('Select at least one capture type');
+      return;
+    }
 
     startSubmit(() => {
       createRobotMission({
         robot_id: robotId,
         project_slug: projectSlug,
         capture_point_ids: selectedCapturePointIds,
-        capture_mode: 'panorama',
+        capture_mode: captureOutputs.includes('image') ? 'panorama' : 'pointcloud',
         capture_date: todayIso(),
         retry_policy: { continue_on_failure: continueOnFailure },
+        robot_meta: {
+          capture_outputs: captureOutputs,
+        },
       })
         .then((mission) => {
           toast.success(`Queued task ${mission.id.slice(0, 8)}`);
@@ -516,7 +567,7 @@ export default function RobotMissionsPage() {
           toast.error(err instanceof Error ? err.message : 'Failed to create task');
         });
     });
-  }, [continueOnFailure, projectSlug, refresh, robotId, selectedCapturePointIds]);
+  }, [captureOutputs, continueOnFailure, projectSlug, refresh, robotId, selectedCapturePointIds]);
 
   const runPendingAction = useCallback(async () => {
     if (!pendingAction) return;
@@ -633,6 +684,22 @@ export default function RobotMissionsPage() {
                 {robots.map((robot) => (
                   <option key={robot.robot_id} value={robot.username}>
                     {robot.username}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="mb-2 block font-mono text-[11px] uppercase tracking-[0.16em] text-ink-400">Project</span>
+              <select
+                value={projectSlug}
+                onChange={(event) => setProjectSlug(event.target.value)}
+                className="w-full rounded-xl border border-base-700 bg-base-950 px-3 py-2.5 text-[14px] text-white outline-none transition focus:border-amber-500"
+              >
+                <option value="">Select project</option>
+                {projects.map((project) => (
+                  <option key={project.id} value={project.slug}>
+                    {project.name}
                   </option>
                 ))}
               </select>
@@ -790,6 +857,50 @@ export default function RobotMissionsPage() {
 
             </div>
 
+            <div className="rounded-2xl border border-base-800 bg-base-950/60 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-400">Capture type</p>
+                <span className="text-[12px] text-ink-500">{formatCaptureOutputs(captureOutputs)}</span>
+              </div>
+              <div ref={captureOutputMenuRef} className="relative mt-3">
+                <button
+                  type="button"
+                  onClick={() => setCaptureOutputMenuOpen((current) => !current)}
+                  className="flex w-full items-center justify-between gap-3 rounded-xl border border-base-700 bg-base-950 px-3 py-2.5 text-left text-[14px] text-white outline-none transition hover:border-ink-400 focus:border-amber-500"
+                  aria-haspopup="menu"
+                  aria-expanded={captureOutputMenuOpen}
+                >
+                  <span>{formatCaptureOutputs(captureOutputs)}</span>
+                  <ChevronDown
+                    size={15}
+                    className={`text-ink-400 transition-transform ${captureOutputMenuOpen ? 'rotate-180' : ''}`}
+                  />
+                </button>
+                {captureOutputMenuOpen ? (
+                  <div className="absolute left-0 right-0 top-full z-40 mt-2 rounded-xl border border-base-700 bg-base-900 p-2 shadow-xl shadow-black/40">
+                    {CAPTURE_OUTPUT_OPTIONS.map((option) => {
+                      const checked = captureOutputs.includes(option.value);
+                      return (
+                        <label
+                          key={option.value}
+                          className="flex cursor-pointer items-center gap-3 rounded-lg px-2.5 py-2 text-[13px] text-ink-200 transition hover:bg-base-800 hover:text-white"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            disabled={checked && captureOutputs.length === 1}
+                            onChange={() => toggleCaptureOutput(option.value)}
+                            className="h-4 w-4 rounded border-base-700 bg-base-950 text-amber-500 disabled:opacity-60"
+                          />
+                          {option.label}
+                        </label>
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
             <label className="flex items-center gap-3 rounded-2xl border border-base-800 bg-base-950/70 px-3 py-3 text-[13px] text-ink-200">
               <input
                 type="checkbox"
@@ -802,6 +913,9 @@ export default function RobotMissionsPage() {
 
             <div className="rounded-2xl border border-base-800 bg-base-950/60 p-4">
               <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-400">Task preview</p>
+              <div className="mt-3 inline-flex rounded-full border border-base-700 bg-base-900 px-2.5 py-1 font-mono text-[11px] text-amber-200">
+                {formatCaptureOutputs(captureOutputs)}
+              </div>
               <div className="mt-3 flex flex-wrap gap-2">
                 {selectedCapturePoints.length > 0 ? selectedCapturePoints.map((point) => (
                   <span
