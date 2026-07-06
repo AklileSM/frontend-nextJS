@@ -63,7 +63,7 @@ const CAPTURE_OUTPUT_OPTIONS: Array<{ value: CaptureOutput; label: string }> = [
 const PROGRESS_STATUS_LABELS: Record<MissionProgressStatus, string> = {
   pending: 'Pending',
   running: 'Running',
-  succeeded: 'Done',
+  succeeded: '',
   failed: 'Failed',
   skipped: 'Skipped',
   cancelled: 'Cancelled',
@@ -85,6 +85,24 @@ const PROGRESS_BADGE_STYLES: Record<MissionProgressStatus, string> = {
   failed: 'border-red-500/30 bg-red-500/10 text-red-200',
   skipped: 'border-base-800 bg-base-950 text-ink-400',
   cancelled: 'border-base-800 bg-base-950 text-ink-400',
+};
+
+const PROGRESS_TEXT_STYLES: Record<MissionProgressStatus, string> = {
+  pending: 'text-ink-500',
+  running: 'text-amber-100',
+  succeeded: 'text-white',
+  failed: 'text-red-100',
+  skipped: 'text-ink-500',
+  cancelled: 'text-ink-500',
+};
+
+const PROGRESS_DETAIL_STYLES: Record<MissionProgressStatus, string> = {
+  pending: 'text-ink-500',
+  running: 'text-amber-200/80',
+  succeeded: 'text-ink-300',
+  failed: 'text-red-200',
+  skipped: 'text-ink-500',
+  cancelled: 'text-ink-500',
 };
 
 function todayIso(): string {
@@ -219,41 +237,83 @@ function formatProgressTime(event: MissionProgressEvent): string | null {
   return new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
+function progressBadgeLabel(status: MissionProgressStatus): string | null {
+  if (status === 'succeeded') return null;
+  return PROGRESS_STATUS_LABELS[status];
+}
+
 function MissionProgressTimeline({ mission }: { mission: ApiRobotMission }) {
   const events = missionProgressEvents(mission);
+  const latestEvent = events[events.length - 1];
+  const latestBadgeLabel = latestEvent ? progressBadgeLabel(latestEvent.status) : null;
+  const [open, setOpen] = useState(() => ['queued', 'dispatched', 'running'].includes(mission.status));
   return (
-    <ol className="mt-4 rounded-2xl border border-base-800 bg-base-950/45 px-4 py-4">
-      {events.map((event, index) => {
-        const time = formatProgressTime(event);
-        const isLast = index === events.length - 1;
-        return (
-          <li key={`${event.id}-${index}`} className={`relative flex gap-3 ${isLast ? '' : 'pb-4'}`}>
-            {!isLast ? (
-              <span className="absolute left-[7px] top-4 h-full w-px bg-base-800" />
-            ) : null}
-            <span className={`relative mt-1 h-3.5 w-3.5 shrink-0 rounded-full border-2 ${PROGRESS_DOT_STYLES[event.status]}`}>
-              {event.status === 'running' ? (
-                <span className="absolute -inset-1 rounded-full bg-amber-400/25 animate-ping" />
-              ) : null}
+    <div className="mt-4 rounded-2xl border border-base-800 bg-base-950/45">
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-base-900/60"
+        aria-expanded={open}
+      >
+        <div className="min-w-0">
+          <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-400">Progress</p>
+          {latestEvent ? (
+            <p className={`mt-1 truncate text-[13px] ${PROGRESS_TEXT_STYLES[latestEvent.status]}`}>
+              {latestEvent.label}
+            </p>
+          ) : null}
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {latestEvent && latestBadgeLabel ? (
+            <span className={`rounded-full border px-2 py-0.5 font-mono text-[10px] uppercase ${PROGRESS_BADGE_STYLES[latestEvent.status]}`}>
+              {latestBadgeLabel}
             </span>
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="min-w-0 text-[13px] text-white">{event.label}</p>
-                <span className={`rounded-full border px-2 py-0.5 font-mono text-[10px] uppercase ${PROGRESS_BADGE_STYLES[event.status]}`}>
-                  {PROGRESS_STATUS_LABELS[event.status]}
+          ) : null}
+          <ChevronDown
+            size={15}
+            className={`text-ink-400 transition-transform ${open ? 'rotate-180' : ''}`}
+          />
+        </div>
+      </button>
+      {open ? (
+        <ol className="border-t border-base-800 px-4 py-4">
+          {events.map((event, index) => {
+            const time = formatProgressTime(event);
+            const isLast = index === events.length - 1;
+            const badgeLabel = progressBadgeLabel(event.status);
+            const muted = event.status === 'pending' || event.status === 'skipped' || event.status === 'cancelled';
+            return (
+              <li key={`${event.id}-${index}`} className={`relative flex gap-3 ${muted ? 'opacity-50' : ''} ${isLast ? '' : 'pb-4'}`}>
+                {!isLast ? (
+                  <span className="absolute left-[7px] top-4 h-full w-px bg-base-800" />
+                ) : null}
+                <span className={`relative mt-1 h-3.5 w-3.5 shrink-0 rounded-full border-2 ${PROGRESS_DOT_STYLES[event.status]}`}>
+                  {event.status === 'running' ? (
+                    <span className="absolute -inset-1 rounded-full bg-amber-400/25 animate-ping" />
+                  ) : null}
                 </span>
-              </div>
-              {(event.detail || time) ? (
-                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink-400">
-                  {event.detail ? <span className="min-w-0 break-words">{event.detail}</span> : null}
-                  {time ? <span className="font-mono">{time}</span> : null}
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className={`min-w-0 text-[13px] ${PROGRESS_TEXT_STYLES[event.status]}`}>{event.label}</p>
+                    {badgeLabel ? (
+                      <span className={`rounded-full border px-2 py-0.5 font-mono text-[10px] uppercase ${PROGRESS_BADGE_STYLES[event.status]}`}>
+                        {badgeLabel}
+                      </span>
+                    ) : null}
+                  </div>
+                  {(event.detail || time) ? (
+                    <div className={`mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] ${PROGRESS_DETAIL_STYLES[event.status]}`}>
+                      {event.detail ? <span className="min-w-0 break-words">{event.detail}</span> : null}
+                      {time ? <span className="font-mono">{time}</span> : null}
+                    </div>
+                  ) : null}
                 </div>
-              ) : null}
-            </div>
-          </li>
-        );
-      })}
-    </ol>
+              </li>
+            );
+          })}
+        </ol>
+      ) : null}
+    </div>
   );
 }
 
