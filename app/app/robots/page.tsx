@@ -18,9 +18,11 @@ import {
   listRobotMissions,
   listRobots,
   uploadRobotMap,
+  updateRobotCapturePoint,
 } from '@/services/apiClient';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Modal } from '@/components/ui/Modal';
+import { MoreMenu } from '@/components/ui/MoreMenu';
 import { formatIsoDate } from '@/services/dateFormat';
 import type { ApiProject, ApiRobotCapturePoint, ApiRobotMap, ApiRobotMission, ApiRobotSummary } from '@/types/api';
 
@@ -105,6 +107,10 @@ export default function RobotMissionsPage() {
   const [newPointMapMarker, setNewPointMapMarker] = useState<{ x: number; y: number } | null>(null);
   const [newPointFacingMarker, setNewPointFacingMarker] = useState<{ x: number; y: number } | null>(null);
   const [newPointYawLocked, setNewPointYawLocked] = useState(false);
+  const [capturePointPickerId, setCapturePointPickerId] = useState('');
+  const [renamingCapturePoint, setRenamingCapturePoint] = useState<ApiRobotCapturePoint | null>(null);
+  const [renameCapturePointName, setRenameCapturePointName] = useState('');
+  const [savingCapturePointRename, setSavingCapturePointRename] = useState(false);
   const [robotMapYamlFile, setRobotMapYamlFile] = useState<File | null>(null);
   const [robotMapImageFile, setRobotMapImageFile] = useState<File | null>(null);
   const [uploadingRobotMap, setUploadingRobotMap] = useState(false);
@@ -156,6 +162,10 @@ export default function RobotMissionsPage() {
     () => selectedCapturePointIds
       .map((id) => capturePoints.find((point) => point.id === id))
       .filter((point): point is ApiRobotCapturePoint => Boolean(point)),
+    [capturePoints, selectedCapturePointIds],
+  );
+  const availableCapturePoints = useMemo(
+    () => capturePoints.filter((point) => !selectedCapturePointIds.includes(point.id)),
     [capturePoints, selectedCapturePointIds],
   );
   const pendingMission = pendingAction?.mission ?? null;
@@ -422,13 +432,65 @@ export default function RobotMissionsPage() {
     selectedProject,
   ]);
 
-  const toggleCapturePoint = useCallback((pointId: string) => {
+  const addCapturePointToTask = useCallback((pointId: string) => {
+    if (!pointId) return;
     setSelectedCapturePointIds((current) => (
-      current.includes(pointId)
-        ? current.filter((id) => id !== pointId)
-        : [...current, pointId]
+      current.includes(pointId) ? current : [...current, pointId]
     ));
+    setCapturePointPickerId('');
   }, []);
+
+  const removeCapturePointFromTask = useCallback((pointId: string) => {
+    setSelectedCapturePointIds((current) => current.filter((id) => id !== pointId));
+  }, []);
+
+  const beginRenameCapturePoint = useCallback((point: ApiRobotCapturePoint) => {
+    setRenamingCapturePoint(point);
+    setRenameCapturePointName(point.name);
+  }, []);
+
+  const closeRenameCapturePoint = useCallback(() => {
+    if (savingCapturePointRename) return;
+    setRenamingCapturePoint(null);
+    setRenameCapturePointName('');
+  }, [savingCapturePointRename]);
+
+  const handleRenameCapturePoint = useCallback(() => {
+    if (!selectedProject || !renamingCapturePoint) return;
+    const nextName = renameCapturePointName.trim();
+    if (!nextName) {
+      toast.error('Name the capture point');
+      return;
+    }
+    if (nextName === renamingCapturePoint.name) {
+      closeRenameCapturePoint();
+      return;
+    }
+
+    setSavingCapturePointRename(true);
+    updateRobotCapturePoint(selectedProject.id, renamingCapturePoint.id, { name: nextName })
+      .then((updated) => {
+        setCapturePoints((current) => current.map((point) => (point.id === updated.id ? updated : point)));
+        toast.success(`Renamed capture point ${updated.name}`);
+        setRenamingCapturePoint(null);
+        setRenameCapturePointName('');
+      })
+      .catch((err) => {
+        toast.error(err instanceof Error ? err.message : 'Failed to rename capture point');
+      })
+      .finally(() => setSavingCapturePointRename(false));
+  }, [closeRenameCapturePoint, renameCapturePointName, renamingCapturePoint, selectedProject]);
+
+  const handleDeleteCapturePoint = useCallback((point: ApiRobotCapturePoint) => {
+    if (!selectedProject) return;
+    deleteRobotCapturePoint(selectedProject.id, point.id)
+      .then(() => {
+        toast.success(`Deleted capture point ${point.name}`);
+        setSelectedCapturePointIds((current) => current.filter((id) => id !== point.id));
+        return refreshCapturePoints(selectedProject.id);
+      })
+      .catch((err) => toast.error(err instanceof Error ? err.message : 'Failed to delete capture point'));
+  }, [refreshCapturePoints, selectedProject]);
 
   const handleSubmit = useCallback(() => {
     if (!robotId || !projectSlug) {
@@ -620,46 +682,59 @@ export default function RobotMissionsPage() {
             <div className="rounded-2xl border border-base-800 bg-base-950/60 p-4">
               <div className="flex items-center justify-between gap-3">
                 <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-400">Capture points</p>
-                <span className="text-[12px] text-ink-500">{capturePoints.length} saved</span>
+                <span className="text-[12px] text-ink-500">{selectedCapturePoints.length} selected</span>
               </div>
+              {capturePoints.length > 0 ? (
+                <label className="mt-3 block">
+                  <span className="sr-only">Add capture point to task</span>
+                  <select
+                    value={capturePointPickerId}
+                    onChange={(event) => {
+                      const pointId = event.target.value;
+                      setCapturePointPickerId(pointId);
+                      addCapturePointToTask(pointId);
+                    }}
+                    disabled={availableCapturePoints.length === 0}
+                    className="w-full rounded-xl border border-base-700 bg-base-950 px-3 py-2.5 text-[14px] text-white outline-none transition focus:border-amber-500 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <option value="">
+                      {availableCapturePoints.length > 0 ? 'Choose capture point' : 'All capture points selected'}
+                    </option>
+                    {availableCapturePoints.map((point) => (
+                      <option key={point.id} value={point.id}>
+                        {point.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : (
+                <div className="mt-3 rounded-xl border border-dashed border-base-700 px-3 py-5 text-center text-[13px] text-ink-400">
+                  No capture points saved for this project.
+                </div>
+              )}
+
               <div className="mt-3 space-y-2">
-                {capturePoints.length > 0 ? capturePoints.map((point) => {
-                  const selected = selectedCapturePointIds.includes(point.id);
-                  return (
-                    <div
-                      key={point.id}
-                      className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2 ${selected ? 'border-amber-500/60 bg-amber-500/10' : 'border-base-800 bg-base-900/70'}`}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => toggleCapturePoint(point.id)}
-                        className="min-w-0 flex-1 text-left"
-                      >
-                        <span className="block truncate text-[13px] text-white">{point.name}</span>
-                        <span className="mt-0.5 block font-mono text-[11px] text-ink-400">
-                          x {point.map_x.toFixed(2)} · y {point.map_y.toFixed(2)} · yaw {point.yaw.toFixed(2)}
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!selectedProject) return;
-                          deleteRobotCapturePoint(selectedProject.id, point.id)
-                            .then(() => refreshCapturePoints(selectedProject.id))
-                            .catch((err) => toast.error(err instanceof Error ? err.message : 'Failed to delete capture point'));
-                        }}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-700/40 text-red-200 transition hover:bg-red-500/10"
-                        title="Delete capture point"
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  );
-                }) : (
-                  <div className="rounded-xl border border-dashed border-base-700 px-3 py-5 text-center text-[13px] text-ink-400">
-                    No capture points saved for this project.
+                {selectedCapturePoints.length > 0 ? selectedCapturePoints.map((point) => (
+                  <div
+                    key={point.id}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-amber-500/60 bg-amber-500/10 px-3 py-2"
+                  >
+                    <span className="min-w-0 flex-1 truncate text-[13px] text-white" title={point.name}>
+                      {point.name}
+                    </span>
+                    <MoreMenu
+                      items={[
+                        { label: 'Remove from task', onClick: () => removeCapturePointFromTask(point.id) },
+                        { label: 'Rename', onClick: () => beginRenameCapturePoint(point) },
+                        { label: 'Delete', danger: true, onClick: () => handleDeleteCapturePoint(point) },
+                      ]}
+                    />
                   </div>
-                )}
+                )) : capturePoints.length > 0 ? (
+                  <div className="rounded-xl border border-dashed border-base-700 px-3 py-5 text-center text-[13px] text-ink-400">
+                    No capture points selected.
+                  </div>
+                ) : null}
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
                 <button
@@ -703,10 +778,14 @@ export default function RobotMissionsPage() {
                     point.floorplan_x !== null && point.floorplan_y !== null ? (
                       <span
                         key={point.id}
-                        className="absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-base-950 bg-emerald-400 shadow"
+                        className="group absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-base-950 bg-emerald-400 shadow"
                         style={{ left: `${point.floorplan_x * 100}%`, top: `${point.floorplan_y * 100}%` }}
                         title={point.name}
-                      />
+                      >
+                        <span className="pointer-events-none absolute left-1/2 bottom-full z-20 mb-1 -translate-x-1/2 whitespace-nowrap rounded-md border border-base-700 bg-base-950 px-2 py-1 text-[11px] text-white opacity-0 shadow-lg shadow-black/40 transition-opacity group-hover:opacity-100">
+                          {point.name}
+                        </span>
+                      </span>
                     ) : null
                   ))}
                   <div className="absolute bottom-2 left-2 rounded bg-base-950/80 px-2 py-1 font-mono text-[10px] text-ink-300">
@@ -1012,10 +1091,14 @@ export default function RobotMissionsPage() {
                   point.floorplan_x !== null && point.floorplan_y !== null ? (
                     <span
                       key={point.id}
-                      className="absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-base-950 bg-emerald-400 shadow"
+                      className="group absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-base-950 bg-emerald-400 shadow"
                       style={{ left: `${point.floorplan_x * 100}%`, top: `${point.floorplan_y * 100}%` }}
                       title={point.name}
-                    />
+                    >
+                      <span className="pointer-events-none absolute left-1/2 bottom-full z-20 mb-1 -translate-x-1/2 whitespace-nowrap rounded-md border border-base-700 bg-base-950 px-2 py-1 text-[11px] text-white opacity-0 shadow-lg shadow-black/40 transition-opacity group-hover:opacity-100">
+                        {point.name}
+                      </span>
+                    </span>
                   ) : null
                 ))}
                 {newPointMapMarker ? (
@@ -1064,6 +1147,49 @@ export default function RobotMissionsPage() {
             </div>
           </div>
         ) : null}
+      </Modal>
+
+      <Modal
+        open={!!renamingCapturePoint}
+        onClose={closeRenameCapturePoint}
+        title="Rename capture point"
+        subtitle={renamingCapturePoint?.name ?? undefined}
+        size="sm"
+      >
+        <div className="space-y-4">
+          <label className="block">
+            <span className="mb-2 block font-mono text-[11px] uppercase tracking-[0.16em] text-ink-400">Name</span>
+            <input
+              type="text"
+              value={renameCapturePointName}
+              onChange={(event) => setRenameCapturePointName(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') handleRenameCapturePoint();
+              }}
+              className="w-full rounded-xl border border-base-700 bg-base-950 px-3 py-2.5 text-[14px] text-white outline-none transition focus:border-amber-500"
+              autoFocus
+            />
+          </label>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={closeRenameCapturePoint}
+              disabled={savingCapturePointRename}
+              className="rounded-xl border border-base-700 px-3 py-2 text-[13px] text-ink-200 transition hover:border-ink-400 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleRenameCapturePoint}
+              disabled={savingCapturePointRename}
+              className="inline-flex items-center gap-2 rounded-xl bg-amber-500 px-3 py-2 text-[13px] font-medium text-base-950 transition hover:bg-amber-400 disabled:opacity-60"
+            >
+              {savingCapturePointRename ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+              Save
+            </button>
+          </div>
+        </div>
       </Modal>
 
       <ConfirmDialog

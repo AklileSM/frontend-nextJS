@@ -33,6 +33,8 @@ export type ApiRobotCapturePointCreateRequest = {
   metadata?: Record<string, unknown>;
 };
 
+export type ApiRobotCapturePointUpdateRequest = Partial<ApiRobotCapturePointCreateRequest>;
+
 export type ApiRobotPairingTokenCreateRequest = {
   robot_id: string;
   robot_password: string;
@@ -119,6 +121,21 @@ export function createRobotCapturePoint(
     `/projects/${encodeURIComponent(projectId)}/robot-capture-points`,
     {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    },
+  );
+}
+
+export function updateRobotCapturePoint(
+  projectId: string,
+  pointId: string,
+  body: ApiRobotCapturePointUpdateRequest,
+): Promise<ApiRobotCapturePoint> {
+  return getJson<ApiRobotCapturePoint>(
+    `/projects/${encodeURIComponent(projectId)}/robot-capture-points/${encodeURIComponent(pointId)}`,
+    {
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     },
