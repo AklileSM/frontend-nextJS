@@ -38,11 +38,54 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 type CaptureOutput = 'image' | 'pointcloud';
+type MissionProgressStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'skipped' | 'cancelled';
+
+type MissionProgressEvent = {
+  id: string;
+  label: string;
+  status: MissionProgressStatus;
+  phase?: string;
+  detail?: string | null;
+  waypoint_index?: number;
+  waypoint_name?: string;
+  room_slug?: string | null;
+  media_type?: string;
+  started_at_utc?: string;
+  completed_at_utc?: string;
+  updated_at_utc?: string;
+};
 
 const CAPTURE_OUTPUT_OPTIONS: Array<{ value: CaptureOutput; label: string }> = [
   { value: 'image', label: 'Image' },
   { value: 'pointcloud', label: 'PCD' },
 ];
+
+const PROGRESS_STATUS_LABELS: Record<MissionProgressStatus, string> = {
+  pending: 'Pending',
+  running: 'Running',
+  succeeded: 'Done',
+  failed: 'Failed',
+  skipped: 'Skipped',
+  cancelled: 'Cancelled',
+};
+
+const PROGRESS_DOT_STYLES: Record<MissionProgressStatus, string> = {
+  pending: 'border-base-700 bg-base-900',
+  running: 'border-amber-300 bg-amber-400',
+  succeeded: 'border-emerald-300 bg-emerald-400',
+  failed: 'border-red-300 bg-red-400',
+  skipped: 'border-base-600 bg-base-700',
+  cancelled: 'border-base-600 bg-base-700',
+};
+
+const PROGRESS_BADGE_STYLES: Record<MissionProgressStatus, string> = {
+  pending: 'border-base-800 bg-base-950 text-ink-400',
+  running: 'border-amber-500/30 bg-amber-500/10 text-amber-200',
+  succeeded: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200',
+  failed: 'border-red-500/30 bg-red-500/10 text-red-200',
+  skipped: 'border-base-800 bg-base-950 text-ink-400',
+  cancelled: 'border-base-800 bg-base-950 text-ink-400',
+};
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -72,6 +115,146 @@ function missionFailureMessage(mission: ApiRobotMission): string | null {
   if (stepError) return stepError;
   const resultError = mission.result?.['error'];
   return typeof resultError === 'string' && resultError.trim() ? resultError : null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function normalizeProgressStatus(value: unknown): MissionProgressStatus {
+  const status = typeof value === 'string' ? value.toLowerCase() : '';
+  if (status === 'running') return 'running';
+  if (status === 'succeeded' || status === 'success' || status === 'done') return 'succeeded';
+  if (status === 'failed' || status === 'error') return 'failed';
+  if (status === 'skipped') return 'skipped';
+  if (status === 'cancelled' || status === 'canceled') return 'cancelled';
+  return 'pending';
+}
+
+function normalizeProgressEvent(value: unknown, index: number): MissionProgressEvent | null {
+  if (!isRecord(value)) return null;
+  const label = typeof value.label === 'string' && value.label.trim()
+    ? value.label
+    : null;
+  if (!label) return null;
+  const detail = typeof value.detail === 'string' && value.detail.trim() ? value.detail : null;
+  return {
+    id: typeof value.id === 'string' && value.id.trim() ? value.id : `progress-${index}`,
+    label,
+    status: normalizeProgressStatus(value.status),
+    phase: typeof value.phase === 'string' ? value.phase : undefined,
+    detail,
+    waypoint_index: typeof value.waypoint_index === 'number' ? value.waypoint_index : undefined,
+    waypoint_name: typeof value.waypoint_name === 'string' ? value.waypoint_name : undefined,
+    room_slug: typeof value.room_slug === 'string' ? value.room_slug : null,
+    media_type: typeof value.media_type === 'string' ? value.media_type : undefined,
+    started_at_utc: typeof value.started_at_utc === 'string' ? value.started_at_utc : undefined,
+    completed_at_utc: typeof value.completed_at_utc === 'string' ? value.completed_at_utc : undefined,
+    updated_at_utc: typeof value.updated_at_utc === 'string' ? value.updated_at_utc : undefined,
+  };
+}
+
+function taskQueuedStatus(mission: ApiRobotMission): MissionProgressStatus {
+  if (mission.status === 'queued' || mission.status === 'dispatched') return 'running';
+  if (mission.status === 'cancelled') return 'cancelled';
+  return 'succeeded';
+}
+
+function fallbackProgressEvents(mission: ApiRobotMission): MissionProgressEvent[] {
+  const events: MissionProgressEvent[] = [];
+  if (mission.started_at) {
+    events.push({
+      id: 'task:started',
+      label: 'Task started',
+      status: mission.status === 'running' ? 'succeeded' : normalizeProgressStatus(mission.status),
+      started_at_utc: mission.started_at,
+      completed_at_utc: mission.started_at,
+    });
+  }
+  mission.steps.forEach((step) => {
+    events.push({
+      id: `step:${step.id}`,
+      label: `Going to ${step.waypoint_name}`,
+      status: normalizeProgressStatus(step.status),
+      detail: step.error_message ?? step.navigation_result ?? null,
+      waypoint_index: step.sequence_index,
+      waypoint_name: step.waypoint_name,
+      room_slug: step.room_slug,
+      started_at_utc: step.started_at ?? undefined,
+      completed_at_utc: step.completed_at ?? undefined,
+    });
+  });
+  if (mission.completed_at) {
+    events.push({
+      id: mission.status === 'failed' ? 'task:failed' : 'task:completed',
+      label: mission.status === 'failed' ? 'Task failed' : 'Task completed',
+      status: normalizeProgressStatus(mission.status),
+      detail: missionFailureMessage(mission),
+      completed_at_utc: mission.completed_at,
+    });
+  }
+  return events;
+}
+
+function missionProgressEvents(mission: ApiRobotMission): MissionProgressEvent[] {
+  const queuedEvent: MissionProgressEvent = {
+    id: 'task:queued',
+    label: 'Task queued',
+    status: taskQueuedStatus(mission),
+    started_at_utc: mission.created_at,
+    completed_at_utc: mission.status === 'queued' || mission.status === 'dispatched' ? undefined : mission.created_at,
+  };
+  const rawEvents = mission.result?.['progress_events'];
+  const progressEvents = Array.isArray(rawEvents)
+    ? rawEvents
+      .map((event, index) => normalizeProgressEvent(event, index))
+      .filter((event): event is MissionProgressEvent => Boolean(event))
+    : [];
+  return [queuedEvent, ...(progressEvents.length > 0 ? progressEvents : fallbackProgressEvents(mission))];
+}
+
+function formatProgressTime(event: MissionProgressEvent): string | null {
+  const value = event.completed_at_utc ?? event.updated_at_utc ?? event.started_at_utc;
+  if (!value) return null;
+  return new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+function MissionProgressTimeline({ mission }: { mission: ApiRobotMission }) {
+  const events = missionProgressEvents(mission);
+  return (
+    <ol className="mt-4 rounded-2xl border border-base-800 bg-base-950/45 px-4 py-4">
+      {events.map((event, index) => {
+        const time = formatProgressTime(event);
+        const isLast = index === events.length - 1;
+        return (
+          <li key={`${event.id}-${index}`} className={`relative flex gap-3 ${isLast ? '' : 'pb-4'}`}>
+            {!isLast ? (
+              <span className="absolute left-[7px] top-4 h-full w-px bg-base-800" />
+            ) : null}
+            <span className={`relative mt-1 h-3.5 w-3.5 shrink-0 rounded-full border-2 ${PROGRESS_DOT_STYLES[event.status]}`}>
+              {event.status === 'running' ? (
+                <span className="absolute -inset-1 rounded-full bg-amber-400/25 animate-ping" />
+              ) : null}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="min-w-0 text-[13px] text-white">{event.label}</p>
+                <span className={`rounded-full border px-2 py-0.5 font-mono text-[10px] uppercase ${PROGRESS_BADGE_STYLES[event.status]}`}>
+                  {PROGRESS_STATUS_LABELS[event.status]}
+                </span>
+              </div>
+              {(event.detail || time) ? (
+                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink-400">
+                  {event.detail ? <span className="min-w-0 break-words">{event.detail}</span> : null}
+                  {time ? <span className="font-mono">{time}</span> : null}
+                </div>
+              ) : null}
+            </div>
+          </li>
+        );
+      })}
+    </ol>
+  );
 }
 
 function normalizedToMapPose(robotMap: ApiRobotMap, marker: { x: number; y: number }): { x: number; y: number } {
@@ -995,17 +1178,7 @@ export default function RobotMissionsPage() {
                     </dl>
                   </div>
 
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {mission.steps.map((step) => (
-                      <span
-                        key={step.id}
-                        className={`rounded-full px-2.5 py-1 font-mono text-[11px] ${STATUS_STYLES[step.status] ?? 'bg-base-800 text-ink-300'}`}
-                        title={step.error_message ?? step.navigation_result ?? undefined}
-                      >
-                        {step.sequence_index}. {step.waypoint_name}
-                      </span>
-                    ))}
-                  </div>
+                  <MissionProgressTimeline mission={mission} />
 
                   <div className="mt-4 flex flex-wrap gap-2">
                     {canCancelMission(mission.status) && (
