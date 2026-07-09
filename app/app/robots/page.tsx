@@ -512,7 +512,10 @@ export default function RobotMissionsPage() {
     }
 
     let cancelled = false;
+    let telemetryRequestInFlight = false;
     const loadTelemetry = async () => {
+      if (telemetryRequestInFlight) return;
+      telemetryRequestInFlight = true;
       setTelemetryNow(Date.now());
       try {
         const telemetry = await getRobotTelemetry(robotId);
@@ -537,6 +540,8 @@ export default function RobotMissionsPage() {
         if (!cancelled) {
           setRobotTelemetryError(err instanceof Error ? err.message : 'Live telemetry unavailable');
         }
+      } finally {
+        telemetryRequestInFlight = false;
       }
     };
 
@@ -1444,6 +1449,8 @@ export default function RobotMissionsPage() {
                       left: `${liveRobotMarker.x * 100}%`,
                       top: `${liveRobotMarker.y * 100}%`,
                       transform: `translate(-50%, -50%) rotate(${-(liveRobotMarker.yaw ?? 0)}rad)`,
+                      transition: 'left 180ms linear, top 180ms linear, transform 180ms linear',
+                      willChange: 'left, top, transform',
                     }}
                     title="Robot pose"
                   >
