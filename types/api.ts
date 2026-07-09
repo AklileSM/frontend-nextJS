@@ -58,6 +58,36 @@ export interface ApiRobotSummary {
   last_seen_at: string | null;
 }
 
+export interface ApiRobotTelemetryPoint {
+  x: number;
+  y: number;
+  z: number;
+  yaw: number | null;
+}
+
+export interface ApiRobotTelemetryVelocity {
+  linear_x: number;
+  linear_y: number;
+  angular_z: number;
+  source_topic: string | null;
+}
+
+export interface ApiRobotTelemetry {
+  robot_id: string;
+  reported_at_utc: string | null;
+  received_at_utc: string;
+  mission_id: string | null;
+  frame: string;
+  pose: ApiRobotTelemetryPoint;
+  velocity: ApiRobotTelemetryVelocity | null;
+  goal: ApiRobotTelemetryPoint | null;
+  global_path: ApiRobotTelemetryPoint[];
+  local_path: ApiRobotTelemetryPoint[];
+  active_waypoint: Record<string, unknown> | null;
+  status: string | null;
+  source: string | null;
+}
+
 export interface ApiRobotMissionStep {
   id: string;
   sequence_index: number;

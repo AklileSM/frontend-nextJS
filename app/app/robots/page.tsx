@@ -13,6 +13,7 @@ import {
   deleteRobotCapturePoint,
   deleteRobotMission,
   getRobotMap,
+  getRobotTelemetry,
   listRobotCapturePoints,
   listProjects,
   listRobotMissions,
@@ -23,7 +24,7 @@ import {
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Modal } from '@/components/ui/Modal';
 import { MoreMenu } from '@/components/ui/MoreMenu';
-import type { ApiProject, ApiRobotCapturePoint, ApiRobotMap, ApiRobotMission, ApiRobotSummary } from '@/types/api';
+import type { ApiProject, ApiRobotCapturePoint, ApiRobotMap, ApiRobotMission, ApiRobotSummary, ApiRobotTelemetry } from '@/types/api';
 
 export const dynamic = 'force-dynamic';
 
@@ -103,6 +104,23 @@ const PROGRESS_DETAIL_STYLES: Record<MissionProgressStatus, string> = {
   failed: 'text-red-200',
   skipped: 'text-ink-500',
   cancelled: 'text-ink-500',
+};
+
+const TELEMETRY_STALE_SECONDS = 6;
+const TELEMETRY_TRAIL_LIMIT = 160;
+
+type MapMarker = {
+  x: number;
+  y: number;
+  yaw?: number | null;
+};
+
+type TelemetryTrailPoint = {
+  x: number;
+  y: number;
+  z: number;
+  yaw: number | null;
+  received_at_utc: string;
 };
 
 function todayIso(): string {
@@ -330,6 +348,53 @@ function normalizedToMapPose(robotMap: ApiRobotMap, marker: { x: number; y: numb
   };
 }
 
+function mapPoseToNormalized(robotMap: ApiRobotMap, pose: { x: number; y: number; yaw?: number | null }): MapMarker {
+  const dx = pose.x - robotMap.origin_x;
+  const dy = pose.y - robotMap.origin_y;
+  const cos = Math.cos(robotMap.origin_yaw);
+  const sin = Math.sin(robotMap.origin_yaw);
+  const localX = dx * cos + dy * sin;
+  const localY = -dx * sin + dy * cos;
+  const pixelX = localX / robotMap.resolution;
+  const pixelY = robotMap.height - localY / robotMap.resolution;
+  return {
+    x: pixelX / robotMap.width,
+    y: pixelY / robotMap.height,
+    yaw: pose.yaw === null || pose.yaw === undefined ? null : pose.yaw - robotMap.origin_yaw,
+  };
+}
+
+function visibleMarker(marker: MapMarker | null): marker is MapMarker {
+  return Boolean(marker && marker.x >= 0 && marker.x <= 1 && marker.y >= 0 && marker.y <= 1);
+}
+
+function markersToPolyline(markers: MapMarker[]): string {
+  return markers
+    .filter(visibleMarker)
+    .map((marker) => `${(marker.x * 100).toFixed(3)},${(marker.y * 100).toFixed(3)}`)
+    .join(' ');
+}
+
+function parseUtcTimestamp(value: string | null | undefined): number | null {
+  if (!value) return null;
+  const normalized = /(?:z|[+-]\d{2}:?\d{2})$/i.test(value) ? value : `${value}Z`;
+  const timestamp = new Date(normalized).getTime();
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function timestampAgeSeconds(value: string | null | undefined, nowMs: number): number | null {
+  const timestamp = parseUtcTimestamp(value);
+  if (timestamp === null) return null;
+  return Math.max(0, (nowMs - timestamp) / 1000);
+}
+
+function formatTelemetryAge(ageSeconds: number | null): string {
+  if (ageSeconds === null) return 'No update';
+  if (ageSeconds < 1) return 'Just now';
+  if (ageSeconds < 60) return `${Math.round(ageSeconds)}s ago`;
+  return `${Math.round(ageSeconds / 60)}m ago`;
+}
+
 function radiansToDegrees(value: number): number {
   return Math.round((value * 180) / Math.PI);
 }
@@ -372,6 +437,10 @@ export default function RobotMissionsPage() {
   const [robotMapImageFile, setRobotMapImageFile] = useState<File | null>(null);
   const [uploadingRobotMap, setUploadingRobotMap] = useState(false);
   const [continueOnFailure, setContinueOnFailure] = useState(false);
+  const [robotTelemetry, setRobotTelemetry] = useState<ApiRobotTelemetry | null>(null);
+  const [robotTelemetryError, setRobotTelemetryError] = useState<string | null>(null);
+  const [telemetryTrail, setTelemetryTrail] = useState<TelemetryTrailPoint[]>([]);
+  const [telemetryNow, setTelemetryNow] = useState(() => Date.now());
 
   const refresh = useCallback(async () => {
     const [robotsData, projectsData, missionsData] = await Promise.all([
@@ -428,6 +497,59 @@ export default function RobotMissionsPage() {
     };
   }, [captureOutputMenuOpen]);
 
+  useEffect(() => {
+    setRobotTelemetry(null);
+    setRobotTelemetryError(null);
+    setTelemetryTrail([]);
+  }, [projectSlug, robotId]);
+
+  useEffect(() => {
+    if (!robotId) {
+      setRobotTelemetry(null);
+      setRobotTelemetryError(null);
+      setTelemetryTrail([]);
+      return undefined;
+    }
+
+    let cancelled = false;
+    const loadTelemetry = async () => {
+      setTelemetryNow(Date.now());
+      try {
+        const telemetry = await getRobotTelemetry(robotId);
+        if (cancelled) return;
+        setRobotTelemetry(telemetry);
+        setRobotTelemetryError(null);
+        const receivedAt = telemetry.received_at_utc || telemetry.reported_at_utc || `${telemetry.pose.x}:${telemetry.pose.y}`;
+        setTelemetryTrail((current) => {
+          const previous = current[current.length - 1];
+          if (previous?.received_at_utc === receivedAt) return current;
+          const next = [
+            ...current,
+            {
+              ...telemetry.pose,
+              yaw: telemetry.pose.yaw ?? null,
+              received_at_utc: receivedAt,
+            },
+          ];
+          return next.slice(-TELEMETRY_TRAIL_LIMIT);
+        });
+      } catch (err) {
+        if (!cancelled) {
+          setRobotTelemetryError(err instanceof Error ? err.message : 'Live telemetry unavailable');
+        }
+      }
+    };
+
+    loadTelemetry();
+    const timer = window.setInterval(() => {
+      loadTelemetry().catch(() => undefined);
+    }, 1000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [robotId]);
+
   const selectedProject = useMemo(
     () => projects.find((project) => project.slug === projectSlug) ?? null,
     [projectSlug, projects],
@@ -444,6 +566,39 @@ export default function RobotMissionsPage() {
   );
   const pendingMission = pendingAction?.mission ?? null;
   const pendingActionType = pendingAction?.type ?? null;
+  const telemetryAge = robotTelemetry
+    ? timestampAgeSeconds(robotTelemetry.received_at_utc ?? robotTelemetry.reported_at_utc, telemetryNow)
+    : null;
+  const telemetryFresh = telemetryAge !== null && telemetryAge <= TELEMETRY_STALE_SECONDS;
+  const telemetryStatus = robotTelemetry ? (telemetryFresh ? 'Live' : 'Stale') : 'Waiting';
+  const telemetryStatusStyle = robotTelemetry
+    ? telemetryFresh
+      ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
+      : 'border-amber-500/30 bg-amber-500/10 text-amber-200'
+    : 'border-base-800 bg-base-950 text-ink-400';
+  const liveRobotMarker = useMemo(
+    () => (robotMap && robotTelemetry ? mapPoseToNormalized(robotMap, robotTelemetry.pose) : null),
+    [robotMap, robotTelemetry],
+  );
+  const goalMarker = useMemo(
+    () => (robotMap && robotTelemetry?.goal ? mapPoseToNormalized(robotMap, robotTelemetry.goal) : null),
+    [robotMap, robotTelemetry],
+  );
+  const trailMarkers = useMemo(
+    () => (robotMap ? telemetryTrail.map((point) => mapPoseToNormalized(robotMap, point)) : []),
+    [robotMap, telemetryTrail],
+  );
+  const globalPathMarkers = useMemo(
+    () => (robotMap && robotTelemetry ? robotTelemetry.global_path.map((point) => mapPoseToNormalized(robotMap, point)) : []),
+    [robotMap, robotTelemetry],
+  );
+  const localPathMarkers = useMemo(
+    () => (robotMap && robotTelemetry ? robotTelemetry.local_path.map((point) => mapPoseToNormalized(robotMap, point)) : []),
+    [robotMap, robotTelemetry],
+  );
+  const trailPolyline = useMemo(() => markersToPolyline(trailMarkers), [trailMarkers]);
+  const globalPathPolyline = useMemo(() => markersToPolyline(globalPathMarkers), [globalPathMarkers]);
+  const localPathPolyline = useMemo(() => markersToPolyline(localPathMarkers), [localPathMarkers]);
 
   const refreshCapturePoints = useCallback(async (projectId: string) => {
     const points = await listRobotCapturePoints(projectId);
@@ -1194,6 +1349,166 @@ export default function RobotMissionsPage() {
             <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-500">
               {missions.length} loaded
             </span>
+          </div>
+
+          <div className="mt-6 rounded-2xl border border-base-800 bg-base-950/60 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-400">Live movement</p>
+                <p className="mt-1 text-[13px] text-ink-300">
+                  {robotId || 'No robot selected'} {robotTelemetry?.frame ? `· ${robotTelemetry.frame}` : ''}
+                </p>
+              </div>
+              <span className={`rounded-full border px-2.5 py-1 font-mono text-[10px] uppercase ${telemetryStatusStyle}`}>
+                {telemetryStatus}
+              </span>
+            </div>
+
+            {robotMap ? (
+              <div
+                className="relative mt-4 overflow-hidden rounded-2xl border border-base-800 bg-base-950"
+                style={{ aspectRatio: `${robotMap.width} / ${robotMap.height}` }}
+              >
+                <img
+                  src={robotMap.image_url}
+                  alt=""
+                  draggable={false}
+                  className="h-full w-full select-none opacity-85"
+                />
+                <svg
+                  className="pointer-events-none absolute inset-0 h-full w-full"
+                  viewBox="0 0 100 100"
+                  preserveAspectRatio="none"
+                >
+                  {globalPathPolyline ? (
+                    <polyline
+                      points={globalPathPolyline}
+                      fill="none"
+                      stroke="rgb(34 211 238)"
+                      strokeWidth="0.45"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      vectorEffect="non-scaling-stroke"
+                      opacity="0.75"
+                    />
+                  ) : null}
+                  {localPathPolyline ? (
+                    <polyline
+                      points={localPathPolyline}
+                      fill="none"
+                      stroke="rgb(251 191 36)"
+                      strokeWidth="0.55"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      vectorEffect="non-scaling-stroke"
+                      opacity="0.85"
+                    />
+                  ) : null}
+                  {trailPolyline ? (
+                    <polyline
+                      points={trailPolyline}
+                      fill="none"
+                      stroke="rgb(255 255 255)"
+                      strokeWidth="0.35"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      vectorEffect="non-scaling-stroke"
+                      opacity="0.8"
+                    />
+                  ) : null}
+                </svg>
+
+                {capturePoints.map((point) => (
+                  point.floorplan_x !== null && point.floorplan_y !== null ? (
+                    <span
+                      key={point.id}
+                      className="absolute z-10 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-base-950 bg-emerald-400/80 shadow"
+                      style={{ left: `${point.floorplan_x * 100}%`, top: `${point.floorplan_y * 100}%` }}
+                      title={point.name}
+                    />
+                  ) : null
+                ))}
+
+                {visibleMarker(goalMarker) ? (
+                  <span
+                    className="absolute z-20 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-cyan-200 bg-cyan-400/20 shadow-lg shadow-cyan-500/20"
+                    style={{ left: `${goalMarker.x * 100}%`, top: `${goalMarker.y * 100}%` }}
+                    title="Current goal"
+                  />
+                ) : null}
+
+                {visibleMarker(liveRobotMarker) ? (
+                  <span
+                    className={`absolute z-30 h-7 w-7 rounded-full border-2 bg-base-950/90 shadow-xl ${telemetryFresh ? 'border-amber-300 shadow-amber-500/30' : 'border-base-500 shadow-black/40'}`}
+                    style={{
+                      left: `${liveRobotMarker.x * 100}%`,
+                      top: `${liveRobotMarker.y * 100}%`,
+                      transform: `translate(-50%, -50%) rotate(${-(liveRobotMarker.yaw ?? 0)}rad)`,
+                    }}
+                    title="Robot pose"
+                  >
+                    <span
+                      className={`absolute left-1/2 top-1/2 h-0 w-0 border-y-[5px] border-l-[11px] border-y-transparent ${telemetryFresh ? 'border-l-amber-300' : 'border-l-ink-400'}`}
+                      style={{ transform: 'translate(-35%, -50%)' }}
+                    />
+                    <span className="absolute left-1/2 top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white" />
+                  </span>
+                ) : null}
+
+                {robotTelemetry && !visibleMarker(liveRobotMarker) ? (
+                  <div className="absolute right-2 top-2 rounded-lg border border-amber-500/30 bg-base-950/85 px-2 py-1 font-mono text-[10px] uppercase text-amber-200">
+                    Pose outside map
+                  </div>
+                ) : null}
+
+                <div className="absolute bottom-2 left-2 flex max-w-[calc(100%-1rem)] flex-wrap gap-2 rounded-lg bg-base-950/85 px-2 py-1 font-mono text-[10px] text-ink-300">
+                  <span className="text-cyan-200">Global</span>
+                  <span className="text-amber-200">Local</span>
+                  <span className="text-white">Trail</span>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4 rounded-xl border border-dashed border-base-700 bg-base-900/50 px-3 py-6 text-center text-[13px] text-ink-400">
+                Upload a robot map to render live movement.
+              </div>
+            )}
+
+            <dl className="mt-4 grid gap-3 text-[12px] text-ink-300 sm:grid-cols-2 xl:grid-cols-4">
+              <div>
+                <dt className="font-mono uppercase tracking-[0.14em] text-ink-500">Pose</dt>
+                <dd className="mt-1 font-mono text-white">
+                  {robotTelemetry
+                    ? `${robotTelemetry.pose.x.toFixed(2)}, ${robotTelemetry.pose.y.toFixed(2)}`
+                    : '—'}
+                </dd>
+              </div>
+              <div>
+                <dt className="font-mono uppercase tracking-[0.14em] text-ink-500">Heading</dt>
+                <dd className="mt-1 font-mono text-white">
+                  {robotTelemetry?.pose.yaw !== null && robotTelemetry?.pose.yaw !== undefined
+                    ? `${radiansToDegrees(robotTelemetry.pose.yaw)} deg`
+                    : '—'}
+                </dd>
+              </div>
+              <div>
+                <dt className="font-mono uppercase tracking-[0.14em] text-ink-500">Velocity</dt>
+                <dd className="mt-1 font-mono text-white">
+                  {robotTelemetry?.velocity
+                    ? `${robotTelemetry.velocity.linear_x.toFixed(2)} m/s · ${radiansToDegrees(robotTelemetry.velocity.angular_z)} deg/s`
+                    : '—'}
+                </dd>
+              </div>
+              <div>
+                <dt className="font-mono uppercase tracking-[0.14em] text-ink-500">Updated</dt>
+                <dd className="mt-1 font-mono text-white">{formatTelemetryAge(telemetryAge)}</dd>
+              </div>
+            </dl>
+
+            {robotTelemetryError ? (
+              <p className="mt-3 text-[12px] text-amber-200">
+                {robotTelemetry ? `Telemetry warning: ${robotTelemetryError}` : robotTelemetryError}
+              </p>
+            ) : null}
           </div>
 
           <div className="mt-6 space-y-4">

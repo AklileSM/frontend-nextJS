@@ -6,6 +6,7 @@ import type {
   ApiRobotPairingToken,
   ApiRobotPresence,
   ApiRobotSummary,
+  ApiRobotTelemetry,
 } from '@/types/api';
 import { apiFetch, getJson, parseApiError } from './core';
 
@@ -56,6 +57,10 @@ export function listRobots(): Promise<ApiRobotSummary[]> {
 
 export function getRobotStatus(robotId: string): Promise<ApiRobotPresence> {
   return getJson<ApiRobotPresence>(`/robots/${encodeURIComponent(robotId)}/status`);
+}
+
+export function getRobotTelemetry(robotId: string): Promise<ApiRobotTelemetry> {
+  return getJson<ApiRobotTelemetry>(`/robots/${encodeURIComponent(robotId)}/telemetry`);
 }
 
 export function getRobotMap(projectId: string): Promise<ApiRobotMap> {
