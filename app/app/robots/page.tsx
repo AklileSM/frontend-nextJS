@@ -543,7 +543,7 @@ export default function RobotMissionsPage() {
     loadTelemetry();
     const timer = window.setInterval(() => {
       loadTelemetry().catch(() => undefined);
-    }, 1000);
+    }, 200);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
