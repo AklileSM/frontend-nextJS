@@ -63,6 +63,51 @@ export function getRobotTelemetry(robotId: string): Promise<ApiRobotTelemetry> {
   return getJson<ApiRobotTelemetry>(`/robots/${encodeURIComponent(robotId)}/telemetry`);
 }
 
+export async function streamRobotTelemetry(
+  robotId: string,
+  onTelemetry: (telemetry: ApiRobotTelemetry) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const response = await apiFetch(`/robots/${encodeURIComponent(robotId)}/telemetry/stream`, {
+    method: 'GET',
+    headers: { Accept: 'application/x-ndjson' },
+    signal,
+  });
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
+  if (!response.body) {
+    throw new Error('Robot telemetry stream is not available');
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() ?? '';
+
+      lines.forEach((line) => {
+        const trimmed = line.trim();
+        if (!trimmed) return;
+        onTelemetry(JSON.parse(trimmed) as ApiRobotTelemetry);
+      });
+    }
+
+    buffer += decoder.decode();
+    const trimmed = buffer.trim();
+    if (trimmed) onTelemetry(JSON.parse(trimmed) as ApiRobotTelemetry);
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 export function getRobotMap(projectId: string): Promise<ApiRobotMap> {
   return getJson<ApiRobotMap>(`/projects/${encodeURIComponent(projectId)}/robot-map`);
 }

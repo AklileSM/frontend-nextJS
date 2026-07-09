@@ -18,6 +18,7 @@ import {
   listProjects,
   listRobotMissions,
   listRobots,
+  streamRobotTelemetry,
   uploadRobotMap,
   updateRobotCapturePoint,
 } from '@/services/apiClient';
@@ -497,6 +498,33 @@ export default function RobotMissionsPage() {
     };
   }, [captureOutputMenuOpen]);
 
+  const handleTelemetrySnapshot = useCallback((telemetry: ApiRobotTelemetry) => {
+    setTelemetryNow(Date.now());
+    setRobotTelemetry(telemetry);
+    setRobotTelemetryError(null);
+    const receivedAt = telemetry.received_at_utc || telemetry.reported_at_utc || `${telemetry.pose.x}:${telemetry.pose.y}`;
+    setTelemetryTrail((current) => {
+      const previous = current[current.length - 1];
+      if (previous?.received_at_utc === receivedAt) return current;
+      const next = [
+        ...current,
+        {
+          ...telemetry.pose,
+          yaw: telemetry.pose.yaw ?? null,
+          received_at_utc: receivedAt,
+        },
+      ];
+      return next.slice(-TELEMETRY_TRAIL_LIMIT);
+    });
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setTelemetryNow(Date.now());
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   useEffect(() => {
     setRobotTelemetry(null);
     setRobotTelemetryError(null);
@@ -512,7 +540,9 @@ export default function RobotMissionsPage() {
     }
 
     let cancelled = false;
+    let fallbackTimer: number | null = null;
     let telemetryRequestInFlight = false;
+    const controller = new AbortController();
     const loadTelemetry = async () => {
       if (telemetryRequestInFlight) return;
       telemetryRequestInFlight = true;
@@ -520,22 +550,7 @@ export default function RobotMissionsPage() {
       try {
         const telemetry = await getRobotTelemetry(robotId);
         if (cancelled) return;
-        setRobotTelemetry(telemetry);
-        setRobotTelemetryError(null);
-        const receivedAt = telemetry.received_at_utc || telemetry.reported_at_utc || `${telemetry.pose.x}:${telemetry.pose.y}`;
-        setTelemetryTrail((current) => {
-          const previous = current[current.length - 1];
-          if (previous?.received_at_utc === receivedAt) return current;
-          const next = [
-            ...current,
-            {
-              ...telemetry.pose,
-              yaw: telemetry.pose.yaw ?? null,
-              received_at_utc: receivedAt,
-            },
-          ];
-          return next.slice(-TELEMETRY_TRAIL_LIMIT);
-        });
+        handleTelemetrySnapshot(telemetry);
       } catch (err) {
         if (!cancelled) {
           setRobotTelemetryError(err instanceof Error ? err.message : 'Live telemetry unavailable');
@@ -545,15 +560,30 @@ export default function RobotMissionsPage() {
       }
     };
 
-    loadTelemetry();
-    const timer = window.setInterval(() => {
+    const startFallbackTelemetry = (message: string) => {
+      if (fallbackTimer !== null) return;
+      setRobotTelemetryError(message);
       loadTelemetry().catch(() => undefined);
-    }, 200);
+      fallbackTimer = window.setInterval(() => {
+        loadTelemetry().catch(() => undefined);
+      }, 500);
+    };
+
+    streamRobotTelemetry(robotId, (telemetry) => {
+      if (!cancelled) handleTelemetrySnapshot(telemetry);
+    }, controller.signal).then(() => {
+      if (!cancelled) startFallbackTelemetry('Telemetry stream closed; using backup refresh');
+    }).catch((err) => {
+      if (cancelled || controller.signal.aborted) return;
+      startFallbackTelemetry(err instanceof Error ? `Telemetry stream unavailable: ${err.message}` : 'Telemetry stream unavailable');
+    });
+
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
+      controller.abort();
+      if (fallbackTimer !== null) window.clearInterval(fallbackTimer);
     };
-  }, [robotId]);
+  }, [handleTelemetrySnapshot, robotId]);
 
   const selectedProject = useMemo(
     () => projects.find((project) => project.slug === projectSlug) ?? null,
@@ -581,6 +611,13 @@ export default function RobotMissionsPage() {
       ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
       : 'border-amber-500/30 bg-amber-500/10 text-amber-200'
     : 'border-base-800 bg-base-950 text-ink-400';
+  const robotVelocity = robotTelemetry?.velocity;
+  const robotMarkerMoving = robotVelocity
+    ? Math.hypot(robotVelocity.linear_x, robotVelocity.linear_y) > 0.03 || Math.abs(robotVelocity.angular_z) > 0.08
+    : false;
+  const robotMarkerTransition = robotMarkerMoving
+    ? 'left 70ms linear, top 70ms linear, transform 70ms linear'
+    : 'none';
   const liveRobotMarker = useMemo(
     () => (robotMap && robotTelemetry ? mapPoseToNormalized(robotMap, robotTelemetry.pose) : null),
     [robotMap, robotTelemetry],
@@ -1449,7 +1486,7 @@ export default function RobotMissionsPage() {
                       left: `${liveRobotMarker.x * 100}%`,
                       top: `${liveRobotMarker.y * 100}%`,
                       transform: `translate(-50%, -50%) rotate(${-(liveRobotMarker.yaw ?? 0)}rad)`,
-                      transition: 'left 180ms linear, top 180ms linear, transform 180ms linear',
+                      transition: robotMarkerTransition,
                       willChange: 'left, top, transform',
                     }}
                     title="Robot pose"
