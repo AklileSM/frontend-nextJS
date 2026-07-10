@@ -8,7 +8,8 @@ import type {
   ApiRobotSummary,
   ApiRobotTelemetry,
 } from '@/types/api';
-import { apiFetch, getJson, parseApiError } from './core';
+import { getAccessToken } from '@/auth/authSession';
+import { API_BASE, apiFetch, getJson, parseApiError } from './core';
 
 export type ApiRobotMissionCreateRequest = {
   robot_id: string;
@@ -61,6 +62,50 @@ export function getRobotStatus(robotId: string): Promise<ApiRobotPresence> {
 
 export function getRobotTelemetry(robotId: string): Promise<ApiRobotTelemetry> {
   return getJson<ApiRobotTelemetry>(`/robots/${encodeURIComponent(robotId)}/telemetry`);
+}
+
+export type RobotTelemetryWebSocketHandlers = {
+  onOpen?: () => void;
+  onClose?: (event: CloseEvent) => void;
+  onError?: (event: Event) => void;
+};
+
+function robotTelemetryWebSocketUrl(robotId: string): string {
+  const token = getAccessToken();
+  if (!token) {
+    throw new Error('Not authenticated');
+  }
+  if (typeof window === 'undefined') {
+    throw new Error('Robot telemetry WebSocket is only available in the browser');
+  }
+
+  const configuredBase = process.env.NEXT_PUBLIC_ROBOT_TELEMETRY_WS_URL?.replace(/\/$/, '');
+  const base = configuredBase
+    ?? `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}${API_BASE}`;
+  const url = new URL(`${base}/robots/${encodeURIComponent(robotId)}/telemetry/ws`);
+  url.searchParams.set('token', token);
+  return url.toString();
+}
+
+export function openRobotTelemetryWebSocket(
+  robotId: string,
+  onTelemetry: (telemetry: ApiRobotTelemetry) => void,
+  handlers: RobotTelemetryWebSocketHandlers = {},
+): WebSocket {
+  const socket = new WebSocket(robotTelemetryWebSocketUrl(robotId));
+  socket.onopen = () => handlers.onOpen?.();
+  socket.onerror = (event) => handlers.onError?.(event);
+  socket.onclose = (event) => handlers.onClose?.(event);
+  socket.onmessage = (event) => {
+    try {
+      const payload = JSON.parse(String(event.data)) as Partial<ApiRobotTelemetry> & { type?: string };
+      if (payload.type === 'keepalive' || !payload.pose) return;
+      onTelemetry(payload as ApiRobotTelemetry);
+    } catch {
+      // Ignore malformed telemetry frames so one bad frame does not kill the live view.
+    }
+  };
+  return socket;
 }
 
 export async function streamRobotTelemetry(
