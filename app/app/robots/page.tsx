@@ -410,6 +410,7 @@ export default function RobotMissionsPage() {
   const telemetryCanvasRef = useRef<HTMLCanvasElement>(null);
   const telemetryCanvasFrameRef = useRef<number | null>(null);
   const latestTelemetryRef = useRef<ApiRobotTelemetry | null>(null);
+  const handleTelemetrySnapshotRef = useRef<(telemetry: ApiRobotTelemetry) => void>(() => undefined);
   const telemetryTrailRef = useRef<TelemetryTrailPoint[]>([]);
 
   const [robotId, setRobotId] = useState('');
@@ -645,6 +646,7 @@ export default function RobotMissionsPage() {
     });
     scheduleTelemetryCanvasDraw();
   }, [scheduleTelemetryCanvasDraw]);
+  handleTelemetrySnapshotRef.current = handleTelemetrySnapshot;
 
   useEffect(() => {
     scheduleTelemetryCanvasDraw();
@@ -695,7 +697,7 @@ export default function RobotMissionsPage() {
       try {
         const telemetry = await getRobotTelemetry(robotId);
         if (cancelled) return;
-        handleTelemetrySnapshot(telemetry);
+        handleTelemetrySnapshotRef.current(telemetry);
       } catch (err) {
         if (!cancelled) {
           setRobotTelemetryError(err instanceof Error ? err.message : 'Live telemetry unavailable');
@@ -719,7 +721,7 @@ export default function RobotMissionsPage() {
       streamStarted = true;
       setRobotTelemetryError(message);
       streamRobotTelemetry(robotId, (telemetry) => {
-        if (!cancelled) handleTelemetrySnapshot(telemetry);
+        if (!cancelled) handleTelemetrySnapshotRef.current(telemetry);
       }, controller.signal).then(() => {
         if (!cancelled) startFallbackTelemetry('Telemetry stream closed; using backup refresh');
       }).catch((err) => {
@@ -730,7 +732,7 @@ export default function RobotMissionsPage() {
 
     try {
       socket = openRobotTelemetryWebSocket(robotId, (telemetry) => {
-        if (!cancelled) handleTelemetrySnapshot(telemetry);
+        if (!cancelled) handleTelemetrySnapshotRef.current(telemetry);
       }, {
         onOpen: () => {
           if (!cancelled) setRobotTelemetryError(null);
@@ -753,12 +755,13 @@ export default function RobotMissionsPage() {
       controller.abort();
       if (fallbackTimer !== null) window.clearInterval(fallbackTimer);
     };
-  }, [handleTelemetrySnapshot, robotId]);
+  }, [robotId]);
 
   const selectedProject = useMemo(
     () => projects.find((project) => project.slug === projectSlug) ?? null,
     [projectSlug, projects],
   );
+  const selectedProjectId = selectedProject?.id ?? null;
   const selectedCapturePoints = useMemo(
     () => selectedCapturePointIds
       .map((id) => capturePoints.find((point) => point.id === id))
@@ -793,17 +796,17 @@ export default function RobotMissionsPage() {
   }, []);
 
   useEffect(() => {
-    if (!selectedProject) {
+    if (!selectedProjectId) {
       setCapturePoints([]);
       setSelectedCapturePointIds([]);
       setRobotMap(null);
       setAddingCapturePoint(false);
       return;
     }
-    refreshCapturePoints(selectedProject.id).catch((err) => {
+    refreshCapturePoints(selectedProjectId).catch((err) => {
       toast.error(err instanceof Error ? err.message : 'Failed to load capture points');
     });
-    getRobotMap(selectedProject.id)
+    getRobotMap(selectedProjectId)
       .then((map) => {
         setRobotMap(map);
         setRobotMapError(null);
@@ -812,7 +815,7 @@ export default function RobotMissionsPage() {
         setRobotMap(null);
         setRobotMapError(err instanceof Error ? err.message : 'Robot map is not available');
       });
-  }, [refreshCapturePoints, selectedProject]);
+  }, [refreshCapturePoints, selectedProjectId]);
 
   const handleUploadRobotMap = useCallback(() => {
     if (!selectedProject) {
