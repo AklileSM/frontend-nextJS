@@ -1,1252 +1,178 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
-import type { MouseEvent, PointerEvent, WheelEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { Bot, Check, ChevronDown, Loader2, MapPin, Plus, RefreshCcw, RotateCcw, Send, Trash2, XCircle, ZoomIn, ZoomOut } from 'lucide-react';
+import { Bot } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   cancelRobotMission,
-  createRobotCapturePoint,
   createRobotMission,
-  deleteRobotCapturePoint,
   deleteRobotMission,
   getRobotMap,
-  getRobotTelemetry,
-  listRobotCapturePoints,
   listProjects,
-  listRobotMissions,
-  listRobots,
-  openRobotTelemetryWebSocket,
-  streamRobotTelemetry,
-  uploadRobotMap,
-  updateRobotCapturePoint,
+  listRobotCapturePoints,
 } from '@/services/apiClient';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import { Modal } from '@/components/ui/Modal';
-import { MoreMenu } from '@/components/ui/MoreMenu';
-import type { ApiProject, ApiRobotCapturePoint, ApiRobotMap, ApiRobotMission, ApiRobotSummary, ApiRobotTelemetry } from '@/types/api';
+import { Tabs } from '@/components/ui/Tabs';
+import type { ApiProject, ApiRobotCapturePoint, ApiRobotMap, ApiRobotMission } from '@/types/api';
+import { RobotContextBar } from './_components/RobotContextBar';
+import { RouteTab } from './_components/RouteTab';
+import { ProgressTab } from './_components/ProgressTab';
+import { LiveMapTab } from './_components/LiveMapTab';
+import { HistoryTab } from './_components/HistoryTab';
+import { useRobotMissions } from './_hooks/useRobotMissions';
+import { useRobotTelemetry } from './_hooks/useRobotTelemetry';
+import { isActiveMissionStatus, routeSummary } from './_lib/missions';
+import type { CaptureOutput } from './_lib/missions';
 
 export const dynamic = 'force-dynamic';
 
-const STATUS_STYLES: Record<string, string> = {
-  queued: 'bg-base-800 text-amber-300',
-  dispatched: 'bg-cyan-500/10 text-cyan-300',
-  running: 'bg-blue-500/10 text-blue-300',
-  succeeded: 'bg-emerald-500/10 text-emerald-300',
-  failed: 'bg-red-500/10 text-red-300',
-  cancelled: 'bg-base-700 text-ink-300',
-  pending: 'bg-base-800 text-ink-300',
-};
+type TabId = 'route' | 'progress' | 'live' | 'history';
 
-const ACTIVE_MISSION_STATUSES = ['queued', 'dispatched', 'running'];
-const MISSION_LIST_LIMIT = 25;
-/* A running capture polls fast, so it fetches only the newest few missions and splices them over
- * the cached list. The full list is worth re-pulling on the slow idle poll, not every 2 seconds. */
-const ACTIVE_MISSION_POLL_LIMIT = 5;
-const ACTIVE_POLL_MS = 2000;
-const IDLE_POLL_MS = 30000;
-
-type CaptureOutput = 'image' | 'pointcloud';
-type MissionProgressStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'skipped' | 'cancelled';
-
-type MissionProgressEvent = {
-  id: string;
-  label: string;
-  status: MissionProgressStatus;
-  phase?: string;
-  detail?: string | null;
-  waypoint_index?: number;
-  waypoint_name?: string;
-  room_slug?: string | null;
-  media_type?: string;
-  started_at_utc?: string;
-  completed_at_utc?: string;
-  updated_at_utc?: string;
-};
-
-const CAPTURE_OUTPUT_OPTIONS: Array<{ value: CaptureOutput; label: string }> = [
-  { value: 'image', label: 'Image' },
-  { value: 'pointcloud', label: 'PCD' },
-];
-
-const PROGRESS_STATUS_LABELS: Record<MissionProgressStatus, string> = {
-  pending: 'Pending',
-  running: 'Running',
-  succeeded: '',
-  failed: 'Failed',
-  skipped: 'Skipped',
-  cancelled: 'Cancelled',
-};
-
-const PROGRESS_DOT_STYLES: Record<MissionProgressStatus, string> = {
-  pending: 'border-base-700 bg-base-900',
-  running: 'border-amber-300 bg-amber-400',
-  succeeded: 'border-emerald-300 bg-emerald-400',
-  failed: 'border-red-300 bg-red-400',
-  skipped: 'border-base-600 bg-base-700',
-  cancelled: 'border-base-600 bg-base-700',
-};
-
-const PROGRESS_BADGE_STYLES: Record<MissionProgressStatus, string> = {
-  pending: 'border-base-800 bg-base-950 text-ink-400',
-  running: 'border-amber-500/30 bg-amber-500/10 text-amber-200',
-  succeeded: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200',
-  failed: 'border-red-500/30 bg-red-500/10 text-red-200',
-  skipped: 'border-base-800 bg-base-950 text-ink-400',
-  cancelled: 'border-base-800 bg-base-950 text-ink-400',
-};
-
-const PROGRESS_TEXT_STYLES: Record<MissionProgressStatus, string> = {
-  pending: 'text-ink-500',
-  running: 'text-amber-100',
-  succeeded: 'text-white',
-  failed: 'text-red-100',
-  skipped: 'text-ink-500',
-  cancelled: 'text-ink-500',
-};
-
-const PROGRESS_DETAIL_STYLES: Record<MissionProgressStatus, string> = {
-  pending: 'text-ink-500',
-  running: 'text-amber-200/80',
-  succeeded: 'text-ink-300',
-  failed: 'text-red-200',
-  skipped: 'text-ink-500',
-  cancelled: 'text-ink-500',
-};
-
-const TELEMETRY_STALE_SECONDS = 6;
-const TELEMETRY_TRAIL_LIMIT = 160;
-
-type MapMarker = {
-  x: number;
-  y: number;
-  yaw?: number | null;
-};
-
-type TelemetryTrailPoint = {
-  x: number;
-  y: number;
-  z: number;
-  yaw: number | null;
-  received_at_utc: string;
-};
+const TABS = [
+  { id: 'route', label: 'Route' },
+  { id: 'progress', label: 'Progress' },
+  { id: 'live', label: 'Live map' },
+  { id: 'history', label: 'History' },
+] as const satisfies readonly { id: TabId; label: string }[];
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function formatCaptureOutputs(outputs: CaptureOutput[]): string {
-  if (outputs.includes('image') && outputs.includes('pointcloud')) return 'Image + PCD';
-  if (outputs.includes('pointcloud')) return 'PCD only';
-  return 'Image only';
-}
-
-function formatLastSeen(value: string | null): string {
-  if (!value) return 'Never';
-  return new Date(value).toLocaleString();
-}
-
-function isActiveMissionStatus(status: string): boolean {
-  return ACTIVE_MISSION_STATUSES.includes(status);
-}
-
-function canCancelMission(status: string): boolean {
-  return isActiveMissionStatus(status);
-}
-
-/* Splice the newest missions from a fast poll over the cached list so the longer history
- * survives between full refreshes. Relies on the API's created_at DESC ordering, and trims to
- * the same limit a full fetch would return so the two cannot drift apart. */
-function mergeMissions(current: ApiRobotMission[], fresh: ApiRobotMission[]): ApiRobotMission[] {
-  const freshById = new Map(fresh.map((mission) => [mission.id, mission]));
-  const known = new Set(current.map((mission) => mission.id));
-  return [
-    ...fresh.filter((mission) => !known.has(mission.id)),
-    ...current.map((mission) => freshById.get(mission.id) ?? mission),
-  ].slice(0, MISSION_LIST_LIMIT);
-}
-
-function canDeleteMission(status: string): boolean {
-  return ['queued', 'dispatched', 'running', 'cancelled', 'failed', 'succeeded'].includes(status);
-}
-
-function missionFailureMessage(mission: ApiRobotMission): string | null {
-  const stepError = mission.steps.find((step) => step.error_message)?.error_message;
-  if (stepError) return stepError;
-  const resultError = mission.result?.['error'];
-  return typeof resultError === 'string' && resultError.trim() ? resultError : null;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function normalizeProgressStatus(value: unknown): MissionProgressStatus {
-  const status = typeof value === 'string' ? value.toLowerCase() : '';
-  if (status === 'running') return 'running';
-  if (status === 'succeeded' || status === 'success' || status === 'done') return 'succeeded';
-  if (status === 'failed' || status === 'error') return 'failed';
-  if (status === 'skipped') return 'skipped';
-  if (status === 'cancelled' || status === 'canceled') return 'cancelled';
-  return 'pending';
-}
-
-function normalizeProgressEvent(value: unknown, index: number): MissionProgressEvent | null {
-  if (!isRecord(value)) return null;
-  const label = typeof value.label === 'string' && value.label.trim()
-    ? value.label
-    : null;
-  if (!label) return null;
-  const detail = typeof value.detail === 'string' && value.detail.trim() ? value.detail : null;
-  return {
-    id: typeof value.id === 'string' && value.id.trim() ? value.id : `progress-${index}`,
-    label,
-    status: normalizeProgressStatus(value.status),
-    phase: typeof value.phase === 'string' ? value.phase : undefined,
-    detail,
-    waypoint_index: typeof value.waypoint_index === 'number' ? value.waypoint_index : undefined,
-    waypoint_name: typeof value.waypoint_name === 'string' ? value.waypoint_name : undefined,
-    room_slug: typeof value.room_slug === 'string' ? value.room_slug : null,
-    media_type: typeof value.media_type === 'string' ? value.media_type : undefined,
-    started_at_utc: typeof value.started_at_utc === 'string' ? value.started_at_utc : undefined,
-    completed_at_utc: typeof value.completed_at_utc === 'string' ? value.completed_at_utc : undefined,
-    updated_at_utc: typeof value.updated_at_utc === 'string' ? value.updated_at_utc : undefined,
-  };
-}
-
-function taskQueuedStatus(mission: ApiRobotMission): MissionProgressStatus {
-  if (mission.status === 'queued' || mission.status === 'dispatched') return 'running';
-  if (mission.status === 'cancelled') return 'cancelled';
-  return 'succeeded';
-}
-
-function fallbackProgressEvents(mission: ApiRobotMission): MissionProgressEvent[] {
-  const events: MissionProgressEvent[] = [];
-  if (mission.started_at) {
-    events.push({
-      id: 'task:started',
-      label: 'Task started',
-      status: mission.status === 'running' ? 'succeeded' : normalizeProgressStatus(mission.status),
-      started_at_utc: mission.started_at,
-      completed_at_utc: mission.started_at,
-    });
-  }
-  mission.steps.forEach((step) => {
-    events.push({
-      id: `step:${step.id}`,
-      label: `Going to ${step.waypoint_name}`,
-      status: normalizeProgressStatus(step.status),
-      detail: step.error_message ?? step.navigation_result ?? null,
-      waypoint_index: step.sequence_index,
-      waypoint_name: step.waypoint_name,
-      room_slug: step.room_slug,
-      started_at_utc: step.started_at ?? undefined,
-      completed_at_utc: step.completed_at ?? undefined,
-    });
-  });
-  if (mission.completed_at) {
-    events.push({
-      id: mission.status === 'failed' ? 'task:failed' : 'task:completed',
-      label: mission.status === 'failed' ? 'Task failed' : 'Task completed',
-      status: normalizeProgressStatus(mission.status),
-      detail: missionFailureMessage(mission),
-      completed_at_utc: mission.completed_at,
-    });
-  }
-  return events;
-}
-
-function missionProgressEvents(mission: ApiRobotMission): MissionProgressEvent[] {
-  const queuedEvent: MissionProgressEvent = {
-    id: 'task:queued',
-    label: 'Task queued',
-    status: taskQueuedStatus(mission),
-    started_at_utc: mission.created_at,
-    completed_at_utc: mission.status === 'queued' || mission.status === 'dispatched' ? undefined : mission.created_at,
-  };
-  const rawEvents = mission.result?.['progress_events'];
-  const progressEvents = Array.isArray(rawEvents)
-    ? rawEvents
-      .map((event, index) => normalizeProgressEvent(event, index))
-      .filter((event): event is MissionProgressEvent => Boolean(event))
-    : [];
-  return [queuedEvent, ...(progressEvents.length > 0 ? progressEvents : fallbackProgressEvents(mission))];
-}
-
-function formatProgressTime(event: MissionProgressEvent): string | null {
-  const value = event.completed_at_utc ?? event.updated_at_utc ?? event.started_at_utc;
-  if (!value) return null;
-  return new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-}
-
-function progressBadgeLabel(status: MissionProgressStatus): string | null {
-  if (status === 'succeeded') return null;
-  return PROGRESS_STATUS_LABELS[status];
-}
-
-function MissionProgressTimeline({ mission }: { mission: ApiRobotMission }) {
-  const events = missionProgressEvents(mission);
-  const latestEvent = events[events.length - 1];
-  const latestBadgeLabel = latestEvent ? progressBadgeLabel(latestEvent.status) : null;
-  const [open, setOpen] = useState(() => isActiveMissionStatus(mission.status));
-  return (
-    <div className="mt-4 rounded-2xl border border-base-800 bg-base-950/45">
-      <button
-        type="button"
-        onClick={() => setOpen((current) => !current)}
-        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-base-900/60"
-        aria-expanded={open}
-      >
-        <div className="min-w-0">
-          <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-400">Progress</p>
-          {latestEvent ? (
-            <p className={`mt-1 truncate text-[13px] ${PROGRESS_TEXT_STYLES[latestEvent.status]}`}>
-              {latestEvent.label}
-            </p>
-          ) : null}
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {latestEvent && latestBadgeLabel ? (
-            <span className={`rounded-full border px-2 py-0.5 font-mono text-[10px] uppercase ${PROGRESS_BADGE_STYLES[latestEvent.status]}`}>
-              {latestBadgeLabel}
-            </span>
-          ) : null}
-          <ChevronDown
-            size={15}
-            className={`text-ink-400 transition-transform ${open ? 'rotate-180' : ''}`}
-          />
-        </div>
-      </button>
-      {open ? (
-        <ol className="border-t border-base-800 px-4 py-4">
-          {events.map((event, index) => {
-            const time = formatProgressTime(event);
-            const isLast = index === events.length - 1;
-            const badgeLabel = progressBadgeLabel(event.status);
-            const muted = event.status === 'pending' || event.status === 'skipped' || event.status === 'cancelled';
-            return (
-              <li key={`${event.id}-${index}`} className={`relative flex gap-3 ${muted ? 'opacity-50' : ''} ${isLast ? '' : 'pb-4'}`}>
-                {!isLast ? (
-                  <span className="absolute left-[7px] top-4 h-full w-px bg-base-800" />
-                ) : null}
-                <span className={`relative mt-1 h-3.5 w-3.5 shrink-0 rounded-full border-2 ${PROGRESS_DOT_STYLES[event.status]}`}>
-                  {event.status === 'running' ? (
-                    <span className="absolute -inset-1 rounded-full bg-amber-400/25 animate-ping" />
-                  ) : null}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className={`min-w-0 text-[13px] ${PROGRESS_TEXT_STYLES[event.status]}`}>{event.label}</p>
-                    {badgeLabel ? (
-                      <span className={`rounded-full border px-2 py-0.5 font-mono text-[10px] uppercase ${PROGRESS_BADGE_STYLES[event.status]}`}>
-                        {badgeLabel}
-                      </span>
-                    ) : null}
-                  </div>
-                  {(event.detail || time) ? (
-                    <div className={`mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] ${PROGRESS_DETAIL_STYLES[event.status]}`}>
-                      {event.detail ? <span className="min-w-0 break-words">{event.detail}</span> : null}
-                      {time ? <span className="font-mono">{time}</span> : null}
-                    </div>
-                  ) : null}
-                </div>
-              </li>
-            );
-          })}
-        </ol>
-      ) : null}
-    </div>
-  );
-}
-
-function normalizedToMapPose(robotMap: ApiRobotMap, marker: { x: number; y: number }): { x: number; y: number } {
-  const pixelX = marker.x * robotMap.width;
-  const pixelY = marker.y * robotMap.height;
-  const localX = pixelX * robotMap.resolution;
-  const localY = (robotMap.height - pixelY) * robotMap.resolution;
-  const cos = Math.cos(robotMap.origin_yaw);
-  const sin = Math.sin(robotMap.origin_yaw);
-  return {
-    x: robotMap.origin_x + localX * cos - localY * sin,
-    y: robotMap.origin_y + localX * sin + localY * cos,
-  };
-}
-
-function mapPoseToNormalized(robotMap: ApiRobotMap, pose: { x: number; y: number; yaw?: number | null }): MapMarker {
-  const dx = pose.x - robotMap.origin_x;
-  const dy = pose.y - robotMap.origin_y;
-  const cos = Math.cos(robotMap.origin_yaw);
-  const sin = Math.sin(robotMap.origin_yaw);
-  const localX = dx * cos + dy * sin;
-  const localY = -dx * sin + dy * cos;
-  const pixelX = localX / robotMap.resolution;
-  const pixelY = robotMap.height - localY / robotMap.resolution;
-  return {
-    x: pixelX / robotMap.width,
-    y: pixelY / robotMap.height,
-    yaw: pose.yaw === null || pose.yaw === undefined ? null : pose.yaw - robotMap.origin_yaw,
-  };
-}
-
-function visibleMarker(marker: MapMarker | null): marker is MapMarker {
-  return Boolean(marker && marker.x >= 0 && marker.x <= 1 && marker.y >= 0 && marker.y <= 1);
-}
-
-function parseUtcTimestamp(value: string | null | undefined): number | null {
-  if (!value) return null;
-  const normalized = /(?:z|[+-]\d{2}:?\d{2})$/i.test(value) ? value : `${value}Z`;
-  const timestamp = new Date(normalized).getTime();
-  return Number.isFinite(timestamp) ? timestamp : null;
-}
-
-function timestampAgeSeconds(value: string | null | undefined, nowMs: number): number | null {
-  const timestamp = parseUtcTimestamp(value);
-  if (timestamp === null) return null;
-  return Math.max(0, (nowMs - timestamp) / 1000);
-}
-
-function formatTelemetryAge(ageSeconds: number | null): string {
-  if (ageSeconds === null) return 'No update';
-  if (ageSeconds < 1) return 'Just now';
-  if (ageSeconds < 60) return `${Math.round(ageSeconds)}s ago`;
-  return `${Math.round(ageSeconds / 60)}m ago`;
-}
-
-function telemetryTimestampMs(telemetry: ApiRobotTelemetry): number | null {
-  return parseUtcTimestamp(telemetry.received_at_utc ?? telemetry.reported_at_utc);
-}
-
-function radiansToDegrees(value: number): number {
-  return Math.round((value * 180) / Math.PI);
-}
-
-export default function RobotMissionsPage() {
-  const [robots, setRobots] = useState<ApiRobotSummary[]>([]);
+export default function RobotPage() {
+  const { robots, missions, activeMission, loading, refresh } = useRobotMissions();
   const [projects, setProjects] = useState<ApiProject[]>([]);
+  const [projectSlug, setProjectSlug] = useState('');
+  const [robotId, setRobotId] = useState('');
+  const [tab, setTab] = useState<TabId>('route');
   const [capturePoints, setCapturePoints] = useState<ApiRobotCapturePoint[]>([]);
   const [robotMap, setRobotMap] = useState<ApiRobotMap | null>(null);
-  const [robotMapError, setRobotMapError] = useState<string | null>(null);
-  const [missions, setMissions] = useState<ApiRobotMission[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [submitting, startSubmit] = useTransition();
-  const [pendingAction, setPendingAction] = useState<{ type: 'cancel' | 'delete'; mission: ApiRobotMission } | null>(null);
-  const mapDragRef = useRef<{ pointerId: number; startX: number; startY: number; panX: number; panY: number; moved: boolean } | null>(null);
-  const captureOutputMenuRef = useRef<HTMLDivElement>(null);
-  const telemetryCanvasRef = useRef<HTMLCanvasElement>(null);
-  const telemetryCanvasFrameRef = useRef<number | null>(null);
-  const latestTelemetryRef = useRef<ApiRobotTelemetry | null>(null);
-  const latestTelemetryTimestampRef = useRef<number | null>(null);
-  const handleTelemetrySnapshotRef = useRef<(telemetry: ApiRobotTelemetry) => void>(() => undefined);
-  const telemetryTrailRef = useRef<TelemetryTrailPoint[]>([]);
-
-  const [robotId, setRobotId] = useState('');
-  const [projectSlug, setProjectSlug] = useState('');
-  const [selectedCapturePointIds, setSelectedCapturePointIds] = useState<string[]>([]);
-  const [mapModalOpen, setMapModalOpen] = useState(false);
-  const [mapZoom, setMapZoom] = useState(1);
-  const [mapPan, setMapPan] = useState({ x: 0, y: 0 });
-  const [addingCapturePoint, setAddingCapturePoint] = useState(false);
-  const [newPointName, setNewPointName] = useState('');
-  const [newPointMapX, setNewPointMapX] = useState('');
-  const [newPointMapY, setNewPointMapY] = useState('');
-  const [newPointYaw, setNewPointYaw] = useState('0');
-  const [newPointMapMarker, setNewPointMapMarker] = useState<{ x: number; y: number } | null>(null);
-  const [newPointFacingMarker, setNewPointFacingMarker] = useState<{ x: number; y: number } | null>(null);
-  const [newPointYawLocked, setNewPointYawLocked] = useState(false);
-  const [capturePointPickerId, setCapturePointPickerId] = useState('');
-  const [renamingCapturePoint, setRenamingCapturePoint] = useState<ApiRobotCapturePoint | null>(null);
-  const [renameCapturePointName, setRenameCapturePointName] = useState('');
-  const [savingCapturePointRename, setSavingCapturePointRename] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [captureOutputs, setCaptureOutputs] = useState<CaptureOutput[]>(['image']);
-  const [captureOutputMenuOpen, setCaptureOutputMenuOpen] = useState(false);
-  const [robotMapYamlFile, setRobotMapYamlFile] = useState<File | null>(null);
-  const [robotMapImageFile, setRobotMapImageFile] = useState<File | null>(null);
-  const [uploadingRobotMap, setUploadingRobotMap] = useState(false);
   const [continueOnFailure, setContinueOnFailure] = useState(false);
-  const [robotTelemetry, setRobotTelemetry] = useState<ApiRobotTelemetry | null>(null);
-  const [robotTelemetryError, setRobotTelemetryError] = useState<string | null>(null);
-  const [telemetryTrail, setTelemetryTrail] = useState<TelemetryTrailPoint[]>([]);
-  const [telemetryNow, setTelemetryNow] = useState(() => Date.now());
+  const [starting, startCapture] = useTransition();
+  const [pending, setPending] = useState<{ type: 'cancel' | 'delete'; mission: ApiRobotMission } | null>(null);
 
-  /* Projects cannot change while this page is open, so they load once instead of on every poll. */
-  const loadProjects = useCallback(async () => {
-    const projectsData = await listProjects();
-    setProjects(projectsData);
-    setProjectSlug((current) => current || projectsData[0]?.slug || '');
-  }, []);
-
-  const refresh = useCallback(async (options?: { partial?: boolean }) => {
-    const partial = options?.partial ?? false;
-    const [robotsData, missionsData] = await Promise.all([
-      listRobots(),
-      listRobotMissions({ limit: partial ? ACTIVE_MISSION_POLL_LIMIT : MISSION_LIST_LIMIT }),
-    ]);
-    setRobots(robotsData);
-    setMissions((current) => (partial ? mergeMissions(current, missionsData) : missionsData));
-    setRobotId((current) => current || robotsData[0]?.username || '');
-  }, []);
+  // Live position only connects while its tab is on screen — most sessions never open it.
+  const telemetry = useRobotTelemetry(robotId, tab === 'live');
 
   useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    Promise.all([loadProjects(), refresh()])
-      .catch((err) => {
-        if (!cancelled) toast.error(err instanceof Error ? err.message : 'Failed to load robot tasks');
+    listProjects()
+      .then((data) => {
+        setProjects(data);
+        setProjectSlug((current) => current || data[0]?.slug || '');
       })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [loadProjects, refresh]);
-
-  const hasActiveMission = useMemo(
-    () => missions.some((mission) => isActiveMissionStatus(mission.status)),
-    [missions],
-  );
-
-  /* Poll fast enough for a running capture to feel live, back off hard when idle, and stop
-   * entirely in a background tab. Mission steps are the trusted progress source, not telemetry. */
-  useEffect(() => {
-    let timer: number | null = null;
-
-    const stop = () => {
-      if (timer === null) return;
-      window.clearInterval(timer);
-      timer = null;
-    };
-    const start = () => {
-      if (timer !== null) return;
-      timer = window.setInterval(() => {
-        refresh({ partial: hasActiveMission }).catch(() => undefined);
-      }, hasActiveMission ? ACTIVE_POLL_MS : IDLE_POLL_MS);
-    };
-    const onVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        stop();
-        return;
-      }
-      // The view can be a whole interval stale on return, so catch up before resuming the cadence.
-      refresh().catch(() => undefined);
-      start();
-    };
-
-    if (document.visibilityState === 'visible') start();
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    return () => {
-      stop();
-      document.removeEventListener('visibilitychange', onVisibilityChange);
-    };
-  }, [hasActiveMission, refresh]);
-
-  useEffect(() => {
-    if (!captureOutputMenuOpen) return undefined;
-    const onPointerDown = (event: globalThis.PointerEvent) => {
-      if (captureOutputMenuRef.current && !captureOutputMenuRef.current.contains(event.target as Node)) {
-        setCaptureOutputMenuOpen(false);
-      }
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setCaptureOutputMenuOpen(false);
-    };
-    document.addEventListener('pointerdown', onPointerDown);
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown);
-      document.removeEventListener('keydown', onKeyDown);
-    };
-  }, [captureOutputMenuOpen]);
-
-  const drawTelemetryCanvas = useCallback(() => {
-    const canvas = telemetryCanvasRef.current;
-    if (!canvas) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const width = Math.max(1, rect.width);
-    const height = Math.max(1, rect.height);
-    const dpr = window.devicePixelRatio || 1;
-    const pixelWidth = Math.round(width * dpr);
-    const pixelHeight = Math.round(height * dpr);
-    if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
-      canvas.width = pixelWidth;
-      canvas.height = pixelHeight;
-    }
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, width, height);
-
-    const telemetry = latestTelemetryRef.current;
-    if (!robotMap || !telemetry) return;
-
-    const toCanvas = (marker: MapMarker) => ({
-      x: marker.x * width,
-      y: marker.y * height,
-    });
-    const drawPolyline = (markers: MapMarker[], stroke: string, lineWidth: number, alpha: number) => {
-      const visible = markers.filter(visibleMarker);
-      if (visible.length < 2) return;
-      ctx.save();
-      ctx.globalAlpha = alpha;
-      ctx.strokeStyle = stroke;
-      ctx.lineWidth = lineWidth;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctx.beginPath();
-      visible.forEach((marker, index) => {
-        const point = toCanvas(marker);
-        if (index === 0) ctx.moveTo(point.x, point.y);
-        else ctx.lineTo(point.x, point.y);
-      });
-      ctx.stroke();
-      ctx.restore();
-    };
-
-    drawPolyline(
-      telemetry.global_path.map((point) => mapPoseToNormalized(robotMap, point)),
-      'rgb(34 211 238)',
-      2,
-      0.75,
-    );
-    drawPolyline(
-      telemetry.local_path.map((point) => mapPoseToNormalized(robotMap, point)),
-      'rgb(251 191 36)',
-      2.5,
-      0.88,
-    );
-    drawPolyline(
-      telemetryTrailRef.current.map((point) => mapPoseToNormalized(robotMap, point)),
-      'rgb(255 255 255)',
-      1.6,
-      0.78,
-    );
-
-    if (telemetry.goal) {
-      const goal = mapPoseToNormalized(robotMap, telemetry.goal);
-      if (visibleMarker(goal)) {
-        const point = toCanvas(goal);
-        ctx.save();
-        ctx.shadowColor = 'rgba(34, 211, 238, 0.35)';
-        ctx.shadowBlur = 12;
-        ctx.fillStyle = 'rgba(34, 211, 238, 0.18)';
-        ctx.strokeStyle = 'rgb(165 243 252)';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(point.x, point.y, 10, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-        ctx.restore();
-      }
-    }
-
-    const robot = mapPoseToNormalized(robotMap, telemetry.pose);
-    if (!visibleMarker(robot)) return;
-
-    const robotPoint = toCanvas(robot);
-    const age = timestampAgeSeconds(telemetry.received_at_utc ?? telemetry.reported_at_utc, Date.now());
-    const fresh = age !== null && age <= TELEMETRY_STALE_SECONDS;
-    ctx.save();
-    ctx.translate(robotPoint.x, robotPoint.y);
-    ctx.rotate(-(robot.yaw ?? 0));
-    ctx.shadowColor = fresh ? 'rgba(251, 191, 36, 0.45)' : 'rgba(0, 0, 0, 0.45)';
-    ctx.shadowBlur = 16;
-    ctx.fillStyle = 'rgba(2, 6, 23, 0.94)';
-    ctx.strokeStyle = fresh ? 'rgb(252 211 77)' : 'rgb(100 116 139)';
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.arc(0, 0, 14, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = fresh ? 'rgb(252 211 77)' : 'rgb(148 163 184)';
-    ctx.beginPath();
-    ctx.moveTo(11, 0);
-    ctx.lineTo(-5, -7);
-    ctx.lineTo(-5, 7);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.fillStyle = 'rgb(255 255 255)';
-    ctx.beginPath();
-    ctx.arc(0, 0, 3, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-  }, [robotMap]);
-
-  const scheduleTelemetryCanvasDraw = useCallback(() => {
-    if (telemetryCanvasFrameRef.current !== null) return;
-    telemetryCanvasFrameRef.current = window.requestAnimationFrame(() => {
-      telemetryCanvasFrameRef.current = null;
-      drawTelemetryCanvas();
-    });
-  }, [drawTelemetryCanvas]);
-
-  const handleTelemetrySnapshot = useCallback((telemetry: ApiRobotTelemetry) => {
-    const incomingTimestamp = telemetryTimestampMs(telemetry);
-    const latestTimestamp = latestTelemetryTimestampRef.current;
-    if (incomingTimestamp !== null && latestTimestamp !== null && incomingTimestamp <= latestTimestamp) return;
-    if (incomingTimestamp !== null) latestTelemetryTimestampRef.current = incomingTimestamp;
-
-    latestTelemetryRef.current = telemetry;
-    setTelemetryNow(Date.now());
-    setRobotTelemetry(telemetry);
-    setRobotTelemetryError(null);
-    const receivedAt = telemetry.received_at_utc || telemetry.reported_at_utc || `${telemetry.pose.x}:${telemetry.pose.y}`;
-    setTelemetryTrail((current) => {
-      const previous = current[current.length - 1];
-      if (previous?.received_at_utc === receivedAt) return current;
-      const next = [
-        ...current,
-        {
-          ...telemetry.pose,
-          yaw: telemetry.pose.yaw ?? null,
-          received_at_utc: receivedAt,
-        },
-      ];
-      const trimmed = next.slice(-TELEMETRY_TRAIL_LIMIT);
-      telemetryTrailRef.current = trimmed;
-      return trimmed;
-    });
-    scheduleTelemetryCanvasDraw();
-  }, [scheduleTelemetryCanvasDraw]);
-  handleTelemetrySnapshotRef.current = handleTelemetrySnapshot;
-
-  useEffect(() => {
-    scheduleTelemetryCanvasDraw();
-  }, [scheduleTelemetryCanvasDraw, telemetryNow]);
-
-  useEffect(() => {
-    return () => {
-      if (telemetryCanvasFrameRef.current !== null) {
-        window.cancelAnimationFrame(telemetryCanvasFrameRef.current);
-      }
-    };
+      .catch((err) => toast.error(err instanceof Error ? err.message : 'Could not load projects'));
   }, []);
 
   useEffect(() => {
-    const timer = window.setInterval(() => {
-      setTelemetryNow(Date.now());
-    }, 1000);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    latestTelemetryRef.current = null;
-    latestTelemetryTimestampRef.current = null;
-    telemetryTrailRef.current = [];
-    setRobotTelemetry(null);
-    setRobotTelemetryError(null);
-    setTelemetryTrail([]);
-    scheduleTelemetryCanvasDraw();
-  }, [projectSlug, robotId, scheduleTelemetryCanvasDraw]);
-
-  useEffect(() => {
-    if (!robotId) {
-      setRobotTelemetry(null);
-      setRobotTelemetryError(null);
-      setTelemetryTrail([]);
-      return undefined;
-    }
-
-    let cancelled = false;
-    let fallbackTimer: number | null = null;
-    let streamStarted = false;
-    let socket: WebSocket | null = null;
-    let telemetryRequestInFlight = false;
-    const controller = new AbortController();
-    const loadTelemetry = async () => {
-      if (telemetryRequestInFlight) return;
-      telemetryRequestInFlight = true;
-      setTelemetryNow(Date.now());
-      try {
-        const telemetry = await getRobotTelemetry(robotId);
-        if (cancelled) return;
-        handleTelemetrySnapshotRef.current(telemetry);
-      } catch (err) {
-        if (!cancelled) {
-          setRobotTelemetryError(err instanceof Error ? err.message : 'Live telemetry unavailable');
-        }
-      } finally {
-        telemetryRequestInFlight = false;
-      }
-    };
-
-    const startFallbackTelemetry = (message: string) => {
-      if (fallbackTimer !== null) return;
-      setRobotTelemetryError(message);
-      loadTelemetry().catch(() => undefined);
-      fallbackTimer = window.setInterval(() => {
-        loadTelemetry().catch(() => undefined);
-      }, 500);
-    };
-
-    const startStreamTelemetry = (message: string) => {
-      if (streamStarted) return;
-      streamStarted = true;
-      setRobotTelemetryError(message);
-      streamRobotTelemetry(robotId, (telemetry) => {
-        if (!cancelled) handleTelemetrySnapshotRef.current(telemetry);
-      }, controller.signal).then(() => {
-        if (!cancelled) startFallbackTelemetry('Telemetry stream closed; using backup refresh');
-      }).catch((err) => {
-        if (cancelled || controller.signal.aborted) return;
-        startFallbackTelemetry(err instanceof Error ? `Telemetry stream unavailable: ${err.message}` : 'Telemetry stream unavailable');
-      });
-    };
-
-    try {
-      socket = openRobotTelemetryWebSocket(robotId, (telemetry) => {
-        if (!cancelled) handleTelemetrySnapshotRef.current(telemetry);
-      }, {
-        onOpen: () => {
-          if (!cancelled) setRobotTelemetryError(null);
-        },
-        onError: () => {
-          if (!cancelled) setRobotTelemetryError('Telemetry WebSocket error; waiting for reconnect or fallback');
-        },
-        onClose: (event) => {
-          if (cancelled) return;
-          startStreamTelemetry(`Telemetry WebSocket closed (${event.code}); using stream fallback`);
-        },
-      });
-    } catch (err) {
-      startStreamTelemetry(err instanceof Error ? `Telemetry WebSocket unavailable: ${err.message}` : 'Telemetry WebSocket unavailable');
-    }
-
-    return () => {
-      cancelled = true;
-      if (socket) socket.close();
-      controller.abort();
-      if (fallbackTimer !== null) window.clearInterval(fallbackTimer);
-    };
-  }, [robotId]);
+    setRobotId((current) => current || robots[0]?.username || '');
+  }, [robots]);
 
   const selectedProject = useMemo(
     () => projects.find((project) => project.slug === projectSlug) ?? null,
     [projectSlug, projects],
   );
-  const selectedProjectId = selectedProject?.id ?? null;
-  const selectedCapturePoints = useMemo(
-    () => selectedCapturePointIds
-      .map((id) => capturePoints.find((point) => point.id === id))
-      .filter((point): point is ApiRobotCapturePoint => Boolean(point)),
-    [capturePoints, selectedCapturePointIds],
-  );
-  const availableCapturePoints = useMemo(
-    () => capturePoints.filter((point) => !selectedCapturePointIds.includes(point.id)),
-    [capturePoints, selectedCapturePointIds],
-  );
-  const pendingMission = pendingAction?.mission ?? null;
-  const pendingActionType = pendingAction?.type ?? null;
-  const telemetryAge = robotTelemetry
-    ? timestampAgeSeconds(robotTelemetry.received_at_utc ?? robotTelemetry.reported_at_utc, telemetryNow)
-    : null;
-  const telemetryFresh = telemetryAge !== null && telemetryAge <= TELEMETRY_STALE_SECONDS;
-  const telemetryStatus = robotTelemetry ? (telemetryFresh ? 'Live' : 'Stale') : 'Waiting';
-  const telemetryStatusStyle = robotTelemetry
-    ? telemetryFresh
-      ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
-      : 'border-amber-500/30 bg-amber-500/10 text-amber-200'
-    : 'border-base-800 bg-base-950 text-ink-400';
-  const liveRobotMarker = useMemo(
-    () => (robotMap && robotTelemetry ? mapPoseToNormalized(robotMap, robotTelemetry.pose) : null),
-    [robotMap, robotTelemetry],
-  );
+  const projectId = selectedProject?.id ?? null;
 
-  const refreshCapturePoints = useCallback(async (projectId: string) => {
-    const points = await listRobotCapturePoints(projectId);
-    setCapturePoints(points);
-    setSelectedCapturePointIds((current) => current.filter((id) => points.some((point) => point.id === id)));
-  }, []);
+  const loadCapturePoints = useCallback(() => {
+    if (!projectId) return;
+    listRobotCapturePoints(projectId)
+      .then((points) => {
+        setCapturePoints(points);
+        setSelectedIds((current) => current.filter((id) => points.some((point) => point.id === id)));
+      })
+      .catch((err) => toast.error(err instanceof Error ? err.message : 'Could not load capture points'));
+  }, [projectId]);
 
   useEffect(() => {
-    if (!selectedProjectId) {
+    if (!projectId) {
       setCapturePoints([]);
-      setSelectedCapturePointIds([]);
+      setSelectedIds([]);
       setRobotMap(null);
-      setAddingCapturePoint(false);
       return;
     }
-    refreshCapturePoints(selectedProjectId).catch((err) => {
-      toast.error(err instanceof Error ? err.message : 'Failed to load capture points');
-    });
-    getRobotMap(selectedProjectId)
-      .then((map) => {
-        setRobotMap(map);
-        setRobotMapError(null);
-      })
-      .catch((err) => {
-        setRobotMap(null);
-        setRobotMapError(err instanceof Error ? err.message : 'Robot map is not available');
-      });
-  }, [refreshCapturePoints, selectedProjectId]);
+    loadCapturePoints();
+    getRobotMap(projectId)
+      .then(setRobotMap)
+      .catch(() => setRobotMap(null));
+  }, [loadCapturePoints, projectId]);
 
-  const handleUploadRobotMap = useCallback(() => {
-    if (!selectedProject) {
-      toast.error('Select a project first');
-      return;
-    }
-    if (!robotMapYamlFile || !robotMapImageFile) {
-      toast.error('Choose both the map YAML and map image');
-      return;
-    }
-    setUploadingRobotMap(true);
-    uploadRobotMap(selectedProject.id, robotMapYamlFile, robotMapImageFile)
-      .then((map) => {
-        setRobotMap(map);
-        setRobotMapError(null);
-        setRobotMapYamlFile(null);
-        setRobotMapImageFile(null);
-        toast.success('Robot map uploaded');
-      })
-      .catch((err) => {
-        toast.error(err instanceof Error ? err.message : 'Failed to upload robot map');
-      })
-      .finally(() => setUploadingRobotMap(false));
-  }, [robotMapImageFile, robotMapYamlFile, selectedProject]);
+  /* A capture that belongs to another robot or project should not drive this view. */
+  const currentMission = useMemo(() => {
+    if (!activeMission) return null;
+    if (robotId && activeMission.robot_id !== robotId) return null;
+    if (projectSlug && activeMission.project_slug !== projectSlug) return null;
+    return activeMission;
+  }, [activeMission, projectSlug, robotId]);
 
-  const handleCancelCapturePoint = useCallback(() => {
-    setAddingCapturePoint(false);
-    setNewPointName('');
-    setNewPointMapX('');
-    setNewPointMapY('');
-    setNewPointYaw('0');
-    setNewPointMapMarker(null);
-    setNewPointFacingMarker(null);
-    setNewPointYawLocked(false);
-  }, []);
+  const visibleMissions = useMemo(
+    () => missions.filter((mission) => (
+      (!projectSlug || mission.project_slug === projectSlug)
+      && (!robotId || mission.robot_id === robotId)
+    )),
+    [missions, projectSlug, robotId],
+  );
 
-  const resetMapView = useCallback(() => {
-    setMapZoom(1);
-    setMapPan({ x: 0, y: 0 });
-  }, []);
-
-  const openMapModal = useCallback(() => {
-    setMapModalOpen(true);
-    resetMapView();
-  }, [resetMapView]);
-
-  const closeMapModal = useCallback(() => {
-    if (addingCapturePoint) handleCancelCapturePoint();
-    setMapModalOpen(false);
-  }, [addingCapturePoint, handleCancelCapturePoint]);
-
-  const beginAddCapturePoint = useCallback(() => {
-    if (!robotMap) {
-      toast.error('Upload a robot map before adding capture points');
-      return;
-    }
-    setAddingCapturePoint(true);
-    setNewPointName('');
-    setNewPointMapX('');
-    setNewPointMapY('');
-    setNewPointYaw('0');
-    setNewPointMapMarker(null);
-    setNewPointFacingMarker(null);
-    setNewPointYawLocked(false);
-    setMapModalOpen(true);
-    resetMapView();
-  }, [resetMapView, robotMap]);
-
-  const handleMapZoomIn = useCallback(() => {
-    setMapZoom((current) => Math.min(5, Number((current + 0.25).toFixed(2))));
-  }, []);
-
-  const handleMapZoomOut = useCallback(() => {
-    setMapZoom((current) => Math.max(0.5, Number((current - 0.25).toFixed(2))));
-  }, []);
-
-  const handleMapWheel = useCallback((event: WheelEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    const direction = event.deltaY > 0 ? -1 : 1;
-    setMapZoom((current) => {
-      const next = current + direction * 0.15;
-      return Math.min(5, Math.max(0.5, Number(next.toFixed(2))));
-    });
-  }, []);
-
-  const getMapMarkerFromElement = useCallback((element: HTMLDivElement, clientX: number, clientY: number) => {
-    const rect = element.getBoundingClientRect();
-    return {
-      x: Math.min(1, Math.max(0, (clientX - rect.left) / rect.width)),
-      y: Math.min(1, Math.max(0, (clientY - rect.top) / rect.height)),
-    };
-  }, []);
-
-  const getMapMarkerFromEvent = useCallback((event: MouseEvent<HTMLDivElement>) => {
-    return getMapMarkerFromElement(event.currentTarget, event.clientX, event.clientY);
-  }, [getMapMarkerFromElement]);
-
-  const setNewPointPoseFromMarkers = useCallback((position: { x: number; y: number }, facing?: { x: number; y: number } | null, lockYaw = false) => {
-    if (!robotMap) return;
-    const mapPosition = normalizedToMapPose(robotMap, position);
-    setNewPointMapMarker(position);
-    setNewPointMapX(mapPosition.x.toFixed(3));
-    setNewPointMapY(mapPosition.y.toFixed(3));
-
-    if (facing) {
-      const mapFacing = normalizedToMapPose(robotMap, facing);
-      const yaw = Math.atan2(mapFacing.y - mapPosition.y, mapFacing.x - mapPosition.x);
-      setNewPointFacingMarker(facing);
-      setNewPointYaw(yaw.toFixed(4));
-      if (lockYaw) setNewPointYawLocked(true);
-    }
-  }, [robotMap]);
-
-  const handleRobotMapMouseMove = useCallback((event: MouseEvent<HTMLDivElement>) => {
-    if (!robotMap || !addingCapturePoint || !newPointMapMarker || newPointYawLocked) return;
-    if (mapDragRef.current?.moved) return;
-    setNewPointPoseFromMarkers(newPointMapMarker, getMapMarkerFromEvent(event));
-  }, [addingCapturePoint, getMapMarkerFromEvent, newPointMapMarker, newPointYawLocked, robotMap, setNewPointPoseFromMarkers]);
-
-  const handleMapSelectionClick = useCallback((event: MouseEvent<HTMLDivElement>) => {
-    if (!addingCapturePoint || !robotMap) return;
-    const marker = getMapMarkerFromEvent(event);
-    if (!newPointMapMarker) {
-      setNewPointPoseFromMarkers(marker, null);
-      setNewPointYawLocked(false);
-      return;
-    }
-    setNewPointPoseFromMarkers(newPointMapMarker, marker, true);
-  }, [addingCapturePoint, getMapMarkerFromEvent, newPointMapMarker, robotMap, setNewPointPoseFromMarkers]);
-
-  const handleMapPointerDown = useCallback((event: PointerEvent<HTMLDivElement>) => {
-    if (addingCapturePoint) {
-      mapDragRef.current = {
-        pointerId: event.pointerId,
-        startX: event.clientX,
-        startY: event.clientY,
-        panX: mapPan.x,
-        panY: mapPan.y,
-        moved: false,
-      };
-      event.currentTarget.setPointerCapture(event.pointerId);
-      return;
-    }
-    mapDragRef.current = {
-      pointerId: event.pointerId,
-      startX: event.clientX,
-      startY: event.clientY,
-      panX: mapPan.x,
-      panY: mapPan.y,
-      moved: false,
-    };
-    event.currentTarget.setPointerCapture(event.pointerId);
-  }, [addingCapturePoint, mapPan.x, mapPan.y]);
-
-  const handleMapPointerMove = useCallback((event: PointerEvent<HTMLDivElement>) => {
-    const drag = mapDragRef.current;
-    if (!drag || drag.pointerId !== event.pointerId) return;
-    const dx = event.clientX - drag.startX;
-    const dy = event.clientY - drag.startY;
-    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) drag.moved = true;
-    if (addingCapturePoint) return;
-    setMapPan({ x: drag.panX + dx, y: drag.panY + dy });
-  }, [addingCapturePoint]);
-
-  const handleMapPointerUp = useCallback((event: PointerEvent<HTMLDivElement>) => {
-    const drag = mapDragRef.current;
-    if (drag?.pointerId === event.pointerId) {
-      if (addingCapturePoint && robotMap) {
-        const marker = getMapMarkerFromElement(event.currentTarget, event.clientX, event.clientY);
-        if (!newPointMapMarker) {
-          setNewPointPoseFromMarkers(marker, null);
-          setNewPointYawLocked(false);
-        } else {
-          setNewPointPoseFromMarkers(newPointMapMarker, marker, true);
-        }
-      }
-      window.setTimeout(() => {
-        mapDragRef.current = null;
-      }, 0);
-    }
-  }, [addingCapturePoint, getMapMarkerFromElement, newPointMapMarker, robotMap, setNewPointPoseFromMarkers]);
-
-  const handleCreateCapturePoint = useCallback(() => {
-    if (!selectedProject) {
-      toast.error('Select a project first');
-      return;
-    }
-    const mapX = Number(newPointMapX);
-    const mapY = Number(newPointMapY);
-    const yaw = Number(newPointYaw || 0);
-    if (!newPointName.trim()) {
-      toast.error('Name the capture point');
-      return;
-    }
-    if (!newPointMapMarker || !newPointFacingMarker || !newPointYawLocked) {
-      toast.error('Place the point and choose its facing direction on the map');
-      return;
-    }
-    if (!Number.isFinite(mapX) || !Number.isFinite(mapY) || !Number.isFinite(yaw)) {
-      toast.error('Capture point pose could not be read');
-      return;
-    }
-    createRobotCapturePoint(selectedProject.id, {
-      name: newPointName.trim(),
-      room_slug: null,
-      map_x: mapX,
-      map_y: mapY,
-      yaw,
-      floorplan_x: newPointMapMarker?.x ?? null,
-      floorplan_y: newPointMapMarker?.y ?? null,
-      source: newPointMapMarker ? 'robot_map_click' : 'manual',
-    })
-      .then((point) => {
-        toast.success(`Saved capture point ${point.name}`);
-        handleCancelCapturePoint();
-        setMapModalOpen(false);
-        return refreshCapturePoints(selectedProject.id);
-      })
-      .catch((err) => {
-        toast.error(err instanceof Error ? err.message : 'Failed to save capture point');
-      });
-  }, [
-    newPointMapX,
-    newPointMapY,
-    newPointMapMarker,
-    newPointName,
-    newPointYaw,
-    newPointFacingMarker,
-    newPointYawLocked,
-    handleCancelCapturePoint,
-    refreshCapturePoints,
-    selectedProject,
-  ]);
-
-  const addCapturePointToTask = useCallback((pointId: string) => {
-    if (!pointId) return;
-    setSelectedCapturePointIds((current) => (
-      current.includes(pointId) ? current : [...current, pointId]
+  const toggleStop = useCallback((pointId: string) => {
+    setSelectedIds((current) => (
+      current.includes(pointId) ? current.filter((id) => id !== pointId) : [...current, pointId]
     ));
-    setCapturePointPickerId('');
   }, []);
 
-  const removeCapturePointFromTask = useCallback((pointId: string) => {
-    setSelectedCapturePointIds((current) => current.filter((id) => id !== pointId));
-  }, []);
-
-  const beginRenameCapturePoint = useCallback((point: ApiRobotCapturePoint) => {
-    setRenamingCapturePoint(point);
-    setRenameCapturePointName(point.name);
-  }, []);
-
-  const closeRenameCapturePoint = useCallback(() => {
-    if (savingCapturePointRename) return;
-    setRenamingCapturePoint(null);
-    setRenameCapturePointName('');
-  }, [savingCapturePointRename]);
-
-  const handleRenameCapturePoint = useCallback(() => {
-    if (!selectedProject || !renamingCapturePoint) return;
-    const nextName = renameCapturePointName.trim();
-    if (!nextName) {
-      toast.error('Name the capture point');
-      return;
-    }
-    if (nextName === renamingCapturePoint.name) {
-      closeRenameCapturePoint();
-      return;
-    }
-
-    setSavingCapturePointRename(true);
-    updateRobotCapturePoint(selectedProject.id, renamingCapturePoint.id, { name: nextName })
-      .then((updated) => {
-        setCapturePoints((current) => current.map((point) => (point.id === updated.id ? updated : point)));
-        toast.success(`Renamed capture point ${updated.name}`);
-        setRenamingCapturePoint(null);
-        setRenameCapturePointName('');
-      })
-      .catch((err) => {
-        toast.error(err instanceof Error ? err.message : 'Failed to rename capture point');
-      })
-      .finally(() => setSavingCapturePointRename(false));
-  }, [closeRenameCapturePoint, renameCapturePointName, renamingCapturePoint, selectedProject]);
-
-  const handleDeleteCapturePoint = useCallback((point: ApiRobotCapturePoint) => {
-    if (!selectedProject) return;
-    deleteRobotCapturePoint(selectedProject.id, point.id)
-      .then(() => {
-        toast.success(`Deleted capture point ${point.name}`);
-        setSelectedCapturePointIds((current) => current.filter((id) => id !== point.id));
-        return refreshCapturePoints(selectedProject.id);
-      })
-      .catch((err) => toast.error(err instanceof Error ? err.message : 'Failed to delete capture point'));
-  }, [refreshCapturePoints, selectedProject]);
-
-  const toggleCaptureOutput = useCallback((output: CaptureOutput) => {
-    setCaptureOutputs((current) => {
-      if (current.includes(output)) {
-        if (current.length === 1) return current;
-        return current.filter((item) => item !== output);
-      }
-      return [...current, output];
-    });
-  }, []);
-
-  const handleSubmit = useCallback(() => {
+  const handleStart = useCallback(() => {
     if (!robotId || !projectSlug) {
-      toast.error('Select a robot and project first');
+      toast.error('Pick a project and a robot first');
       return;
     }
-    if (selectedCapturePointIds.length === 0) {
-      toast.error('Select at least one capture point');
+    if (selectedIds.length === 0) {
+      toast.error('Add at least one stop to the route');
       return;
     }
-    if (captureOutputs.length === 0) {
-      toast.error('Select at least one capture type');
-      return;
-    }
-
-    startSubmit(() => {
+    startCapture(() => {
       createRobotMission({
         robot_id: robotId,
         project_slug: projectSlug,
-        capture_point_ids: selectedCapturePointIds,
+        capture_point_ids: selectedIds,
         capture_mode: captureOutputs.includes('image') ? 'panorama' : 'pointcloud',
         capture_date: todayIso(),
         retry_policy: { continue_on_failure: continueOnFailure },
-        robot_meta: {
-          capture_outputs: captureOutputs,
-        },
+        robot_meta: { capture_outputs: captureOutputs },
       })
         .then((mission) => {
-          toast.success(`Queued task ${mission.id.slice(0, 8)}`);
+          toast.success(`Capture started — ${routeSummary(mission)}`);
+          setSelectedIds([]);
+          setTab('progress');
           return refresh();
         })
-        .catch((err) => {
-          toast.error(err instanceof Error ? err.message : 'Failed to create task');
-        });
+        .catch((err) => toast.error(err instanceof Error ? err.message : 'Could not start the capture'));
     });
-  }, [captureOutputs, continueOnFailure, projectSlug, refresh, robotId, selectedCapturePointIds]);
+  }, [captureOutputs, continueOnFailure, projectSlug, refresh, robotId, selectedIds]);
 
-  const handleManualRefresh = useCallback(() => {
-    setRefreshing(true);
-    refresh()
-      .catch((err) => toast.error(err instanceof Error ? err.message : 'Failed to refresh'))
-      .finally(() => setRefreshing(false));
-  }, [refresh]);
+  // Follow the robot into Progress when a capture starts, since that is the view that works.
+  useEffect(() => {
+    if (currentMission && tab === 'route' && selectedIds.length === 0) setTab('progress');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentMission?.id]);
 
-  const runPendingAction = useCallback(async () => {
-    if (!pendingAction) return;
-
-    if (pendingAction.type === 'cancel') {
-      await cancelRobotMission(pendingAction.mission.id);
-      toast.success(`Cancelled task ${pendingAction.mission.id.slice(0, 8)}`);
-    } else {
-      await deleteRobotMission(pendingAction.mission.id);
-      toast.success(`Deleted task ${pendingAction.mission.id.slice(0, 8)}`);
+  const runPending = useCallback(async () => {
+    if (!pending) return;
+    try {
+      if (pending.type === 'cancel') {
+        await cancelRobotMission(pending.mission.id);
+        toast.success('Capture stopped');
+      } else {
+        await deleteRobotMission(pending.mission.id);
+        toast.success('Capture deleted');
+      }
+      setPending(null);
+      await refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'That did not work');
     }
-
-    setPendingAction(null);
-    await refresh();
-  }, [pendingAction, refresh]);
+  }, [pending, refresh]);
 
   return (
     <div className="px-6 py-10 sm:px-10 lg:px-12 xl:px-16">
@@ -1257,792 +183,88 @@ export default function RobotMissionsPage() {
         className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"
       >
         <div>
-          <p className="font-mono text-[12px] uppercase tracking-[0.22em] text-amber-500">
-            Operations · Robots
-          </p>
-          <h1 className="mt-3 font-display text-[36px] font-semibold tracking-tight text-white">
-            Task control
-          </h1>
+          <p className="font-mono text-[12px] uppercase tracking-[0.22em] text-amber-500">Operations</p>
+          <h1 className="mt-3 font-display text-[36px] font-semibold tracking-tight text-white">Robot</h1>
           <p className="mt-2 max-w-2xl text-[14px] text-ink-300">
-            Queue waypoint tasks, watch robot heartbeat, and inspect task progress without using Swagger or SSH.
+            Send the robot to capture points around the site and watch its progress.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={handleManualRefresh}
-          disabled={refreshing}
-          className="inline-flex items-center gap-2 rounded border border-base-700 px-3 py-2 text-[12px] text-white transition hover:border-ink-400 disabled:opacity-50"
-        >
-          {refreshing ? <Loader2 size={14} className="animate-spin" /> : <RefreshCcw size={14} />}
-          Refresh
-        </button>
         <Link
           href="/app/robots/pairing"
-          className="inline-flex items-center gap-2 rounded border border-base-700 px-3 py-2 text-[12px] text-white transition hover:border-ink-400"
+          className="inline-flex shrink-0 items-center gap-2 rounded border border-base-700 px-3 py-2 text-[12px] text-white transition hover:border-ink-400"
         >
           <Bot size={14} />
           Pair robot
         </Link>
       </motion.section>
 
-      <div className="mt-8 grid gap-4 lg:grid-cols-3">
+      <div className="mt-6">
+        <RobotContextBar
+          projects={projects}
+          projectSlug={projectSlug}
+          onProjectChange={setProjectSlug}
+          robots={robots}
+          robotId={robotId}
+          onRobotChange={setRobotId}
+          activeMission={currentMission}
+        />
+      </div>
+
+      <div className="mt-6">
+        <Tabs tabs={TABS} active={tab} onChange={setTab} railId="robot-tabs" />
+      </div>
+
+      <div className="mt-6">
         {loading ? (
-          Array.from({ length: 3 }).map((_, index) => (
-            <div key={index} className="h-32 animate-pulse rounded-2xl border border-base-800 bg-base-900/50" />
-          ))
+          <div className="h-64 animate-pulse rounded-2xl border border-base-800 bg-base-900/50" />
+        ) : tab === 'route' ? (
+          <RouteTab
+            projectId={projectId}
+            projectSlug={projectSlug}
+            robotMap={robotMap}
+            capturePoints={capturePoints}
+            selectedIds={selectedIds}
+            onToggle={toggleStop}
+            captureOutputs={captureOutputs}
+            onCaptureOutputsChange={setCaptureOutputs}
+            continueOnFailure={continueOnFailure}
+            onContinueOnFailureChange={setContinueOnFailure}
+            onStart={handleStart}
+            starting={starting}
+            onCapturePointsChanged={loadCapturePoints}
+          />
+        ) : tab === 'progress' ? (
+          <ProgressTab
+            mission={currentMission ?? visibleMissions[0] ?? null}
+            onCancel={(mission) => setPending({ type: 'cancel', mission })}
+          />
+        ) : tab === 'live' ? (
+          <LiveMapTab
+            robotMap={robotMap}
+            capturePoints={capturePoints}
+            telemetry={telemetry}
+            captureRunning={Boolean(currentMission && isActiveMissionStatus(currentMission.status))}
+          />
         ) : (
-          robots.map((robot) => (
-            <div
-              key={robot.robot_id}
-              className="rounded-2xl border border-base-800 bg-base-900/65 p-5"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-display text-[18px] text-white">{robot.username}</p>
-                  <p className="mt-1 font-mono text-[11px] text-ink-400">{robot.robot_id}</p>
-                </div>
-                <span className={`rounded-full px-2.5 py-1 font-mono text-[10px] uppercase ${STATUS_STYLES[robot.status ?? 'pending'] ?? 'bg-base-800 text-ink-300'}`}>
-                  {robot.status ?? 'unknown'}
-                </span>
-              </div>
-              <dl className="mt-4 space-y-2 text-[12px] text-ink-300">
-                <div className="flex justify-between gap-3">
-                  <dt>Current task</dt>
-                  <dd className="font-mono text-[11px] text-white">{robot.current_mission_id ?? '—'}</dd>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <dt>Hostname</dt>
-                  <dd className="font-mono text-[11px] text-white">{robot.hostname ?? '—'}</dd>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <dt>Last seen</dt>
-                  <dd className="text-right text-white">{formatLastSeen(robot.last_seen_at)}</dd>
-                </div>
-              </dl>
-            </div>
-          ))
+          <HistoryTab
+            missions={visibleMissions}
+            onDelete={(mission) => setPending({ type: 'delete', mission })}
+          />
         )}
       </div>
 
-      <div className="mt-8 grid gap-8 xl:grid-cols-[minmax(320px,420px)_1fr]">
-        <section className="rounded-3xl border border-base-800 bg-base-900/60 p-6">
-          <div className="flex items-center gap-3">
-            <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-500/15 text-amber-300">
-              <Bot size={18} />
-            </div>
-            <div>
-              <h2 className="font-display text-[24px] text-white">Queue a task</h2>
-              <p className="text-[13px] text-ink-300">Select saved capture points for the robot to visit.</p>
-            </div>
-          </div>
-
-          <div className="mt-6 space-y-4">
-            <label className="block">
-              <span className="mb-2 block font-mono text-[11px] uppercase tracking-[0.16em] text-ink-400">Robot</span>
-              <select
-                value={robotId}
-                onChange={(event) => setRobotId(event.target.value)}
-                className="w-full rounded-xl border border-base-700 bg-base-950 px-3 py-2.5 text-[14px] text-white outline-none transition focus:border-amber-500"
-              >
-                <option value="">Select robot</option>
-                {robots.map((robot) => (
-                  <option key={robot.robot_id} value={robot.username}>
-                    {robot.username}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="block">
-              <span className="mb-2 block font-mono text-[11px] uppercase tracking-[0.16em] text-ink-400">Project</span>
-              <select
-                value={projectSlug}
-                onChange={(event) => setProjectSlug(event.target.value)}
-                className="w-full rounded-xl border border-base-700 bg-base-950 px-3 py-2.5 text-[14px] text-white outline-none transition focus:border-amber-500"
-              >
-                <option value="">Select project</option>
-                {projects.map((project) => (
-                  <option key={project.id} value={project.slug}>
-                    {project.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <div className="rounded-2xl border border-base-800 bg-base-950/60 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-400">Capture points</p>
-                <span className="text-[12px] text-ink-500">{selectedCapturePoints.length} selected</span>
-              </div>
-              {capturePoints.length > 0 ? (
-                <label className="mt-3 block">
-                  <span className="sr-only">Add capture point to task</span>
-                  <select
-                    value={capturePointPickerId}
-                    onChange={(event) => {
-                      const pointId = event.target.value;
-                      setCapturePointPickerId(pointId);
-                      addCapturePointToTask(pointId);
-                    }}
-                    disabled={availableCapturePoints.length === 0}
-                    className="w-full rounded-xl border border-base-700 bg-base-950 px-3 py-2.5 text-[14px] text-white outline-none transition focus:border-amber-500 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    <option value="">
-                      {availableCapturePoints.length > 0 ? 'Choose capture point' : 'All capture points selected'}
-                    </option>
-                    {availableCapturePoints.map((point) => (
-                      <option key={point.id} value={point.id}>
-                        {point.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              ) : (
-                <div className="mt-3 rounded-xl border border-dashed border-base-700 px-3 py-5 text-center text-[13px] text-ink-400">
-                  No capture points saved for this project.
-                </div>
-              )}
-
-              <div className="mt-3 space-y-2">
-                {selectedCapturePoints.length > 0 ? selectedCapturePoints.map((point) => (
-                  <div
-                    key={point.id}
-                    className="flex items-center justify-between gap-3 rounded-xl border border-amber-500/60 bg-amber-500/10 px-3 py-2"
-                  >
-                    <span className="min-w-0 flex-1 truncate text-[13px] text-white" title={point.name}>
-                      {point.name}
-                    </span>
-                    <MoreMenu
-                      items={[
-                        { label: 'Remove from task', onClick: () => removeCapturePointFromTask(point.id) },
-                        { label: 'Rename', onClick: () => beginRenameCapturePoint(point) },
-                        { label: 'Delete', danger: true, onClick: () => handleDeleteCapturePoint(point) },
-                      ]}
-                    />
-                  </div>
-                )) : capturePoints.length > 0 ? (
-                  <div className="rounded-xl border border-dashed border-base-700 px-3 py-5 text-center text-[13px] text-ink-400">
-                    No capture points selected.
-                  </div>
-                ) : null}
-              </div>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={beginAddCapturePoint}
-                  className="inline-flex items-center gap-2 rounded-xl border border-amber-500/40 px-3 py-2 text-[12px] text-amber-200 transition hover:bg-amber-500/10"
-                >
-                  <Plus size={13} />
-                  Add capture point
-                </button>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-base-800 bg-base-950/60 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <MapPin size={14} className="text-amber-300" />
-                  <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-400">Robot map</p>
-                </div>
-                {robotMap ? (
-                  <button
-                    type="button"
-                    onClick={openMapModal}
-                    className="inline-flex items-center gap-2 rounded-lg border border-base-700 px-2.5 py-1.5 text-[12px] text-ink-200 transition hover:border-ink-400"
-                  >
-                    <ZoomIn size={13} />
-                    Open
-                  </button>
-                ) : null}
-              </div>
-
-              {robotMap ? (
-                <button
-                  type="button"
-                  onClick={openMapModal}
-                  className="relative mt-3 block w-full overflow-hidden rounded-xl border border-base-800 bg-base-900 text-left"
-                  style={{ aspectRatio: `${robotMap.width} / ${robotMap.height}` }}
-                >
-                  <img src={robotMap.image_url} alt="" className="h-full w-full" />
-                  {capturePoints.map((point) => (
-                    point.floorplan_x !== null && point.floorplan_y !== null ? (
-                      <span
-                        key={point.id}
-                        className="group absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-base-950 bg-emerald-400 shadow"
-                        style={{ left: `${point.floorplan_x * 100}%`, top: `${point.floorplan_y * 100}%` }}
-                        title={point.name}
-                      >
-                        <span className="pointer-events-none absolute left-1/2 bottom-full z-20 mb-1 -translate-x-1/2 whitespace-nowrap rounded-md border border-base-700 bg-base-950 px-2 py-1 text-[11px] text-white opacity-0 shadow-lg shadow-black/40 transition-opacity group-hover:opacity-100">
-                          {point.name}
-                        </span>
-                      </span>
-                    ) : null
-                  ))}
-                  <div className="absolute bottom-2 left-2 rounded bg-base-950/80 px-2 py-1 font-mono text-[10px] text-ink-300">
-                    {robotMap.resolution} m/px · {robotMap.frame}
-                  </div>
-                </button>
-              ) : (
-                <div className="mt-3 rounded-xl border border-dashed border-base-700 bg-base-900/50 px-3 py-4">
-                  <p className="text-center text-[13px] text-ink-300">
-                    {robotMapError || 'No robot map uploaded for this project.'}
-                  </p>
-                  <div className="mt-4 grid gap-3">
-                    <label className="block">
-                      <span className="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.14em] text-ink-500">Map YAML</span>
-                      <input
-                        type="file"
-                        accept=".yaml,.yml,text/yaml,text/plain"
-                        onChange={(event) => setRobotMapYamlFile(event.target.files?.[0] ?? null)}
-                        className="block w-full text-[12px] text-ink-300 file:mr-3 file:rounded-lg file:border-0 file:bg-base-800 file:px-3 file:py-2 file:text-[12px] file:text-white"
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.14em] text-ink-500">Map image</span>
-                      <input
-                        type="file"
-                        accept=".pgm,.png,.jpg,.jpeg,.webp,image/*"
-                        onChange={(event) => setRobotMapImageFile(event.target.files?.[0] ?? null)}
-                        className="block w-full text-[12px] text-ink-300 file:mr-3 file:rounded-lg file:border-0 file:bg-base-800 file:px-3 file:py-2 file:text-[12px] file:text-white"
-                      />
-                    </label>
-                    <button
-                      type="button"
-                      onClick={handleUploadRobotMap}
-                      disabled={uploadingRobotMap}
-                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-amber-500/40 px-3 py-2.5 text-[13px] text-amber-200 transition hover:bg-amber-500/10 disabled:opacity-50"
-                    >
-                      {uploadingRobotMap ? <Loader2 size={14} className="animate-spin" /> : <MapPin size={14} />}
-                      Upload robot map
-                    </button>
-                  </div>
-                </div>
-              )}
-
-            </div>
-
-            <div className="rounded-2xl border border-base-800 bg-base-950/60 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-400">Capture type</p>
-                <span className="text-[12px] text-ink-500">{formatCaptureOutputs(captureOutputs)}</span>
-              </div>
-              <div ref={captureOutputMenuRef} className="relative mt-3">
-                <button
-                  type="button"
-                  onClick={() => setCaptureOutputMenuOpen((current) => !current)}
-                  className="flex w-full items-center justify-between gap-3 rounded-xl border border-base-700 bg-base-950 px-3 py-2.5 text-left text-[14px] text-white outline-none transition hover:border-ink-400 focus:border-amber-500"
-                  aria-haspopup="menu"
-                  aria-expanded={captureOutputMenuOpen}
-                >
-                  <span>{formatCaptureOutputs(captureOutputs)}</span>
-                  <ChevronDown
-                    size={15}
-                    className={`text-ink-400 transition-transform ${captureOutputMenuOpen ? 'rotate-180' : ''}`}
-                  />
-                </button>
-                {captureOutputMenuOpen ? (
-                  <div className="absolute left-0 right-0 top-full z-40 mt-2 rounded-xl border border-base-700 bg-base-900 p-2 shadow-xl shadow-black/40">
-                    {CAPTURE_OUTPUT_OPTIONS.map((option) => {
-                      const checked = captureOutputs.includes(option.value);
-                      return (
-                        <label
-                          key={option.value}
-                          className="flex cursor-pointer items-center gap-3 rounded-lg px-2.5 py-2 text-[13px] text-ink-200 transition hover:bg-base-800 hover:text-white"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            disabled={checked && captureOutputs.length === 1}
-                            onChange={() => toggleCaptureOutput(option.value)}
-                            className="h-4 w-4 rounded border-base-700 bg-base-950 text-amber-500 disabled:opacity-60"
-                          />
-                          {option.label}
-                        </label>
-                      );
-                    })}
-                  </div>
-                ) : null}
-              </div>
-            </div>
-
-            <label className="flex items-center gap-3 rounded-2xl border border-base-800 bg-base-950/70 px-3 py-3 text-[13px] text-ink-200">
-              <input
-                type="checkbox"
-                checked={continueOnFailure}
-                onChange={(event) => setContinueOnFailure(event.target.checked)}
-                className="h-4 w-4 rounded border-base-700 bg-base-950 text-amber-500"
-              />
-              Continue to later waypoints if one stop fails
-            </label>
-
-            <div className="rounded-2xl border border-base-800 bg-base-950/60 p-4">
-              <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-400">Task preview</p>
-              <div className="mt-3 inline-flex rounded-full border border-base-700 bg-base-900 px-2.5 py-1 font-mono text-[11px] text-amber-200">
-                {formatCaptureOutputs(captureOutputs)}
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {selectedCapturePoints.length > 0 ? selectedCapturePoints.map((point) => (
-                  <span
-                    key={point.id}
-                    className="rounded-full border border-base-700 bg-base-900 px-2.5 py-1 font-mono text-[11px] text-white"
-                  >
-                    {point.name}
-                  </span>
-                )) : (
-                  <span className="text-[13px] text-ink-400">No capture points selected.</span>
-                )}
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={submitting}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-amber-500 px-4 py-3 text-[14px] font-medium text-base-950 transition hover:bg-amber-400 disabled:opacity-60"
-            >
-              {submitting ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-              Queue task
-            </button>
-          </div>
-        </section>
-
-        <section className="rounded-3xl border border-base-800 bg-base-900/45 p-6">
-          <div className="flex items-end justify-between gap-4">
-            <div>
-              <h2 className="font-display text-[24px] text-white">Recent tasks</h2>
-              <p className="mt-1 text-[13px] text-ink-300">Latest queued and completed robot tasks from the backend.</p>
-            </div>
-            <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-500">
-              {missions.length} loaded
-            </span>
-          </div>
-
-          <div className="mt-6 rounded-2xl border border-base-800 bg-base-950/60 p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-400">Live movement</p>
-                <p className="mt-1 text-[13px] text-ink-300">
-                  {robotId || 'No robot selected'} {robotTelemetry?.frame ? `· ${robotTelemetry.frame}` : ''}
-                </p>
-              </div>
-              <span className={`rounded-full border px-2.5 py-1 font-mono text-[10px] uppercase ${telemetryStatusStyle}`}>
-                {telemetryStatus}
-              </span>
-            </div>
-
-            {robotMap ? (
-              <div
-                className="relative mt-4 overflow-hidden rounded-2xl border border-base-800 bg-base-950"
-                style={{ aspectRatio: `${robotMap.width} / ${robotMap.height}` }}
-              >
-                <img
-                  src={robotMap.image_url}
-                  alt=""
-                  draggable={false}
-                  className="h-full w-full select-none opacity-85"
-                />
-                <canvas
-                  ref={telemetryCanvasRef}
-                  className="pointer-events-none absolute inset-0 z-20 h-full w-full"
-                />
-
-                {capturePoints.map((point) => (
-                  point.floorplan_x !== null && point.floorplan_y !== null ? (
-                    <span
-                      key={point.id}
-                      className="absolute z-10 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-base-950 bg-emerald-400/80 shadow"
-                      style={{ left: `${point.floorplan_x * 100}%`, top: `${point.floorplan_y * 100}%` }}
-                      title={point.name}
-                    />
-                  ) : null
-                ))}
-
-                {robotTelemetry && !visibleMarker(liveRobotMarker) ? (
-                  <div className="absolute right-2 top-2 rounded-lg border border-amber-500/30 bg-base-950/85 px-2 py-1 font-mono text-[10px] uppercase text-amber-200">
-                    Pose outside map
-                  </div>
-                ) : null}
-
-                <div className="absolute bottom-2 left-2 flex max-w-[calc(100%-1rem)] flex-wrap gap-2 rounded-lg bg-base-950/85 px-2 py-1 font-mono text-[10px] text-ink-300">
-                  <span className="text-cyan-200">Global</span>
-                  <span className="text-amber-200">Local</span>
-                  <span className="text-white">Trail</span>
-                </div>
-              </div>
-            ) : (
-              <div className="mt-4 rounded-xl border border-dashed border-base-700 bg-base-900/50 px-3 py-6 text-center text-[13px] text-ink-400">
-                Upload a robot map to render live movement.
-              </div>
-            )}
-
-            <dl className="mt-4 grid gap-3 text-[12px] text-ink-300 sm:grid-cols-2 xl:grid-cols-4">
-              <div>
-                <dt className="font-mono uppercase tracking-[0.14em] text-ink-500">Pose</dt>
-                <dd className="mt-1 font-mono text-white">
-                  {robotTelemetry
-                    ? `${robotTelemetry.pose.x.toFixed(2)}, ${robotTelemetry.pose.y.toFixed(2)}`
-                    : '—'}
-                </dd>
-              </div>
-              <div>
-                <dt className="font-mono uppercase tracking-[0.14em] text-ink-500">Heading</dt>
-                <dd className="mt-1 font-mono text-white">
-                  {robotTelemetry?.pose.yaw !== null && robotTelemetry?.pose.yaw !== undefined
-                    ? `${radiansToDegrees(robotTelemetry.pose.yaw)} deg`
-                    : '—'}
-                </dd>
-              </div>
-              <div>
-                <dt className="font-mono uppercase tracking-[0.14em] text-ink-500">Velocity</dt>
-                <dd className="mt-1 font-mono text-white">
-                  {robotTelemetry?.velocity
-                    ? `${robotTelemetry.velocity.linear_x.toFixed(2)} m/s · ${radiansToDegrees(robotTelemetry.velocity.angular_z)} deg/s`
-                    : '—'}
-                </dd>
-              </div>
-              <div>
-                <dt className="font-mono uppercase tracking-[0.14em] text-ink-500">Updated</dt>
-                <dd className="mt-1 font-mono text-white">{formatTelemetryAge(telemetryAge)}</dd>
-              </div>
-            </dl>
-
-            {robotTelemetryError ? (
-              <p className="mt-3 text-[12px] text-amber-200">
-                {robotTelemetry ? `Telemetry warning: ${robotTelemetryError}` : robotTelemetryError}
-              </p>
-            ) : null}
-          </div>
-
-          <div className="mt-6 space-y-4">
-            {loading ? (
-              Array.from({ length: 4 }).map((_, index) => (
-                <div key={index} className="h-32 animate-pulse rounded-2xl border border-base-800 bg-base-900/60" />
-              ))
-            ) : missions.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-base-700 px-4 py-10 text-center text-[14px] text-ink-400">
-                No tasks yet.
-              </div>
-            ) : (
-              missions.map((mission) => (
-                <article
-                  key={mission.id}
-                  className="rounded-2xl border border-base-800 bg-base-900/70 p-5"
-                >
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className={`rounded-full px-2.5 py-1 font-mono text-[10px] uppercase ${STATUS_STYLES[mission.status] ?? 'bg-base-800 text-ink-300'}`}>
-                          {mission.status}
-                        </span>
-                        <span className="font-mono text-[11px] text-ink-400">{mission.id}</span>
-                      </div>
-                      <h3 className="mt-3 font-display text-[20px] text-white">
-                        {mission.robot_id} → {mission.project_slug}
-                      </h3>
-                      <p className="mt-1 text-[13px] text-ink-300">
-                        {mission.waypoints.length} waypoint{mission.waypoints.length === 1 ? '' : 's'}
-                      </p>
-                    </div>
-                    <dl className="grid gap-2 text-[12px] text-ink-300 sm:grid-cols-2 lg:text-right">
-                      <div>
-                        <dt className="font-mono uppercase tracking-[0.14em] text-ink-500">Created</dt>
-                        <dd className="mt-1 text-white">{new Date(mission.created_at).toLocaleString()}</dd>
-                      </div>
-                      <div>
-                        <dt className="font-mono uppercase tracking-[0.14em] text-ink-500">Completed</dt>
-                        <dd className="mt-1 text-white">{mission.completed_at ? new Date(mission.completed_at).toLocaleString() : '—'}</dd>
-                      </div>
-                    </dl>
-                  </div>
-
-                  <MissionProgressTimeline mission={mission} />
-
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {canCancelMission(mission.status) && (
-                      <button
-                        type="button"
-                        onClick={() => setPendingAction({ type: 'cancel', mission })}
-                        className="inline-flex items-center gap-2 rounded-xl border border-amber-600/40 px-3 py-2 text-[12px] text-amber-200 transition hover:bg-amber-500/10"
-                      >
-                        <XCircle size={13} />
-                        Cancel
-                      </button>
-                    )}
-                    {canDeleteMission(mission.status) && (
-                      <button
-                        type="button"
-                        onClick={() => setPendingAction({ type: 'delete', mission })}
-                        className="inline-flex items-center gap-2 rounded-xl border border-red-700/40 px-3 py-2 text-[12px] text-red-200 transition hover:bg-red-500/10"
-                      >
-                        <Trash2 size={13} />
-                        Delete
-                      </button>
-                    )}
-                  </div>
-
-                  {missionFailureMessage(mission) && (
-                    <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/5 px-3 py-3 text-[12px] text-red-200">
-                      {missionFailureMessage(mission)}
-                    </div>
-                  )}
-                </article>
-              ))
-            )}
-          </div>
-        </section>
-      </div>
-
-      <Modal
-        open={mapModalOpen}
-        onClose={closeMapModal}
-        title={addingCapturePoint ? 'Add capture point' : 'Robot map'}
-        subtitle={addingCapturePoint ? 'Click to place the point, then point the arrow toward the robot facing direction.' : 'Drag to pan and use the controls to zoom.'}
-        size="2xl"
-        bodyClassName="flex-1 overflow-hidden p-0"
-      >
-        {robotMap ? (
-          <div className="flex h-[72vh] flex-col bg-base-950">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-base-800 px-4 py-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleMapZoomOut}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-base-700 text-ink-200 transition hover:border-ink-400"
-                  title="Zoom out"
-                >
-                  <ZoomOut size={14} />
-                </button>
-                <span className="min-w-14 rounded-lg border border-base-800 bg-base-900 px-2 py-1 text-center font-mono text-[11px] text-ink-200">
-                  {Math.round(mapZoom * 100)}%
-                </span>
-                <button
-                  type="button"
-                  onClick={handleMapZoomIn}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-base-700 text-ink-200 transition hover:border-ink-400"
-                  title="Zoom in"
-                >
-                  <ZoomIn size={14} />
-                </button>
-                <button
-                  type="button"
-                  onClick={resetMapView}
-                  className="inline-flex items-center gap-2 rounded-lg border border-base-700 px-2.5 py-1.5 text-[12px] text-ink-200 transition hover:border-ink-400"
-                >
-                  <RotateCcw size={13} />
-                  Reset
-                </button>
-              </div>
-              <div className="flex flex-wrap items-center gap-2 text-[12px] text-ink-300">
-                {addingCapturePoint ? (
-                  <>
-                    <span className="rounded-lg border border-base-800 bg-base-900 px-2 py-1">
-                      {newPointMapMarker ? 'Position selected' : 'Click to place point'}
-                    </span>
-                    <span className="rounded-lg border border-base-800 bg-base-900 px-2 py-1">
-                      {newPointYawLocked ? `Facing ${radiansToDegrees(Number(newPointYaw || 0))} deg` : 'Click to lock facing'}
-                    </span>
-                  </>
-                ) : (
-                  <span className="rounded-lg border border-base-800 bg-base-900 px-2 py-1">
-                    {capturePoints.length} capture point{capturePoints.length === 1 ? '' : 's'}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {addingCapturePoint ? (
-              <div className="grid gap-3 border-b border-base-800 bg-amber-500/5 px-4 py-3 lg:grid-cols-[1fr_auto]">
-                <input
-                  type="text"
-                  value={newPointName}
-                  onChange={(event) => setNewPointName(event.target.value)}
-                  placeholder="Capture point name"
-                  className="w-full rounded-xl border border-base-700 bg-base-950 px-3 py-2 text-[14px] text-white outline-none transition focus:border-amber-500"
-                />
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={handleCreateCapturePoint}
-                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-amber-500/40 px-3 py-2 text-[13px] text-amber-200 transition hover:bg-amber-500/10"
-                  >
-                    <Check size={14} />
-                    Save capture point
-                  </button>
-                  <button
-                    type="button"
-                    onClick={closeMapModal}
-                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-base-700 px-3 py-2 text-[13px] text-ink-200 transition hover:border-ink-400"
-                  >
-                    <XCircle size={14} />
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            ) : null}
-
-            <div
-              className="relative flex-1 overflow-hidden bg-base-950"
-              onWheel={handleMapWheel}
-            >
-              <div
-                role={addingCapturePoint ? 'button' : undefined}
-                tabIndex={addingCapturePoint ? 0 : undefined}
-                onClick={handleMapSelectionClick}
-                onMouseMove={handleRobotMapMouseMove}
-                onPointerDown={handleMapPointerDown}
-                onPointerMove={handleMapPointerMove}
-                onPointerUp={handleMapPointerUp}
-                onPointerCancel={handleMapPointerUp}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') event.preventDefault();
-                }}
-                className={`absolute left-1/2 top-1/2 overflow-hidden border border-base-800 bg-base-900 shadow-2xl shadow-black/40 ${addingCapturePoint ? 'cursor-crosshair' : 'cursor-grab active:cursor-grabbing'}`}
-                style={{
-                  width: 'min(100%, 840px)',
-                  aspectRatio: `${robotMap.width} / ${robotMap.height}`,
-                  transform: `translate(calc(-50% + ${mapPan.x}px), calc(-50% + ${mapPan.y}px)) scale(${mapZoom})`,
-                  transformOrigin: 'center center',
-                }}
-              >
-                <img
-                  src={robotMap.image_url}
-                  alt=""
-                  draggable={false}
-                  className="h-full w-full select-none"
-                />
-                {capturePoints.map((point) => (
-                  point.floorplan_x !== null && point.floorplan_y !== null ? (
-                    <span
-                      key={point.id}
-                      className="group absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-base-950 bg-emerald-400 shadow"
-                      style={{ left: `${point.floorplan_x * 100}%`, top: `${point.floorplan_y * 100}%` }}
-                      title={point.name}
-                    >
-                      <span className="pointer-events-none absolute left-1/2 bottom-full z-20 mb-1 -translate-x-1/2 whitespace-nowrap rounded-md border border-base-700 bg-base-950 px-2 py-1 text-[11px] text-white opacity-0 shadow-lg shadow-black/40 transition-opacity group-hover:opacity-100">
-                        {point.name}
-                      </span>
-                    </span>
-                  ) : null
-                ))}
-                {newPointMapMarker ? (
-                  <>
-                    {newPointFacingMarker ? (
-                      <svg
-                        className="pointer-events-none absolute inset-0 h-full w-full"
-                        viewBox="0 0 100 100"
-                        preserveAspectRatio="none"
-                      >
-                        <defs>
-                          <marker
-                            id="capture-point-arrowhead"
-                            markerWidth="4"
-                            markerHeight="4"
-                            refX="3.6"
-                            refY="2"
-                            orient="auto"
-                            markerUnits="strokeWidth"
-                          >
-                            <path d="M0,0 L4,2 L0,4 Z" fill="rgb(251 191 36)" />
-                          </marker>
-                        </defs>
-                        <line
-                          x1={newPointMapMarker.x * 100}
-                          y1={newPointMapMarker.y * 100}
-                          x2={newPointFacingMarker.x * 100}
-                          y2={newPointFacingMarker.y * 100}
-                          stroke="rgb(251 191 36)"
-                          strokeWidth="0.45"
-                          strokeLinecap="round"
-                          markerEnd="url(#capture-point-arrowhead)"
-                        />
-                      </svg>
-                    ) : null}
-                    <span
-                      className="absolute h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-base-950 bg-amber-400 shadow"
-                      style={{ left: `${newPointMapMarker.x * 100}%`, top: `${newPointMapMarker.y * 100}%` }}
-                    />
-                  </>
-                ) : null}
-                <div className="absolute bottom-2 left-2 rounded bg-base-950/80 px-2 py-1 font-mono text-[10px] text-ink-300">
-                  {robotMap.resolution} m/px · {robotMap.frame}
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : null}
-      </Modal>
-
-      <Modal
-        open={!!renamingCapturePoint}
-        onClose={closeRenameCapturePoint}
-        title="Rename capture point"
-        subtitle={renamingCapturePoint?.name ?? undefined}
-        size="sm"
-      >
-        <div className="space-y-4">
-          <label className="block">
-            <span className="mb-2 block font-mono text-[11px] uppercase tracking-[0.16em] text-ink-400">Name</span>
-            <input
-              type="text"
-              value={renameCapturePointName}
-              onChange={(event) => setRenameCapturePointName(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') handleRenameCapturePoint();
-              }}
-              className="w-full rounded-xl border border-base-700 bg-base-950 px-3 py-2.5 text-[14px] text-white outline-none transition focus:border-amber-500"
-              autoFocus
-            />
-          </label>
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={closeRenameCapturePoint}
-              disabled={savingCapturePointRename}
-              className="rounded-xl border border-base-700 px-3 py-2 text-[13px] text-ink-200 transition hover:border-ink-400 disabled:opacity-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handleRenameCapturePoint}
-              disabled={savingCapturePointRename}
-              className="inline-flex items-center gap-2 rounded-xl bg-amber-500 px-3 py-2 text-[13px] font-medium text-base-950 transition hover:bg-amber-400 disabled:opacity-60"
-            >
-              {savingCapturePointRename ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-              Save
-            </button>
-          </div>
-        </div>
-      </Modal>
-
       <ConfirmDialog
-        open={!!pendingAction}
-        title={
-          pendingActionType === 'delete'
-            ? 'Delete this task?'
-            : 'Cancel this task?'
-        }
+        open={!!pending}
+        title={pending?.type === 'delete' ? 'Delete this capture?' : 'Stop this capture?'}
         body={
-          pendingActionType === 'delete' ? (
-            <>
-              <code className="rounded bg-base-800 px-1.5 py-0.5 font-mono text-[12px] text-ink-100">
-                {pendingMission?.id}
-              </code>{' '}
-              will be removed from the task queue and history. If the robot is already executing it, later status updates from the robot may be ignored because the task row will no longer exist.
-            </>
-          ) : (
-            <>
-              <code className="rounded bg-base-800 px-1.5 py-0.5 font-mono text-[12px] text-ink-100">
-                {pendingMission?.id}
-              </code>{' '}
-              will be marked cancelled. Running steps will stop being tracked, and queued steps will be cancelled.
-            </>
-          )
+          pending?.type === 'delete'
+            ? <>The record for <strong>{pending ? routeSummary(pending.mission) : ''}</strong> will be removed. Any files it already uploaded are kept.</>
+            : <>The robot will stop after its current stop. Stops it has already captured are kept.</>
         }
-        confirmLabel={pendingActionType === 'delete' ? 'Delete task' : 'Cancel task'}
-        danger={pendingActionType === 'delete'}
-        onConfirm={runPendingAction}
-        onCancel={() => setPendingAction(null)}
+        confirmLabel={pending?.type === 'delete' ? 'Delete' : 'Stop capture'}
+        danger={pending?.type === 'delete'}
+        onConfirm={runPending}
+        onCancel={() => setPending(null)}
       />
     </div>
   );
