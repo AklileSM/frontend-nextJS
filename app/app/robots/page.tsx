@@ -40,6 +40,14 @@ const STATUS_STYLES: Record<string, string> = {
   pending: 'bg-base-800 text-ink-300',
 };
 
+const ACTIVE_MISSION_STATUSES = ['queued', 'dispatched', 'running'];
+const MISSION_LIST_LIMIT = 25;
+/* A running capture polls fast, so it fetches only the newest few missions and splices them over
+ * the cached list. The full list is worth re-pulling on the slow idle poll, not every 2 seconds. */
+const ACTIVE_MISSION_POLL_LIMIT = 5;
+const ACTIVE_POLL_MS = 2000;
+const IDLE_POLL_MS = 30000;
+
 type CaptureOutput = 'image' | 'pointcloud';
 type MissionProgressStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'skipped' | 'cancelled';
 
@@ -140,8 +148,24 @@ function formatLastSeen(value: string | null): string {
   return new Date(value).toLocaleString();
 }
 
+function isActiveMissionStatus(status: string): boolean {
+  return ACTIVE_MISSION_STATUSES.includes(status);
+}
+
 function canCancelMission(status: string): boolean {
-  return ['queued', 'dispatched', 'running'].includes(status);
+  return isActiveMissionStatus(status);
+}
+
+/* Splice the newest missions from a fast poll over the cached list so the longer history
+ * survives between full refreshes. Relies on the API's created_at DESC ordering, and trims to
+ * the same limit a full fetch would return so the two cannot drift apart. */
+function mergeMissions(current: ApiRobotMission[], fresh: ApiRobotMission[]): ApiRobotMission[] {
+  const freshById = new Map(fresh.map((mission) => [mission.id, mission]));
+  const known = new Set(current.map((mission) => mission.id));
+  return [
+    ...fresh.filter((mission) => !known.has(mission.id)),
+    ...current.map((mission) => freshById.get(mission.id) ?? mission),
+  ].slice(0, MISSION_LIST_LIMIT);
 }
 
 function canDeleteMission(status: string): boolean {
@@ -266,7 +290,7 @@ function MissionProgressTimeline({ mission }: { mission: ApiRobotMission }) {
   const events = missionProgressEvents(mission);
   const latestEvent = events[events.length - 1];
   const latestBadgeLabel = latestEvent ? progressBadgeLabel(latestEvent.status) : null;
-  const [open, setOpen] = useState(() => ['queued', 'dispatched', 'running'].includes(mission.status));
+  const [open, setOpen] = useState(() => isActiveMissionStatus(mission.status));
   return (
     <div className="mt-4 rounded-2xl border border-base-800 bg-base-950/45">
       <button
@@ -390,6 +414,10 @@ function formatTelemetryAge(ageSeconds: number | null): string {
   return `${Math.round(ageSeconds / 60)}m ago`;
 }
 
+function telemetryTimestampMs(telemetry: ApiRobotTelemetry): number | null {
+  return parseUtcTimestamp(telemetry.received_at_utc ?? telemetry.reported_at_utc);
+}
+
 function radiansToDegrees(value: number): number {
   return Math.round((value * 180) / Math.PI);
 }
@@ -402,7 +430,7 @@ export default function RobotMissionsPage() {
   const [robotMapError, setRobotMapError] = useState<string | null>(null);
   const [missions, setMissions] = useState<ApiRobotMission[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, startRefresh] = useTransition();
+  const [refreshing, setRefreshing] = useState(false);
   const [submitting, startSubmit] = useTransition();
   const [pendingAction, setPendingAction] = useState<{ type: 'cancel' | 'delete'; mission: ApiRobotMission } | null>(null);
   const mapDragRef = useRef<{ pointerId: number; startX: number; startY: number; panX: number; panY: number; moved: boolean } | null>(null);
@@ -410,6 +438,7 @@ export default function RobotMissionsPage() {
   const telemetryCanvasRef = useRef<HTMLCanvasElement>(null);
   const telemetryCanvasFrameRef = useRef<number | null>(null);
   const latestTelemetryRef = useRef<ApiRobotTelemetry | null>(null);
+  const latestTelemetryTimestampRef = useRef<number | null>(null);
   const handleTelemetrySnapshotRef = useRef<(telemetry: ApiRobotTelemetry) => void>(() => undefined);
   const telemetryTrailRef = useRef<TelemetryTrailPoint[]>([]);
 
@@ -442,23 +471,28 @@ export default function RobotMissionsPage() {
   const [telemetryTrail, setTelemetryTrail] = useState<TelemetryTrailPoint[]>([]);
   const [telemetryNow, setTelemetryNow] = useState(() => Date.now());
 
-  const refresh = useCallback(async () => {
-    const [robotsData, projectsData, missionsData] = await Promise.all([
+  /* Projects cannot change while this page is open, so they load once instead of on every poll. */
+  const loadProjects = useCallback(async () => {
+    const projectsData = await listProjects();
+    setProjects(projectsData);
+    setProjectSlug((current) => current || projectsData[0]?.slug || '');
+  }, []);
+
+  const refresh = useCallback(async (options?: { partial?: boolean }) => {
+    const partial = options?.partial ?? false;
+    const [robotsData, missionsData] = await Promise.all([
       listRobots(),
-      listProjects(),
-      listRobotMissions({ limit: 25 }),
+      listRobotMissions({ limit: partial ? ACTIVE_MISSION_POLL_LIMIT : MISSION_LIST_LIMIT }),
     ]);
     setRobots(robotsData);
-    setProjects(projectsData);
-    setMissions(missionsData);
+    setMissions((current) => (partial ? mergeMissions(current, missionsData) : missionsData));
     setRobotId((current) => current || robotsData[0]?.username || '');
-    setProjectSlug((current) => current || projectsData[0]?.slug || '');
   }, []);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    refresh()
+    Promise.all([loadProjects(), refresh()])
       .catch((err) => {
         if (!cancelled) toast.error(err instanceof Error ? err.message : 'Failed to load robot tasks');
       })
@@ -468,16 +502,46 @@ export default function RobotMissionsPage() {
     return () => {
       cancelled = true;
     };
-  }, [refresh]);
+  }, [loadProjects, refresh]);
 
+  const hasActiveMission = useMemo(
+    () => missions.some((mission) => isActiveMissionStatus(mission.status)),
+    [missions],
+  );
+
+  /* Poll fast enough for a running capture to feel live, back off hard when idle, and stop
+   * entirely in a background tab. Mission steps are the trusted progress source, not telemetry. */
   useEffect(() => {
-    const timer = window.setInterval(() => {
-      startRefresh(() => {
-        refresh().catch(() => undefined);
-      });
-    }, 10000);
-    return () => window.clearInterval(timer);
-  }, [refresh]);
+    let timer: number | null = null;
+
+    const stop = () => {
+      if (timer === null) return;
+      window.clearInterval(timer);
+      timer = null;
+    };
+    const start = () => {
+      if (timer !== null) return;
+      timer = window.setInterval(() => {
+        refresh({ partial: hasActiveMission }).catch(() => undefined);
+      }, hasActiveMission ? ACTIVE_POLL_MS : IDLE_POLL_MS);
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        stop();
+        return;
+      }
+      // The view can be a whole interval stale on return, so catch up before resuming the cadence.
+      refresh().catch(() => undefined);
+      start();
+    };
+
+    if (document.visibilityState === 'visible') start();
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      stop();
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [hasActiveMission, refresh]);
 
   useEffect(() => {
     if (!captureOutputMenuOpen) return undefined;
@@ -624,6 +688,11 @@ export default function RobotMissionsPage() {
   }, [drawTelemetryCanvas]);
 
   const handleTelemetrySnapshot = useCallback((telemetry: ApiRobotTelemetry) => {
+    const incomingTimestamp = telemetryTimestampMs(telemetry);
+    const latestTimestamp = latestTelemetryTimestampRef.current;
+    if (incomingTimestamp !== null && latestTimestamp !== null && incomingTimestamp <= latestTimestamp) return;
+    if (incomingTimestamp !== null) latestTelemetryTimestampRef.current = incomingTimestamp;
+
     latestTelemetryRef.current = telemetry;
     setTelemetryNow(Date.now());
     setRobotTelemetry(telemetry);
@@ -669,6 +738,7 @@ export default function RobotMissionsPage() {
 
   useEffect(() => {
     latestTelemetryRef.current = null;
+    latestTelemetryTimestampRef.current = null;
     telemetryTrailRef.current = [];
     setRobotTelemetry(null);
     setRobotTelemetryError(null);
@@ -1156,6 +1226,13 @@ export default function RobotMissionsPage() {
     });
   }, [captureOutputs, continueOnFailure, projectSlug, refresh, robotId, selectedCapturePointIds]);
 
+  const handleManualRefresh = useCallback(() => {
+    setRefreshing(true);
+    refresh()
+      .catch((err) => toast.error(err instanceof Error ? err.message : 'Failed to refresh'))
+      .finally(() => setRefreshing(false));
+  }, [refresh]);
+
   const runPendingAction = useCallback(async () => {
     if (!pendingAction) return;
 
@@ -1192,7 +1269,7 @@ export default function RobotMissionsPage() {
         </div>
         <button
           type="button"
-          onClick={() => startRefresh(() => { refresh().catch(() => undefined); })}
+          onClick={handleManualRefresh}
           disabled={refreshing}
           className="inline-flex items-center gap-2 rounded border border-base-700 px-3 py-2 text-[12px] text-white transition hover:border-ink-400 disabled:opacity-50"
         >
