@@ -3,10 +3,7 @@
 import { useMemo } from 'react';
 import type { ApiProject, ApiRobotMission, ApiRobotSummary } from '@/types/api';
 import { activeStepSummary } from '../_lib/missions';
-import { timestampAgeSeconds } from '../_lib/robotMap';
-
-/** Heartbeats are frequent; a robot quiet for two minutes is not "ready". */
-const ONLINE_WINDOW_SECONDS = 120;
+import { formatQuietFor, robotPresence } from '../_lib/presence';
 
 type Props = {
   projects: ApiProject[];
@@ -17,13 +14,6 @@ type Props = {
   onRobotChange: (robotId: string) => void;
   activeMission: ApiRobotMission | null;
 };
-
-function formatQuietFor(ageSeconds: number | null): string {
-  if (ageSeconds === null) return 'never checked in';
-  if (ageSeconds < 90) return `quiet for ${Math.round(ageSeconds)}s`;
-  if (ageSeconds < 5400) return `quiet for ${Math.round(ageSeconds / 60)}m`;
-  return `quiet for ${Math.round(ageSeconds / 3600)}h`;
-}
 
 export function RobotContextBar({
   projects,
@@ -43,11 +33,10 @@ export function RobotContextBar({
    * stack (and therefore live position) is down. */
   const health = useMemo(() => {
     if (!robot) return { label: 'No robot selected', tone: 'border-base-800 bg-base-950 text-ink-400', dot: 'bg-ink-500' };
-    const age = timestampAgeSeconds(robot.last_seen_at, Date.now());
-    const online = age !== null && age < ONLINE_WINDOW_SECONDS;
+    const { online, ageSeconds } = robotPresence(robot, Date.now());
     if (!online) {
       return {
-        label: `Offline — ${formatQuietFor(age)}`,
+        label: `Offline — ${formatQuietFor(ageSeconds)}`,
         tone: 'border-base-800 bg-base-950 text-ink-400',
         dot: 'bg-ink-500',
       };

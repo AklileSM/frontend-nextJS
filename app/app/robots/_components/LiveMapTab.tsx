@@ -16,9 +16,64 @@ type Props = {
   telemetry: TelemetryState;
   /** Shown in the degraded banner so the user is pointed at the view that still works. */
   captureRunning: boolean;
+  /** From the agent's heartbeat, not telemetry — the two fail independently. */
+  robotOnline: boolean;
+  robotQuietFor: string;
 };
 
-export function LiveMapTab({ robotMap, capturePoints, telemetry, captureRunning }: Props) {
+/**
+ * Presence and position come from different systems, so a single "stale" state cannot explain
+ * what is wrong. Naming which of the two is down is the difference between a one-line answer
+ * and reading WebSocket frames by hand.
+ */
+function degradedNotice({
+  status,
+  lastUpdate,
+  robotOnline,
+  robotQuietFor,
+  captureRunning,
+}: {
+  status: TelemetryState['status'];
+  lastUpdate: string;
+  robotOnline: boolean;
+  robotQuietFor: string;
+  captureRunning: boolean;
+}): { headline: string; detail: string } | null {
+  if (status === 'live') return null;
+
+  if (!robotOnline) {
+    return {
+      headline: `Robot is offline — ${robotQuietFor}.`,
+      detail: 'It is not reaching SiteScope at all. New captures will not start until it reconnects.',
+    };
+  }
+
+  // The robot is talking to us, so the gap is between it and its own navigation stack.
+  if (status === 'waiting') {
+    return {
+      headline: 'Robot is online, but is not reporting its position.',
+      detail: captureRunning
+        ? 'Its navigation stack may not be running. The capture is still going — Progress has the status.'
+        : 'Its navigation stack may not be running. Queued captures are unaffected.',
+    };
+  }
+
+  return {
+    headline: `Robot is online, but its position is behind — last update ${lastUpdate}.`,
+    detail: captureRunning
+      ? 'The capture is still running — Progress has the current status.'
+      : 'Its navigation stack may have stopped publishing a pose.',
+  };
+}
+
+export function LiveMapTab({
+  robotMap,
+  capturePoints,
+  telemetry,
+  captureRunning,
+  robotOnline,
+  robotQuietFor,
+}: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { telemetry: pose, trail, ageSeconds, status } = telemetry;
 
@@ -117,6 +172,14 @@ export function LiveMapTab({ robotMap, capturePoints, telemetry, captureRunning 
     return () => window.cancelAnimationFrame(frame);
   }, [draw]);
 
+  const notice = degradedNotice({
+    status,
+    lastUpdate: formatMissionTime(pose?.received_at_utc ?? pose?.reported_at_utc),
+    robotOnline,
+    robotQuietFor,
+    captureRunning,
+  });
+
   if (!robotMap) {
     return (
       <div className="rounded-2xl border border-dashed border-base-700 px-4 py-14 text-center">
@@ -131,20 +194,10 @@ export function LiveMapTab({ robotMap, capturePoints, telemetry, captureRunning 
     <div>
       {/* The old UI greyed the marker and said nothing, so a robot that had not reported in
         * 17 hours looked identical to one pausing for a second. Say which it is. */}
-      {status !== 'live' ? (
+      {notice ? (
         <div className="mb-4 rounded-2xl border border-amber-500/25 bg-amber-500/5 px-4 py-3">
-          <p className="text-[13px] text-amber-100">
-            {status === 'waiting'
-              ? 'No live position for this robot yet.'
-              : `Live position is behind — last update ${formatMissionTime(
-                pose?.received_at_utc ?? pose?.reported_at_utc,
-              )}.`}
-          </p>
-          <p className="mt-1 text-[12px] text-amber-200/70">
-            {captureRunning
-              ? 'The capture is still running — Progress has the current status.'
-              : 'The robot is not reporting its position right now. This does not affect queued captures.'}
-          </p>
+          <p className="text-[13px] text-amber-100">{notice.headline}</p>
+          <p className="mt-1 text-[12px] text-amber-200/70">{notice.detail}</p>
         </div>
       ) : null}
 

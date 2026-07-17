@@ -25,6 +25,7 @@ import { useRobotMissions } from './_hooks/useRobotMissions';
 import { useRobotTelemetry } from './_hooks/useRobotTelemetry';
 import { isActiveMissionStatus, routeSummary } from './_lib/missions';
 import type { CaptureOutput } from './_lib/missions';
+import { formatQuietFor, robotPresence } from './_lib/presence';
 
 export const dynamic = 'force-dynamic';
 
@@ -107,6 +108,12 @@ export default function RobotPage() {
     if (projectSlug && activeMission.project_slug !== projectSlug) return null;
     return activeMission;
   }, [activeMission, projectSlug, robotId]);
+
+  /* Recomputed whenever the mission poll refreshes `robots`, which carries last_seen_at. */
+  const presence = useMemo(
+    () => robotPresence(robots.find((candidate) => candidate.username === robotId) ?? null, Date.now()),
+    [robotId, robots],
+  );
 
   const visibleMissions = useMemo(
     () => missions.filter((mission) => (
@@ -244,6 +251,8 @@ export default function RobotPage() {
             capturePoints={capturePoints}
             telemetry={telemetry}
             captureRunning={Boolean(currentMission && isActiveMissionStatus(currentMission.status))}
+            robotOnline={presence.online}
+            robotQuietFor={formatQuietFor(presence.ageSeconds)}
           />
         ) : (
           <HistoryTab
