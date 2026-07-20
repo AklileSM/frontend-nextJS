@@ -1,25 +1,33 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Check, ImageIcon, LayoutGrid, MousePointerSquareDashed } from 'lucide-react';
+import { Bot, Check, ImageIcon, LayoutGrid, MousePointerSquareDashed } from 'lucide-react';
 import { listRooms } from '@/services/apiClient';
 import { FloorplanUploader } from './FloorplanUploader';
 import { ProjectRoomsTab } from './ProjectRoomsTab';
 import { HotspotEditor } from './HotspotEditor';
-import type { ApiProject, ApiRoom } from '@/types/api';
+import { RobotMapUploader } from './RobotMapUploader';
+import type { ApiProject, ApiRobotMap, ApiRoom } from '@/types/api';
 
-type Section = 'floorplan' | 'rooms' | 'hotspots';
+type Section = 'floorplan' | 'rooms' | 'hotspots' | 'robot-map';
 
 const SECTIONS: { id: Section; label: string; icon: React.ReactNode }[] = [
   { id: 'floorplan', label: 'Floorplan', icon: <ImageIcon size={14} /> },
   { id: 'rooms',     label: 'Rooms',     icon: <LayoutGrid size={14} /> },
   { id: 'hotspots',  label: 'Hotspots',  icon: <MousePointerSquareDashed size={14} /> },
+  { id: 'robot-map', label: 'Robot map', icon: <Bot size={14} /> },
 ];
 
-function statusFor(id: Section, project: ApiProject, rooms: ApiRoom[]): 'done' | 'empty' {
+function statusFor(
+  id: Section,
+  project: ApiProject,
+  rooms: ApiRoom[],
+  robotMap: ApiRobotMap | null,
+): 'done' | 'empty' {
   if (id === 'floorplan') return project.floorplan_url ? 'done' : 'empty';
   if (id === 'rooms')     return rooms.length > 0 ? 'done' : 'empty';
   if (id === 'hotspots')  return rooms.some((r) => !!r.floor_plan_coordinates) ? 'done' : 'empty';
+  if (id === 'robot-map') return robotMap ? 'done' : 'empty';
   return 'empty';
 }
 
@@ -32,6 +40,7 @@ export function ProjectSetupTab({
 }) {
   const [active, setActive] = useState<Section>('floorplan');
   const [rooms, setRooms] = useState<ApiRoom[]>([]);
+  const [robotMap, setRobotMap] = useState<ApiRobotMap | null>(null);
 
   useEffect(() => {
     listRooms().then((all) =>
@@ -50,7 +59,7 @@ export function ProjectSetupTab({
         <ul className="space-y-0.5">
           {SECTIONS.map(({ id, label, icon }) => {
             const isActive = active === id;
-            const isDone = statusFor(id, project, rooms) === 'done';
+            const isDone = statusFor(id, project, rooms, robotMap) === 'done';
             return (
               <li key={id}>
                 <button
@@ -117,6 +126,17 @@ export function ProjectSetupTab({
                 Upload a floorplan first before placing hotspots.
               </p>
             )}
+          </div>
+        )}
+
+        {active === 'robot-map' && (
+          <div>
+            <h3 className="mb-1 text-[14px] font-semibold text-white">Robot map</h3>
+            <p className="mb-5 text-[13px] text-ink-400">
+              The map the robot navigates by, from your SLAM toolchain. Capture points and live
+              position are placed on it.
+            </p>
+            <RobotMapUploader projectId={project.id} onLoaded={setRobotMap} />
           </div>
         )}
       </div>

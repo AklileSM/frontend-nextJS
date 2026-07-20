@@ -31,7 +31,6 @@ function lerp(a: number, b: number, k: number): number {
   return a + (b - a) * k;
 }
 
-
 /** Shortest-arc blend so a heading crossing ±π does not spin the marker the long way. */
 function lerpYaw(a: number | null, b: number | null, k: number): number | null {
   if (a === null) return b;
