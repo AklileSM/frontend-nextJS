@@ -5,7 +5,24 @@ import { useCallback, useRef, useState } from 'react';
 import type { WheelEvent } from 'react';
 import { RotateCcw, ZoomIn, ZoomOut } from 'lucide-react';
 import type { ApiRobotCapturePoint, ApiRobotMap } from '@/types/api';
+import { mapPoseToNormalized } from '../_lib/robotMap';
 import type { MapMarker } from '../_lib/robotMap';
+
+/**
+ * Where to draw a capture point, in 0..1 image coordinates. map_x/map_y are the authoritative
+ * Nav2 world pose the robot drives to, so projecting them through the *current* map keeps the
+ * pin correct across map replacement, cropping, or re-SLAM. floorplan_x/y is only a fallback
+ * for legacy points that predate stored world coordinates.
+ */
+function capturePointMarker(robotMap: ApiRobotMap, point: ApiRobotCapturePoint): MapMarker | null {
+  if (typeof point.map_x === 'number' && typeof point.map_y === 'number') {
+    return mapPoseToNormalized(robotMap, { x: point.map_x, y: point.map_y });
+  }
+  if (point.floorplan_x !== null && point.floorplan_y !== null) {
+    return { x: point.floorplan_x, y: point.floorplan_y };
+  }
+  return null;
+}
 
 export type Placement = {
   position: MapMarker;
@@ -189,7 +206,8 @@ export function RobotMapSurface({
           <img src={robotMap.image_url} alt="" draggable={false} className="h-full w-full select-none" />
 
           {capturePoints.map((point) => {
-            if (point.floorplan_x === null || point.floorplan_y === null) return null;
+            const marker = capturePointMarker(robotMap, point);
+            if (!marker) return null;
             const stop = stopNumbers?.get(point.id);
             const selected = stop !== undefined;
             return (
@@ -207,7 +225,7 @@ export function RobotMapSurface({
                     ? 'border-base-950 bg-amber-400 text-base-950'
                     : 'border-base-950 bg-emerald-400 text-transparent hover:scale-125'
                 } ${placing ? 'pointer-events-none opacity-60' : ''}`}
-                style={{ left: `${point.floorplan_x * 100}%`, top: `${point.floorplan_y * 100}%` }}
+                style={{ left: `${marker.x * 100}%`, top: `${marker.y * 100}%` }}
               >
                 {stop ?? ''}
                 <span className="pointer-events-none absolute left-1/2 bottom-full z-20 mb-1 -translate-x-1/2 whitespace-nowrap rounded-md border border-base-700 bg-base-950 px-2 py-1 text-[11px] text-white opacity-0 shadow-lg shadow-black/40 transition-opacity group-hover:opacity-100">
