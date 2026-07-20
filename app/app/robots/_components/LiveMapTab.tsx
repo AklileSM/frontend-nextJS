@@ -9,6 +9,8 @@ import type { MapMarker } from '../_lib/robotMap';
 import { TELEMETRY_STALE_SECONDS } from '../_hooks/useRobotTelemetry';
 import type { TelemetryState } from '../_hooks/useRobotTelemetry';
 import { formatMissionTime } from '../_lib/missions';
+import { createPoseTween } from '../_lib/poseTween';
+import type { PoseTween } from '../_lib/poseTween';
 
 type Props = {
   robotMap: ApiRobotMap | null;
@@ -77,6 +79,24 @@ export function LiveMapTab({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { telemetry: pose, trail, ageSeconds, status } = telemetry;
 
+  /* Frames go into a delayed-interpolation buffer, timestamped on arrival; the render
+   * loop below reads a smoothed pose out of it every animation frame. */
+  const tweenRef = useRef<PoseTween | null>(null);
+  if (tweenRef.current === null) tweenRef.current = createPoseTween();
+
+  useEffect(() => {
+    if (!pose) {
+      tweenRef.current?.clear();
+      return;
+    }
+    tweenRef.current?.push({
+      x: pose.pose.x,
+      y: pose.pose.y,
+      z: pose.pose.z,
+      yaw: pose.pose.yaw ?? null,
+    });
+  }, [pose]);
+
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas || !robotMap) return;
@@ -138,7 +158,9 @@ export function LiveMapTab({
       }
     }
 
-    const robot = mapPoseToNormalized(robotMap, pose.pose);
+    // Marker from the smoothed pose; paths, goal, and trail from the raw frame above.
+    const smoothed = tweenRef.current?.sample() ?? null;
+    const robot = mapPoseToNormalized(robotMap, smoothed ?? pose.pose);
     if (!visibleMarker(robot)) return;
     const point = toCanvas(robot);
     const fresh = ageSeconds !== null && ageSeconds <= TELEMETRY_STALE_SECONDS;
@@ -167,10 +189,23 @@ export function LiveMapTab({
     ctx.restore();
   }, [ageSeconds, pose, robotMap, trail]);
 
+  /* Continuous render loop: interpolation means there is something new to draw on every
+   * animation frame, not just when a network frame lands. The ref indirection keeps the
+   * loop itself mounted once instead of restarting per state change. */
+  const drawRef = useRef(draw);
   useEffect(() => {
-    const frame = window.requestAnimationFrame(draw);
-    return () => window.cancelAnimationFrame(frame);
+    drawRef.current = draw;
   }, [draw]);
+
+  useEffect(() => {
+    let frame = 0;
+    const loop = () => {
+      drawRef.current();
+      frame = window.requestAnimationFrame(loop);
+    };
+    frame = window.requestAnimationFrame(loop);
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
 
   const notice = degradedNotice({
     status,
