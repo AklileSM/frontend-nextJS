@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { Loader2, XCircle } from 'lucide-react';
 import type { ApiRobotMission } from '@/types/api';
 import {
@@ -11,6 +12,38 @@ import {
   routeSummary,
 } from '../_lib/missions';
 import type { MissionProgressStatus } from '../_lib/missions';
+import { friendlyError, hasTechnicalDetail } from '../_lib/friendlyError';
+
+/**
+ * A failure line in plain English, with the raw robot/backend text tucked behind a toggle so
+ * operators read something actionable while the original stays one click away for debugging.
+ */
+function FailureDetail({ raw, className }: { raw: string | null | undefined; className?: string }) {
+  const [open, setOpen] = useState(false);
+  const friendly = friendlyError(raw);
+  if (!friendly) return null;
+  return (
+    <div className={className}>
+      <p className="break-words text-red-200">{friendly}</p>
+      {hasTechnicalDetail(raw, friendly) ? (
+        <>
+          <button
+            type="button"
+            onClick={() => setOpen((value) => !value)}
+            className="mt-0.5 text-[10px] text-ink-500 underline decoration-dotted underline-offset-2 transition hover:text-ink-300"
+          >
+            {open ? 'Hide technical details' : 'Show technical details'}
+          </button>
+          {open ? (
+            <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-md border border-base-800 bg-base-950 px-2 py-1 font-mono text-[10px] text-ink-400">
+              {raw}
+            </pre>
+          ) : null}
+        </>
+      ) : null}
+    </div>
+  );
+}
 
 const DOT_STYLES: Record<MissionProgressStatus, string> = {
   pending: 'border-base-700 bg-base-900',
@@ -100,9 +133,7 @@ export function ProgressTab({ mission, onCancel }: Props) {
                     <span className="font-mono text-[11px] text-ink-500">{formatMissionTime(event.at)}</span>
                   ) : null}
                 </div>
-                {event.detail ? (
-                  <p className="mt-1 break-words text-[11px] text-red-200">{event.detail}</p>
-                ) : null}
+                {event.detail ? <FailureDetail raw={event.detail} className="mt-1 text-[11px]" /> : null}
               </div>
             </li>
           );
@@ -110,8 +141,8 @@ export function ProgressTab({ mission, onCancel }: Props) {
       </ol>
 
       {failure ? (
-        <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/5 px-3 py-3 text-[12px] text-red-200">
-          {failure}
+        <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/5 px-3 py-3 text-[12px]">
+          <FailureDetail raw={failure} />
         </div>
       ) : null}
     </div>
