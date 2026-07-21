@@ -167,6 +167,14 @@ function stepsAsProgressEvents(mission: ApiRobotMission): MissionProgressEvent[]
   });
 }
 
+/** Normalize a raw progress_events array (e.g. from a connect command) into render-ready events. */
+export function normalizeProgressEvents(raw: unknown): MissionProgressEvent[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((event, index) => normalizeProgressEvent(event, index))
+    .filter((event): event is MissionProgressEvent => Boolean(event));
+}
+
 export function missionProgressEvents(mission: ApiRobotMission): MissionProgressEvent[] {
   const queued: MissionProgressEvent = {
     id: 'task:queued',

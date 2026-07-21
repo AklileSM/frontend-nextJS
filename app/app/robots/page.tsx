@@ -17,12 +17,15 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Tabs } from '@/components/ui/Tabs';
 import type { ApiProject, ApiRobotCapturePoint, ApiRobotMap, ApiRobotMission } from '@/types/api';
 import { RobotContextBar } from './_components/RobotContextBar';
+import { ConnectControl } from './_components/ConnectControl';
 import { RouteTab } from './_components/RouteTab';
 import { ProgressTab } from './_components/ProgressTab';
 import { LiveMapTab } from './_components/LiveMapTab';
 import { HistoryTab } from './_components/HistoryTab';
 import { useRobotMissions } from './_hooks/useRobotMissions';
 import { useRobotTelemetry } from './_hooks/useRobotTelemetry';
+import { useRobotConnection } from './_hooks/useRobotConnection';
+import { deriveConnection } from './_lib/connection';
 import { isActiveMissionStatus, routeSummary } from './_lib/missions';
 import type { CaptureOutput } from './_lib/missions';
 import { formatQuietFor, robotPresence } from './_lib/presence';
@@ -58,6 +61,10 @@ export default function RobotPage() {
 
   // Live position only connects while its tab is on screen — most sessions never open it.
   const telemetry = useRobotTelemetry(robotId, tab === 'live');
+
+  // One-click connect/disconnect for the robot's ROS stack (localization + navigation).
+  const connection = useRobotConnection(robotId);
+  const isConnected = deriveConnection(connection.command).connection === 'connected';
 
   useEffect(() => {
     listProjects()
@@ -138,6 +145,10 @@ export default function RobotPage() {
       toast.error('Add at least one stop to the route');
       return;
     }
+    if (!isConnected) {
+      toast.error('Connect the robot before starting a capture');
+      return;
+    }
     startCapture(() => {
       createRobotMission({
         robot_id: robotId,
@@ -156,7 +167,7 @@ export default function RobotPage() {
         })
         .catch((err) => toast.error(err instanceof Error ? err.message : 'Could not start the capture'));
     });
-  }, [captureOutputs, continueOnFailure, projectSlug, refresh, robotId, selectedIds]);
+  }, [captureOutputs, continueOnFailure, isConnected, projectSlug, refresh, robotId, selectedIds]);
 
   // Follow the robot into Progress when a capture starts, since that is the view that works.
   useEffect(() => {
@@ -217,6 +228,19 @@ export default function RobotPage() {
         />
       </div>
 
+      {robotId ? (
+        <div className="mt-3">
+          <ConnectControl
+            robotId={robotId}
+            command={connection.command}
+            submitting={connection.submitting}
+            error={connection.error}
+            onConnect={connection.connect}
+            onDisconnect={connection.disconnect}
+          />
+        </div>
+      ) : null}
+
       <div className="mt-6">
         <Tabs tabs={TABS} active={tab} onChange={setTab} railId="robot-tabs" />
       </div>
@@ -238,6 +262,7 @@ export default function RobotPage() {
             onContinueOnFailureChange={setContinueOnFailure}
             onStart={handleStart}
             starting={starting}
+            connected={isConnected}
             onCapturePointsChanged={loadCapturePoints}
           />
         ) : tab === 'progress' ? (

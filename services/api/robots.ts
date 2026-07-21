@@ -1,6 +1,7 @@
 import type {
   ApiProject,
   ApiRobotCapturePoint,
+  ApiRobotCommand,
   ApiRobotMap,
   ApiRobotMission,
   ApiRobotPairingToken,
@@ -251,6 +252,31 @@ export function cancelRobotMission(missionId: string): Promise<ApiRobotMission> 
   return getJson<ApiRobotMission>(`/robot/missions/${encodeURIComponent(missionId)}/cancel`, {
     method: 'POST',
   });
+}
+
+/** Queue a connect/disconnect for a robot. The on-site agent picks it up and drives the panel. */
+export function createRobotCommand(
+  robotId: string,
+  kind: 'connect' | 'disconnect',
+): Promise<ApiRobotCommand> {
+  return getJson<ApiRobotCommand>('/robot/commands', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ robot_id: robotId, kind }),
+  });
+}
+
+/** The most recent lifecycle command for a robot, or null if it has never had one. */
+export async function getLatestRobotCommand(robotId: string): Promise<ApiRobotCommand | null> {
+  const response = await apiFetch(
+    `/robots/${encodeURIComponent(robotId)}/commands/latest`,
+    { method: 'GET' },
+  );
+  if (response.status === 204) return null;
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
+  return response.json() as Promise<ApiRobotCommand>;
 }
 
 export async function deleteRobotMission(missionId: string): Promise<void> {

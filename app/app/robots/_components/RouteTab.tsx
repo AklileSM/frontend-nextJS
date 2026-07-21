@@ -36,6 +36,7 @@ type Props = {
   onContinueOnFailureChange: (value: boolean) => void;
   onStart: () => void;
   starting: boolean;
+  connected: boolean;
   onCapturePointsChanged: () => void;
 };
 
@@ -52,6 +53,7 @@ export function RouteTab({
   onContinueOnFailureChange,
   onStart,
   starting,
+  connected,
   onCapturePointsChanged,
 }: Props) {
   const [placing, setPlacing] = useState(false);
@@ -349,12 +351,15 @@ export function RouteTab({
         <button
           type="button"
           onClick={onStart}
-          disabled={starting || route.length === 0}
+          disabled={starting || route.length === 0 || !connected}
           className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-amber-500 px-4 py-3 text-[14px] font-medium text-base-950 transition hover:bg-amber-400 disabled:opacity-40"
         >
           {starting ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
           Start capture
         </button>
+        {!connected && route.length > 0 ? (
+          <p className="mt-2 text-center text-[12px] text-ink-500">Connect the robot first to start a capture.</p>
+        ) : null}
       </div>
 
       <Modal

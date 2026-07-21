@@ -123,6 +123,21 @@ export interface ApiRobotMission {
   result: Record<string, unknown> | null;
 }
 
+export type ApiRobotConnection = 'disconnected' | 'connecting' | 'connected' | 'disconnecting';
+
+export interface ApiRobotCommand {
+  id: string;
+  robot_id: string;
+  kind: 'connect' | 'disconnect';
+  status: string;
+  connection: ApiRobotConnection | null;
+  detail: string | null;
+  progress_events: Array<Record<string, unknown>>;
+  created_at: string;
+  dispatched_at: string | null;
+  completed_at: string | null;
+}
+
 export interface ApiRobotCapturePoint {
   id: string;
   project_id: string;
