@@ -194,9 +194,13 @@ export function missionProgressEvents(mission: ApiRobotMission): MissionProgress
       .filter((event): event is MissionProgressEvent => Boolean(event))
     : [];
 
-  const body = fromResult.length > 0 ? fromResult : stepsAsProgressEvents(mission);
+  const usingSteps = fromResult.length === 0;
+  const body = usingSteps ? stepsAsProgressEvents(mission) : fromResult;
 
-  const closing: MissionProgressEvent[] = mission.completed_at
+  // The robot's own progress events already end with a terminal "Task completed/failed", so a
+  // synthesized closing would just duplicate it. Only add one when we fell back to raw steps,
+  // which carry no terminal of their own.
+  const closing: MissionProgressEvent[] = usingSteps && mission.completed_at
     ? [{
       id: mission.status === 'failed' ? 'task:failed' : 'task:completed',
       label: mission.status === 'failed' ? 'Capture failed' : 'Capture complete',

@@ -6,11 +6,10 @@ import {
   activeStepSummary,
   canCancelMission,
   formatMissionTime,
-  missionFailureMessage,
   missionProgressEvents,
   routeSummary,
 } from '../_lib/missions';
-import { FailureDetail, ProgressTimeline } from './ProgressTimeline';
+import { ProgressTimeline } from './ProgressTimeline';
 
 type Props = {
   mission: ApiRobotMission | null;
@@ -33,7 +32,6 @@ export function ProgressTab({ mission, onCancel }: Props) {
 
   const events = missionProgressEvents(mission);
   const summary = activeStepSummary(mission);
-  const failure = missionFailureMessage(mission);
 
   return (
     <div>
@@ -66,12 +64,6 @@ export function ProgressTab({ mission, onCancel }: Props) {
       <div className="mt-5">
         <ProgressTimeline events={events} />
       </div>
-
-      {failure ? (
-        <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/5 px-3 py-3 text-[12px]">
-          <FailureDetail raw={failure} />
-        </div>
-      ) : null}
     </div>
   );
 }
