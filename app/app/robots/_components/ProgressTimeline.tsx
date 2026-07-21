@@ -55,7 +55,7 @@ const TEXT_STYLES: Record<MissionProgressStatus, string> = {
   cancelled: 'text-ink-500',
 };
 
-/** A vertical timeline of progress events — used for both a capture mission and a connect run. */
+/** A vertical timeline of progress events, used for both a capture mission and a connect run. */
 export function ProgressTimeline({ events }: { events: MissionProgressEvent[] }) {
   return (
     <ol>

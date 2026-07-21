@@ -44,7 +44,12 @@ export function deriveConnection(command: ApiRobotCommand | null): ConnectionVie
     return { connection: 'disconnected', busy: false, label: 'Not connected', tone: NEUTRAL, dot: 'bg-ink-500' };
   }
 
-  // Failed (or any non-terminal-yet-inactive state): the stack is not usable.
+  // Cancelled is a clean "not connected", not a failure.
+  if (command.status === 'cancelled') {
+    return { connection: 'disconnected', busy: false, label: 'Not connected', tone: NEUTRAL, dot: 'bg-ink-500' };
+  }
+
+  // Failed: the stack is not usable.
   return {
     connection: 'disconnected',
     busy: false,

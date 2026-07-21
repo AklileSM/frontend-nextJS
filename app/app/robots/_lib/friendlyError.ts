@@ -4,8 +4,8 @@
  * stack-trace messages), which travels verbatim all the way to the screen. This maps the
  * recognizable ones to human language; anything unmatched falls back to a safe generic line.
  *
- * The raw text is never discarded — callers keep it and show it behind a "technical details"
- * toggle — so this only changes what is shown first, not what is available for debugging.
+ * The raw text is never discarded, callers keep it and show it behind a "technical details"
+ * toggle, so this only changes what is shown first, not what is available for debugging.
  */
 
 type Rule = { tokens: string[]; message: string };
@@ -15,7 +15,7 @@ type Rule = { tokens: string[]; message: string };
 const RULES: Rule[] = [
   {
     tokens: ['ffmpeg', 'insta360', 'camera', 'panorama', '/dev/video', 'v4l', 'gstreamer', 'sdk'],
-    message: "Couldn't take the photo — the camera didn't respond.",
+    message: "Couldn't take the photo, the camera didn't respond.",
   },
   {
     tokens: ['pointcloud', 'point cloud', 'lidar', 'laz', 'pcd', '3d scan'],

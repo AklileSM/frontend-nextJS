@@ -48,7 +48,7 @@ export function orderedSteps(mission: ApiRobotMission): ApiRobotMissionStep[] {
   return [...mission.steps].sort((a, b) => a.sequence_index - b.sequence_index);
 }
 
-/** The stops a capture visits, by name — what "3 waypoints" should have said all along. */
+/** The stops a capture visits, by name, what "3 waypoints" should have said all along. */
 export function routeStopNames(mission: ApiRobotMission): string[] {
   return orderedSteps(mission).map((step) => step.waypoint_name);
 }
@@ -75,7 +75,7 @@ export function activeStepSummary(mission: ApiRobotMission): string | null {
 }
 
 /* Mission timestamps are naive UTC (the API strips tzinfo), so they must be parsed as UTC
- * rather than handed to `new Date` — which would read them as local time. */
+ * rather than handed to `new Date`, which would read them as local time. */
 export function formatMissionTime(value: string | null | undefined): string {
   const timestamp = parseUtcTimestamp(value);
   if (timestamp === null) return '—';
@@ -150,12 +150,12 @@ function stepsAsProgressEvents(mission: ApiRobotMission): MissionProgressEvent[]
   return orderedSteps(mission).map((step) => {
     const status = normalizeProgressStatus(step.status);
     const label = status === 'succeeded'
-      ? `${step.waypoint_name} — captured`
+      ? `${step.waypoint_name}, captured`
       : status === 'running'
-        ? `${step.waypoint_name} — capturing now`
+        ? `${step.waypoint_name}, capturing now`
         : status === 'failed'
-          ? `${step.waypoint_name} — could not capture`
-          : `${step.waypoint_name} — waiting`;
+          ? `${step.waypoint_name}, could not capture`
+          : `${step.waypoint_name}, waiting`;
     return {
       id: `step:${step.id}`,
       label,

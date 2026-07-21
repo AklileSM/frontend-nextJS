@@ -17,7 +17,7 @@ type Props = {
   telemetry: TelemetryState;
   /** Shown in the banner so the user is pointed at the view that still works. */
   captureRunning: boolean;
-  /** From the agent's heartbeat, not telemetry — the two fail independently. */
+  /** From the agent's heartbeat, not telemetry, the two fail independently. */
   robotOnline: boolean;
   robotQuietFor: string;
   /** Whether the robot's ROS stack has been connected from the UI. No pose is expected until it is. */
@@ -29,7 +29,7 @@ type NoticeTone = 'ready' | 'warn' | 'muted';
 /**
  * Presence, connection, and live position come from three different systems, so a single "stale"
  * state cannot explain what the user is seeing. The live position only exists once the robot is
- * connected, so an online-but-not-connected robot is a normal, positive state — not a fault.
+ * connected, so an online-but-not-connected robot is a normal, positive state, not a fault.
  */
 function statusNotice({
   status,
@@ -49,7 +49,7 @@ function statusNotice({
   if (!robotOnline) {
     return {
       tone: 'muted',
-      headline: `Robot is offline — ${robotQuietFor}.`,
+      headline: `Robot is offline, ${robotQuietFor}.`,
       detail: 'It is not reaching SiteScope. Captures will not start until it comes back online.',
     };
   }
@@ -64,12 +64,12 @@ function statusNotice({
     };
   }
 
-  // Connected, so a pose should be arriving but isn't (yet) — a genuine, but recoverable, gap.
+  // Connected, so a pose should be arriving but isn't (yet), a genuine, but recoverable, gap.
   return {
     tone: 'warn',
     headline: 'Robot is online, but its live position hasn’t updated recently.',
     detail: captureRunning
-      ? 'The capture is still running — Progress has the current status.'
+      ? 'The capture is still running, Progress has the current status.'
       : 'This usually clears on its own. If it lingers, reconnect the robot.',
   };
 }
@@ -252,7 +252,7 @@ export function LiveMapTab({
 
   return (
     <div>
-      {/* Presence, connection, and live pose are three separate systems — the banner names the
+      {/* Presence, connection, and live pose are three separate systems, the banner names the
         * one that explains what the user sees, and stays positive when nothing is actually wrong. */}
       {notice ? (
         <div className={`mb-4 rounded-2xl border px-4 py-3 ${NOTICE_STYLES[notice.tone].box}`}>

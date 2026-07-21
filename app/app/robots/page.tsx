@@ -59,7 +59,7 @@ export default function RobotPage() {
   const [starting, startCapture] = useTransition();
   const [pending, setPending] = useState<{ type: 'cancel' | 'delete'; mission: ApiRobotMission } | null>(null);
 
-  // Live position only connects while its tab is on screen — most sessions never open it.
+  // Live position only connects while its tab is on screen, most sessions never open it.
   const telemetry = useRobotTelemetry(robotId, tab === 'live');
 
   // One-click connect/disconnect for the robot's ROS stack (localization + navigation).
@@ -160,7 +160,7 @@ export default function RobotPage() {
         robot_meta: { capture_outputs: captureOutputs },
       })
         .then((mission) => {
-          toast.success(`Capture started — ${routeSummary(mission)}`);
+          toast.success(`Capture started, ${routeSummary(mission)}`);
           setSelectedIds([]);
           setTab('progress');
           return refresh();
@@ -235,8 +235,11 @@ export default function RobotPage() {
             command={connection.command}
             submitting={connection.submitting}
             error={connection.error}
+            timedOut={connection.timedOut}
             onConnect={connection.connect}
             onDisconnect={connection.disconnect}
+            onCancel={connection.cancel}
+            onRetry={connection.retry}
           />
         </div>
       ) : null}

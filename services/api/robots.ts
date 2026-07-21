@@ -266,6 +266,13 @@ export function createRobotCommand(
   });
 }
 
+/** Cancel an in-flight connect/disconnect. Safe to call on a finished command (returns it as-is). */
+export function cancelRobotCommand(commandId: string): Promise<ApiRobotCommand> {
+  return getJson<ApiRobotCommand>(`/robot/commands/${encodeURIComponent(commandId)}/cancel`, {
+    method: 'POST',
+  });
+}
+
 /** The most recent lifecycle command for a robot, or null if it has never had one. */
 export async function getLatestRobotCommand(robotId: string): Promise<ApiRobotCommand | null> {
   const response = await apiFetch(

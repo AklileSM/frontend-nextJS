@@ -36,7 +36,7 @@ export function RobotContextBar({
     const { online, ageSeconds } = robotPresence(robot, Date.now());
     if (!online) {
       return {
-        label: `Offline — ${formatQuietFor(ageSeconds)}`,
+        label: `Offline, ${formatQuietFor(ageSeconds)}`,
         tone: 'border-base-800 bg-base-950 text-ink-400',
         dot: 'bg-ink-500',
       };

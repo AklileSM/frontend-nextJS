@@ -33,7 +33,7 @@ export type Placement = {
 type Props = {
   robotMap: ApiRobotMap;
   capturePoints: ApiRobotCapturePoint[];
-  /** Stop number per capture point id — drives the amber numbered pins on the Route tab. */
+  /** Stop number per capture point id, drives the amber numbered pins on the Route tab. */
   stopNumbers?: Map<string, number>;
   onPointClick?: (point: ApiRobotCapturePoint) => void;
   placing?: boolean;
