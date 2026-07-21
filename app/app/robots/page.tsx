@@ -278,6 +278,7 @@ export default function RobotPage() {
             captureRunning={Boolean(currentMission && isActiveMissionStatus(currentMission.status))}
             robotOnline={presence.online}
             robotQuietFor={formatQuietFor(presence.ageSeconds)}
+            connected={isConnected}
           />
         ) : (
           <HistoryTab

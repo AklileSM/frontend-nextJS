@@ -8,7 +8,6 @@ import { mapPoseToNormalized, visibleMarker } from '../_lib/robotMap';
 import type { MapMarker } from '../_lib/robotMap';
 import { TELEMETRY_STALE_SECONDS } from '../_hooks/useRobotTelemetry';
 import type { TelemetryState } from '../_hooks/useRobotTelemetry';
-import { formatMissionTime } from '../_lib/missions';
 import { createPoseTween } from '../_lib/poseTween';
 import type { PoseTween } from '../_lib/poseTween';
 
@@ -16,57 +15,82 @@ type Props = {
   robotMap: ApiRobotMap | null;
   capturePoints: ApiRobotCapturePoint[];
   telemetry: TelemetryState;
-  /** Shown in the degraded banner so the user is pointed at the view that still works. */
+  /** Shown in the banner so the user is pointed at the view that still works. */
   captureRunning: boolean;
   /** From the agent's heartbeat, not telemetry — the two fail independently. */
   robotOnline: boolean;
   robotQuietFor: string;
+  /** Whether the robot's ROS stack has been connected from the UI. No pose is expected until it is. */
+  connected: boolean;
 };
 
+type NoticeTone = 'ready' | 'warn' | 'muted';
+
 /**
- * Presence and position come from different systems, so a single "stale" state cannot explain
- * what is wrong. Naming which of the two is down is the difference between a one-line answer
- * and reading WebSocket frames by hand.
+ * Presence, connection, and live position come from three different systems, so a single "stale"
+ * state cannot explain what the user is seeing. The live position only exists once the robot is
+ * connected, so an online-but-not-connected robot is a normal, positive state — not a fault.
  */
-function degradedNotice({
+function statusNotice({
   status,
-  lastUpdate,
   robotOnline,
   robotQuietFor,
   captureRunning,
+  connected,
 }: {
   status: TelemetryState['status'];
-  lastUpdate: string;
   robotOnline: boolean;
   robotQuietFor: string;
   captureRunning: boolean;
-}): { headline: string; detail: string } | null {
+  connected: boolean;
+}): { headline: string; detail: string; tone: NoticeTone } | null {
   if (status === 'live') return null;
 
   if (!robotOnline) {
     return {
+      tone: 'muted',
       headline: `Robot is offline — ${robotQuietFor}.`,
-      detail: 'It is not reaching SiteScope at all. New captures will not start until it reconnects.',
+      detail: 'It is not reaching SiteScope. Captures will not start until it comes back online.',
     };
   }
 
-  // The robot is talking to us, so the gap is between it and its own navigation stack.
-  if (status === 'waiting') {
+  // Online but not connected: the live position simply doesn't exist yet. This is the normal
+  // resting state, so keep it positive and point at the one action that fixes it.
+  if (!connected) {
     return {
-      headline: 'Robot is online, but is not reporting its position.',
-      detail: captureRunning
-        ? 'Its navigation stack may not be running. The capture is still going — Progress has the status.'
-        : 'Its navigation stack may not be running. Queued captures are unaffected.',
+      tone: 'ready',
+      headline: 'Robot is online and ready to connect.',
+      detail: 'Connect the robot to see its live position and start a capture.',
     };
   }
 
+  // Connected, so a pose should be arriving but isn't (yet) — a genuine, but recoverable, gap.
   return {
-    headline: `Robot is online, but its position is behind — last update ${lastUpdate}.`,
+    tone: 'warn',
+    headline: 'Robot is online, but its live position hasn’t updated recently.',
     detail: captureRunning
       ? 'The capture is still running — Progress has the current status.'
-      : 'Its navigation stack may have stopped publishing a pose.',
+      : 'This usually clears on its own. If it lingers, reconnect the robot.',
   };
 }
+
+const NOTICE_STYLES: Record<NoticeTone, { box: string; headline: string; detail: string }> = {
+  ready: {
+    box: 'border-emerald-500/25 bg-emerald-500/5',
+    headline: 'text-emerald-100',
+    detail: 'text-emerald-200/70',
+  },
+  warn: {
+    box: 'border-amber-500/25 bg-amber-500/5',
+    headline: 'text-amber-100',
+    detail: 'text-amber-200/70',
+  },
+  muted: {
+    box: 'border-base-700 bg-base-900/60',
+    headline: 'text-ink-200',
+    detail: 'text-ink-400',
+  },
+};
 
 export function LiveMapTab({
   robotMap,
@@ -75,6 +99,7 @@ export function LiveMapTab({
   captureRunning,
   robotOnline,
   robotQuietFor,
+  connected,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { telemetry: pose, trail, ageSeconds, status } = telemetry;
@@ -207,12 +232,12 @@ export function LiveMapTab({
     return () => window.cancelAnimationFrame(frame);
   }, []);
 
-  const notice = degradedNotice({
+  const notice = statusNotice({
     status,
-    lastUpdate: formatMissionTime(pose?.received_at_utc ?? pose?.reported_at_utc),
     robotOnline,
     robotQuietFor,
     captureRunning,
+    connected,
   });
 
   if (!robotMap) {
@@ -227,12 +252,12 @@ export function LiveMapTab({
 
   return (
     <div>
-      {/* The old UI greyed the marker and said nothing, so a robot that had not reported in
-        * 17 hours looked identical to one pausing for a second. Say which it is. */}
+      {/* Presence, connection, and live pose are three separate systems — the banner names the
+        * one that explains what the user sees, and stays positive when nothing is actually wrong. */}
       {notice ? (
-        <div className="mb-4 rounded-2xl border border-amber-500/25 bg-amber-500/5 px-4 py-3">
-          <p className="text-[13px] text-amber-100">{notice.headline}</p>
-          <p className="mt-1 text-[12px] text-amber-200/70">{notice.detail}</p>
+        <div className={`mb-4 rounded-2xl border px-4 py-3 ${NOTICE_STYLES[notice.tone].box}`}>
+          <p className={`text-[13px] ${NOTICE_STYLES[notice.tone].headline}`}>{notice.headline}</p>
+          <p className={`mt-1 text-[12px] ${NOTICE_STYLES[notice.tone].detail}`}>{notice.detail}</p>
         </div>
       ) : null}
 
