@@ -24,7 +24,7 @@ export function FailureDetail({ raw, className }: { raw: string | null | undefin
             onClick={() => setOpen((value) => !value)}
             className="mt-0.5 text-[10px] text-ink-500 underline decoration-dotted underline-offset-2 transition hover:text-ink-300"
           >
-            {open ? 'Hide technical details' : 'Show technical details'}
+            {open ? 'Hide details' : 'Show details'}
           </button>
           {open ? (
             <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-md border border-base-800 bg-base-950 px-2 py-1 font-mono text-[10px] text-ink-400">

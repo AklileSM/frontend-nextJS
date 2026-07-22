@@ -64,7 +64,6 @@ export default function RobotPage() {
 
   // One-click connect/disconnect for the robot's ROS stack (localization + navigation).
   const connection = useRobotConnection(robotId);
-  const isConnected = deriveConnection(connection.command).connection === 'connected';
 
   useEffect(() => {
     listProjects()
@@ -121,6 +120,11 @@ export default function RobotPage() {
     () => robotPresence(robots.find((candidate) => candidate.username === robotId) ?? null, Date.now()),
     [robotId, robots],
   );
+
+  /* "Connected" is the latest command's latched state AND a live heartbeat: the command never
+   * expires on its own, so a powered-off robot would otherwise read as connected forever. This is
+   * the immediate UX fix; making the stored state itself expire is the follow-up (backend reaper). */
+  const isConnected = deriveConnection(connection.command).connection === 'connected' && presence.online;
 
   const visibleMissions = useMemo(
     () => missions.filter((mission) => (
@@ -233,6 +237,7 @@ export default function RobotPage() {
           <ConnectControl
             robotId={robotId}
             command={connection.command}
+            robotOnline={presence.online}
             submitting={connection.submitting}
             error={connection.error}
             timedOut={connection.timedOut}

@@ -12,6 +12,7 @@ import { ProgressTimeline } from './ProgressTimeline';
 type Props = {
   robotId: string;
   command: ApiRobotCommand | null;
+  robotOnline: boolean;
   submitting: boolean;
   error: string | null;
   timedOut: boolean;
