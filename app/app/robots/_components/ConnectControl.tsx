@@ -34,6 +34,7 @@ const TIMEOUT_MESSAGE =
 export function ConnectControl({
   robotId,
   command,
+  robotOnline,
   submitting,
   error,
   timedOut,
@@ -47,7 +48,10 @@ export function ConnectControl({
 
   const view = deriveConnection(command);
   const events = normalizeProgressEvents(command?.progress_events);
-  const connected = view.connection === 'connected';
+  /* The command state only says "the last connect succeeded" — it never expires. If the robot's
+   * heartbeat has since gone quiet (powered off, lost link), it isn't really connected anymore, so
+   * fall back to the Connect button instead of stranding a Disconnect on a robot that's gone. */
+  const connected = view.connection === 'connected' && robotOnline;
   const busy = view.busy || submitting;
 
   const failedByStatus = command?.kind === 'connect' && command?.status === 'failed';
