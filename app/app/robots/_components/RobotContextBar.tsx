@@ -45,7 +45,7 @@ export function RobotContextBar({
     if (busy) {
       return { label: busy, tone: 'border-amber-500/30 bg-amber-500/10 text-amber-200', dot: 'bg-amber-400' };
     }
-    return { label: 'Ready', tone: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200', dot: 'bg-emerald-400' };
+    return null;
   }, [activeMission, robot]);
 
   return (
@@ -78,10 +78,12 @@ export function RobotContextBar({
         </select>
       </label>
 
-      <span className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-[12px] ${health.tone}`}>
-        <span className={`h-1.5 w-1.5 rounded-full ${health.dot}`} />
-        {health.label}
-      </span>
+      {health ? (
+        <span className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-[12px] ${health.tone}`}>
+          <span className={`h-1.5 w-1.5 rounded-full ${health.dot}`} />
+          {health.label}
+        </span>
+      ) : null}
     </div>
   );
 }
