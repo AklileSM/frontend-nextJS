@@ -21,6 +21,10 @@ const OUTCOME_STYLES: Record<string, string> = {
   running: 'border-blue-500/30 bg-blue-500/10 text-blue-200',
   queued: 'border-amber-500/30 bg-amber-500/10 text-amber-200',
   dispatched: 'border-cyan-500/30 bg-cyan-500/10 text-cyan-200',
+  cancel_requested: 'border-amber-500/30 bg-amber-500/10 text-amber-200',
+  cancelling: 'border-amber-500/30 bg-amber-500/10 text-amber-200',
+  returning_to_start: 'border-blue-500/30 bg-blue-500/10 text-blue-200',
+  cancel_failed: 'border-red-500/30 bg-red-500/10 text-red-200',
 };
 
 const OUTCOME_LABELS: Record<string, string> = {
@@ -30,6 +34,10 @@ const OUTCOME_LABELS: Record<string, string> = {
   running: 'Running',
   queued: 'Queued',
   dispatched: 'Starting',
+  cancel_requested: 'Stop requested',
+  cancelling: 'Stopping',
+  returning_to_start: 'Returning',
+  cancel_failed: 'Return failed',
 };
 
 type Props = {

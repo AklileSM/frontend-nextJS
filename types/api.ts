@@ -121,6 +121,9 @@ export interface ApiRobotMission {
   started_at: string | null;
   completed_at: string | null;
   cancelled_at: string | null;
+  cancel_requested_at: string | null;
+  cancel_acknowledged_at: string | null;
+  cancel_error: string | null;
   steps: ApiRobotMissionStep[];
   result: Record<string, unknown> | null;
 }

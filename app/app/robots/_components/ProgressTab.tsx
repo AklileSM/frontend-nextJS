@@ -52,7 +52,7 @@ export function ProgressTab({ mission, onCancel }: Props) {
             className="inline-flex items-center gap-2 rounded-xl border border-amber-600/40 px-3 py-2 text-[12px] text-amber-200 transition hover:bg-amber-500/10"
           >
             <XCircle size={13} />
-            Stop capture
+            Cancel and return
           </button>
         ) : null}
       </div>
@@ -61,6 +61,15 @@ export function ProgressTab({ mission, onCancel }: Props) {
         <div className="mt-4 flex items-center gap-2.5 rounded-2xl border border-amber-500/25 bg-amber-500/5 px-4 py-3">
           <Loader2 size={14} className="shrink-0 animate-spin text-amber-300" />
           <p className="text-[14px] text-amber-100">{summary}</p>
+        </div>
+      ) : null}
+
+      {mission.status === 'cancel_failed' ? (
+        <div className="mt-4 rounded-2xl border border-red-500/30 bg-red-500/5 px-4 py-3">
+          <p className="text-[14px] text-red-100">Task stopped, but return to start failed.</p>
+          {mission.cancel_error ? (
+            <p className="mt-1 text-[12px] text-red-300">{mission.cancel_error}</p>
+          ) : null}
         </div>
       ) : null}
 

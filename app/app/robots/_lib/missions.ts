@@ -1,7 +1,14 @@
 import type { ApiRobotMission, ApiRobotMissionStep } from '@/types/api';
 import { parseUtcTimestamp } from './robotMap';
 
-export const ACTIVE_MISSION_STATUSES = ['queued', 'dispatched', 'running'];
+export const ACTIVE_MISSION_STATUSES = [
+  'queued',
+  'dispatched',
+  'running',
+  'cancel_requested',
+  'cancelling',
+  'returning_to_start',
+];
 export const MISSION_LIST_LIMIT = 25;
 /* A running capture polls fast, so it fetches only the newest few missions and splices them over
  * the cached list. The full list is worth re-pulling on the slow idle poll, not every 2 seconds. */
@@ -25,11 +32,19 @@ export function isActiveMissionStatus(status: string): boolean {
 }
 
 export function canCancelMission(status: string): boolean {
-  return isActiveMissionStatus(status);
+  return ['queued', 'dispatched', 'running'].includes(status);
 }
 
 export function canDeleteMission(status: string): boolean {
-  return ['queued', 'dispatched', 'running', 'cancelled', 'failed', 'succeeded'].includes(status);
+  return [
+    'queued',
+    'dispatched',
+    'running',
+    'cancelled',
+    'cancel_failed',
+    'failed',
+    'succeeded',
+  ].includes(status);
 }
 
 /* Splice the newest missions from a fast poll over the cached list so the longer history
@@ -63,6 +78,9 @@ export function routeSummary(mission: ApiRobotMission, max = 2): string {
 /** Where the robot is up to, in words. Null when the capture is not running. */
 export function activeStepSummary(mission: ApiRobotMission): string | null {
   if (!isActiveMissionStatus(mission.status)) return null;
+  if (mission.status === 'cancel_requested') return 'Cancellation requested…';
+  if (mission.status === 'cancelling') return 'Stopping current navigation…';
+  if (mission.status === 'returning_to_start') return 'Returning to start position…';
   const steps = orderedSteps(mission);
   if (steps.length === 0) return 'Starting';
   const runningIndex = steps.findIndex((step) => step.status === 'running');
@@ -130,7 +148,7 @@ export function normalizeProgressStatus(value: unknown): MissionProgressStatus {
   const status = typeof value === 'string' ? value.toLowerCase() : '';
   if (status === 'running') return 'running';
   if (status === 'succeeded' || status === 'success' || status === 'done') return 'succeeded';
-  if (status === 'failed' || status === 'error') return 'failed';
+  if (status === 'failed' || status === 'error' || status === 'cancel_failed') return 'failed';
   if (status === 'skipped') return 'skipped';
   if (status === 'cancelled' || status === 'canceled') return 'cancelled';
   return 'pending';

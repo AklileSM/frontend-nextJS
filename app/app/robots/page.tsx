@@ -185,8 +185,12 @@ export default function RobotPage() {
     if (!pending) return;
     try {
       if (pending.type === 'cancel') {
-        await cancelRobotMission(pending.mission.id);
-        toast.success('Capture stopped');
+        const mission = await cancelRobotMission(pending.mission.id);
+        toast.success(
+          mission.status === 'cancelled'
+            ? 'Queued task cancelled'
+            : 'Cancellation requested — the robot will return to start',
+        );
       } else {
         await deleteRobotMission(pending.mission.id);
         toast.success('Capture deleted');
@@ -310,13 +314,13 @@ export default function RobotPage() {
 
       <ConfirmDialog
         open={!!pending}
-        title={pending?.type === 'delete' ? 'Delete this capture?' : 'Stop this capture?'}
+        title={pending?.type === 'delete' ? 'Delete this capture?' : 'Cancel and return?'}
         body={
           pending?.type === 'delete'
             ? <>The record for <strong>{pending ? routeSummary(pending.mission) : ''}</strong> will be removed. Any files it already uploaded are kept.</>
-            : <>The robot will stop after its current stop. Stops it has already captured are kept.</>
+            : <>The robot will stop its current navigation, skip the remaining stops, and return to its starting position. Captures already uploaded are kept.</>
         }
-        confirmLabel={pending?.type === 'delete' ? 'Delete' : 'Stop capture'}
+        confirmLabel={pending?.type === 'delete' ? 'Delete' : 'Cancel and return'}
         danger={pending?.type === 'delete'}
         onConfirm={runPending}
         onCancel={() => setPending(null)}
