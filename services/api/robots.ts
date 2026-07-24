@@ -4,6 +4,7 @@ import type {
   ApiRobotCommand,
   ApiRobotMap,
   ApiRobotMission,
+  ApiRobotMissionSchedule,
   ApiRobotPairingToken,
   ApiRobotPresence,
   ApiRobotSummary,
@@ -52,6 +53,25 @@ export type ApiRobotMissionListParams = {
   status?: string;
   limit?: number;
 };
+
+export type ApiRobotMissionScheduleRequest = {
+  name: string;
+  robot_id: string;
+  project_slug: string;
+  capture_point_ids: string[];
+  local_time: string;
+  timezone: string;
+  weekdays: number[];
+  enabled?: boolean;
+  capture_mode?: string;
+  retry_policy?: Record<string, unknown>;
+  robot_meta?: Record<string, unknown>;
+  busy_policy?: 'skip' | 'queue';
+  auto_connect?: boolean;
+  max_lateness_minutes?: number;
+};
+
+export type ApiRobotMissionScheduleUpdateRequest = Partial<ApiRobotMissionScheduleRequest>;
 
 export function listRobots(): Promise<ApiRobotSummary[]> {
   return getJson<ApiRobotSummary[]>('/robots');
@@ -201,6 +221,60 @@ export function createRobotMission(body: ApiRobotMissionCreateRequest): Promise<
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
+}
+
+export function listRobotMissionSchedules(params?: {
+  robotId?: string;
+  projectSlug?: string;
+}): Promise<ApiRobotMissionSchedule[]> {
+  const search = new URLSearchParams();
+  if (params?.robotId) search.set('robot_id', params.robotId);
+  if (params?.projectSlug) search.set('project_slug', params.projectSlug);
+  const qs = search.toString();
+  return getJson<ApiRobotMissionSchedule[]>(
+    `/robot/mission-schedules${qs ? `?${qs}` : ''}`,
+  );
+}
+
+export function createRobotMissionSchedule(
+  body: ApiRobotMissionScheduleRequest,
+): Promise<ApiRobotMissionSchedule> {
+  return getJson<ApiRobotMissionSchedule>('/robot/mission-schedules', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export function updateRobotMissionSchedule(
+  scheduleId: string,
+  body: ApiRobotMissionScheduleUpdateRequest,
+): Promise<ApiRobotMissionSchedule> {
+  return getJson<ApiRobotMissionSchedule>(
+    `/robot/mission-schedules/${encodeURIComponent(scheduleId)}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    },
+  );
+}
+
+export function runRobotMissionSchedule(scheduleId: string): Promise<ApiRobotMission> {
+  return getJson<ApiRobotMission>(
+    `/robot/mission-schedules/${encodeURIComponent(scheduleId)}/run`,
+    { method: 'POST' },
+  );
+}
+
+export async function deleteRobotMissionSchedule(scheduleId: string): Promise<void> {
+  const response = await apiFetch(
+    `/robot/mission-schedules/${encodeURIComponent(scheduleId)}`,
+    { method: 'DELETE' },
+  );
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
 }
 
 export function listRobotCapturePoints(projectId: string): Promise<ApiRobotCapturePoint[]> {

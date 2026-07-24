@@ -8,6 +8,7 @@ import {
   formatMissionTime,
   missionProgressEvents,
   routeSummary,
+  scheduleNameOf,
 } from '../_lib/missions';
 import { ProgressTimeline } from './ProgressTimeline';
 
@@ -32,6 +33,7 @@ export function ProgressTab({ mission, onCancel }: Props) {
 
   const events = missionProgressEvents(mission);
   const summary = activeStepSummary(mission);
+  const scheduleName = scheduleNameOf(mission);
 
   return (
     <div>
@@ -39,6 +41,7 @@ export function ProgressTab({ mission, onCancel }: Props) {
         <div className="min-w-0">
           <p className="font-display text-[20px] text-white">{routeSummary(mission, 3)}</p>
           <p className="mt-1 text-[13px] text-ink-400">
+            {scheduleName ? `${scheduleName} · ` : ''}
             Started {formatMissionTime(mission.started_at ?? mission.created_at)}
           </p>
         </div>

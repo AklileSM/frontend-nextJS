@@ -11,6 +11,7 @@ import {
   missionFailureMessage,
   missionProgressEvents,
   routeSummary,
+  scheduleNameOf,
 } from '../_lib/missions';
 
 const OUTCOME_STYLES: Record<string, string> = {
@@ -39,6 +40,7 @@ type Props = {
 function HistoryRow({ mission, onDelete }: { mission: ApiRobotMission; onDelete: (m: ApiRobotMission) => void }) {
   const [open, setOpen] = useState(false);
   const failure = missionFailureMessage(mission);
+  const scheduleName = scheduleNameOf(mission);
 
   return (
     <div className="rounded-xl border border-base-800 bg-base-950/50">
@@ -47,6 +49,14 @@ function HistoryRow({ mission, onDelete }: { mission: ApiRobotMission; onDelete:
           <ChevronDown size={14} className={`shrink-0 text-ink-500 transition-transform ${open ? 'rotate-180' : ''}`} />
           <span className="w-28 shrink-0 font-mono text-[11px] text-ink-400">{formatMissionTime(mission.created_at)}</span>
           <span className="min-w-0 flex-1 truncate text-[13px] text-white">{routeSummary(mission, 3)}</span>
+          {scheduleName ? (
+            <span
+              title={scheduleName}
+              className="hidden shrink-0 rounded-full border border-violet-500/30 bg-violet-500/10 px-2 py-0.5 font-mono text-[9px] uppercase text-violet-200 md:inline"
+            >
+              Scheduled
+            </span>
+          ) : null}
           <span className="hidden shrink-0 font-mono text-[10px] uppercase text-ink-500 sm:inline">
             {formatCaptureOutputs(captureOutputsOf(mission))}
           </span>

@@ -22,6 +22,7 @@ import { RouteTab } from './_components/RouteTab';
 import { ProgressTab } from './_components/ProgressTab';
 import { LiveMapTab } from './_components/LiveMapTab';
 import { HistoryTab } from './_components/HistoryTab';
+import { SchedulesTab } from './_components/SchedulesTab';
 import { useRobotMissions } from './_hooks/useRobotMissions';
 import { useRobotTelemetry } from './_hooks/useRobotTelemetry';
 import { useRobotConnection } from './_hooks/useRobotConnection';
@@ -32,10 +33,11 @@ import { formatQuietFor, robotPresence } from './_lib/presence';
 
 export const dynamic = 'force-dynamic';
 
-type TabId = 'route' | 'progress' | 'live' | 'history';
+type TabId = 'route' | 'schedules' | 'progress' | 'live' | 'history';
 
 const TABS = [
   { id: 'route', label: 'Route' },
+  { id: 'schedules', label: 'Schedules' },
   { id: 'progress', label: 'Progress' },
   { id: 'live', label: 'Live map' },
   { id: 'history', label: 'History' },
@@ -272,6 +274,16 @@ export default function RobotPage() {
             starting={starting}
             connected={isConnected}
             onCapturePointsChanged={loadCapturePoints}
+          />
+        ) : tab === 'schedules' ? (
+          <SchedulesTab
+            projectSlug={projectSlug}
+            robotId={robotId}
+            capturePoints={capturePoints}
+            onMissionQueued={() => {
+              void refresh();
+              setTab('progress');
+            }}
           />
         ) : tab === 'progress' ? (
           <ProgressTab

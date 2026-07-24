@@ -91,6 +91,12 @@ export function missionLabel(mission: ApiRobotMission): string {
   return `${formatMissionTime(mission.created_at)} · ${routeSummary(mission)}`;
 }
 
+export function scheduleNameOf(mission: ApiRobotMission): string | null {
+  if (!mission.schedule_id) return null;
+  const name = mission.robot_meta?.['schedule_name'];
+  return typeof name === 'string' && name.trim() ? name : 'Recurring schedule';
+}
+
 export function missionFailureMessage(mission: ApiRobotMission): string | null {
   const stepError = orderedSteps(mission).find((step) => step.error_message)?.error_message;
   if (stepError) return stepError;
@@ -178,7 +184,7 @@ export function normalizeProgressEvents(raw: unknown): MissionProgressEvent[] {
 export function missionProgressEvents(mission: ApiRobotMission): MissionProgressEvent[] {
   const queued: MissionProgressEvent = {
     id: 'task:queued',
-    label: 'Capture requested',
+    label: mission.schedule_id ? 'Scheduled capture queued' : 'Capture requested',
     status: mission.status === 'queued' || mission.status === 'dispatched'
       ? 'running'
       : mission.status === 'cancelled'

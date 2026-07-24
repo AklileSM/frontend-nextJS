@@ -114,6 +114,8 @@ export interface ApiRobotMission {
   room_slug_map: Record<string, string>;
   retry_policy: Record<string, unknown>;
   robot_meta: Record<string, unknown>;
+  schedule_id: string | null;
+  scheduled_for: string | null;
   created_at: string;
   dispatched_at: string | null;
   started_at: string | null;
@@ -121,6 +123,31 @@ export interface ApiRobotMission {
   cancelled_at: string | null;
   steps: ApiRobotMissionStep[];
   result: Record<string, unknown> | null;
+}
+
+export interface ApiRobotMissionSchedule {
+  id: string;
+  name: string;
+  robot_id: string;
+  project_id: string;
+  project_slug: string;
+  capture_point_ids: string[];
+  local_time: string;
+  timezone: string;
+  weekdays: number[];
+  enabled: boolean;
+  capture_mode: string;
+  retry_policy: Record<string, unknown>;
+  robot_meta: Record<string, unknown>;
+  busy_policy: 'skip' | 'queue';
+  auto_connect: boolean;
+  max_lateness_minutes: number;
+  next_run_at: string | null;
+  last_run_at: string | null;
+  last_outcome: string | null;
+  last_error: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export type ApiRobotConnection = 'disconnected' | 'connecting' | 'connected' | 'disconnecting';
