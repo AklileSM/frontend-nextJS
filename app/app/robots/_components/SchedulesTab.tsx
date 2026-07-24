@@ -315,9 +315,6 @@ export function SchedulesTab({
       <div className="space-y-4">
         <div className="flex flex-col gap-3 rounded-2xl border border-base-800 bg-base-950/60 p-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-amber-400">
-              Automation
-            </p>
             <h2 className="mt-2 font-display text-[20px] font-semibold text-white">
               Recurring captures
             </h2>
