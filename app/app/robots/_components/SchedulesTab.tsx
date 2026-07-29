@@ -68,7 +68,7 @@ function emptyForm(): FormState {
     timezone: browserTimezone(),
     weekdays: DAYS.map((day) => day.value),
     captureOutputs: ['image'],
-    continueOnFailure: false,
+    continueOnFailure: true,
     busyPolicy: 'skip',
     autoConnect: true,
     maxLatenessMinutes: 30,

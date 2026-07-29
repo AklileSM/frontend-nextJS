@@ -57,7 +57,7 @@ export default function RobotPage() {
   const [robotMap, setRobotMap] = useState<ApiRobotMap | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [captureOutputs, setCaptureOutputs] = useState<CaptureOutput[]>(['image']);
-  const [continueOnFailure, setContinueOnFailure] = useState(false);
+  const [continueOnFailure, setContinueOnFailure] = useState(true);
   const [starting, startCapture] = useTransition();
   const [pending, setPending] = useState<{ type: 'cancel' | 'delete'; mission: ApiRobotMission } | null>(null);
 
