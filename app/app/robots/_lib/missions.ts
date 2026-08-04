@@ -8,6 +8,7 @@ export const ACTIVE_MISSION_STATUSES = [
   'cancel_requested',
   'cancelling',
   'returning_to_start',
+  'stop_requested',
 ];
 export const MISSION_LIST_LIMIT = 25;
 /* A running capture polls fast, so it fetches only the newest few missions and splices them over
@@ -33,6 +34,10 @@ export function isActiveMissionStatus(status: string): boolean {
 
 export function canCancelMission(status: string): boolean {
   return ['queued', 'dispatched', 'running'].includes(status);
+}
+
+export function canStopMission(status: string): boolean {
+  return status === 'returning_to_start';
 }
 
 export function canDeleteMission(status: string): boolean {
@@ -81,6 +86,7 @@ export function activeStepSummary(mission: ApiRobotMission): string | null {
   if (mission.status === 'cancel_requested') return 'Cancellation requested…';
   if (mission.status === 'cancelling') return 'Stopping current navigation…';
   if (mission.status === 'returning_to_start') return 'Returning to start position…';
+  if (mission.status === 'stop_requested') return 'Stopping at the current position…';
   const steps = orderedSteps(mission);
   if (steps.length === 0) return 'Starting';
   const runningIndex = steps.findIndex((step) => step.status === 'running');
@@ -170,19 +176,26 @@ function normalizeProgressEvent(value: unknown, index: number): MissionProgressE
   };
 }
 
+/**
+ * What each status reads as after the waypoint name. Every status needs an entry:
+ * cancelling a mission marks its remaining steps `cancelled`, and continue-on-failure
+ * can leave a step `skipped` — both of which used to fall through to "waiting".
+ */
+const STEP_STATUS_LABEL: Record<MissionProgressStatus, string> = {
+  pending: 'waiting',
+  running: 'capturing now',
+  succeeded: 'captured',
+  failed: 'could not capture',
+  skipped: 'skipped',
+  cancelled: 'cancelled',
+};
+
 function stepsAsProgressEvents(mission: ApiRobotMission): MissionProgressEvent[] {
   return orderedSteps(mission).map((step) => {
     const status = normalizeProgressStatus(step.status);
-    const label = status === 'succeeded'
-      ? `${step.waypoint_name}, captured`
-      : status === 'running'
-        ? `${step.waypoint_name}, capturing now`
-        : status === 'failed'
-          ? `${step.waypoint_name}, could not capture`
-          : `${step.waypoint_name}, waiting`;
     return {
       id: `step:${step.id}`,
-      label,
+      label: `${step.waypoint_name}, ${STEP_STATUS_LABEL[status]}`,
       status,
       /* navigation_result is robot-internal; only a real error is worth showing. */
       detail: step.error_message,

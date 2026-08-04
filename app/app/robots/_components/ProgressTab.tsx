@@ -5,6 +5,7 @@ import type { ApiRobotMission } from '@/types/api';
 import {
   activeStepSummary,
   canCancelMission,
+  canStopMission,
   formatMissionTime,
   missionProgressEvents,
   routeSummary,
@@ -15,13 +16,14 @@ import { ProgressTimeline } from './ProgressTimeline';
 type Props = {
   mission: ApiRobotMission | null;
   onCancel: (mission: ApiRobotMission) => void;
+  onStop: (mission: ApiRobotMission) => void;
 };
 
 /**
  * The trusted view of a capture. Unlike the live map this is backed by mission steps from the
  * backend, so it keeps working when the robot's ROS stack is down.
  */
-export function ProgressTab({ mission, onCancel }: Props) {
+export function ProgressTab({ mission, onCancel, onStop }: Props) {
   if (!mission) {
     return (
       <div className="rounded-2xl border border-dashed border-base-700 px-4 py-14 text-center">
@@ -53,6 +55,15 @@ export function ProgressTab({ mission, onCancel }: Props) {
           >
             <XCircle size={13} />
             Cancel and return
+          </button>
+        ) : canStopMission(mission.status) ? (
+          <button
+            type="button"
+            onClick={() => onStop(mission)}
+            className="inline-flex items-center gap-2 rounded-xl border border-red-500/40 px-3 py-2 text-[12px] text-red-200 transition hover:bg-red-500/10"
+          >
+            <XCircle size={13} />
+            Stop now
           </button>
         ) : null}
       </div>

@@ -12,6 +12,7 @@ import {
   getRobotMap,
   listProjects,
   listRobotCapturePoints,
+  stopRobotMission,
 } from '@/services/apiClient';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Tabs } from '@/components/ui/Tabs';
@@ -59,7 +60,7 @@ export default function RobotPage() {
   const [captureOutputs, setCaptureOutputs] = useState<CaptureOutput[]>(['image']);
   const [continueOnFailure, setContinueOnFailure] = useState(true);
   const [starting, startCapture] = useTransition();
-  const [pending, setPending] = useState<{ type: 'cancel' | 'delete'; mission: ApiRobotMission } | null>(null);
+  const [pending, setPending] = useState<{ type: 'cancel' | 'stop' | 'delete'; mission: ApiRobotMission } | null>(null);
 
   // Live position only connects while its tab is on screen, most sessions never open it.
   const telemetry = useRobotTelemetry(robotId, tab === 'live');
@@ -191,6 +192,9 @@ export default function RobotPage() {
             ? 'Queued task cancelled'
             : 'Cancellation requested — the robot will return to start',
         );
+      } else if (pending.type === 'stop') {
+        await stopRobotMission(pending.mission.id);
+        toast.success('Stop requested — the robot will remain at its current position');
       } else {
         await deleteRobotMission(pending.mission.id);
         toast.success('Capture deleted');
@@ -293,6 +297,7 @@ export default function RobotPage() {
           <ProgressTab
             mission={currentMission ?? visibleMissions[0] ?? null}
             onCancel={(mission) => setPending({ type: 'cancel', mission })}
+            onStop={(mission) => setPending({ type: 'stop', mission })}
           />
         ) : tab === 'live' ? (
           <LiveMapTab
@@ -314,14 +319,28 @@ export default function RobotPage() {
 
       <ConfirmDialog
         open={!!pending}
-        title={pending?.type === 'delete' ? 'Delete this capture?' : 'Cancel and return?'}
+        title={
+          pending?.type === 'delete'
+            ? 'Delete this capture?'
+            : pending?.type === 'stop'
+              ? 'Stop the robot now?'
+              : 'Cancel and return?'
+        }
         body={
           pending?.type === 'delete'
             ? <>The record for <strong>{pending ? routeSummary(pending.mission) : ''}</strong> will be removed. Any files it already uploaded are kept.</>
-            : <>The robot will stop its current navigation, skip the remaining stops, and return to its starting position. Captures already uploaded are kept.</>
+            : pending?.type === 'stop'
+              ? <>The return-to-start navigation will be cancelled. The robot will remain at its current position, so make sure it is safe to leave it there.</>
+              : <>The robot will stop its current navigation, skip the remaining stops, and return to its starting position. Captures already uploaded are kept.</>
         }
-        confirmLabel={pending?.type === 'delete' ? 'Delete' : 'Cancel and return'}
-        danger={pending?.type === 'delete'}
+        confirmLabel={
+          pending?.type === 'delete'
+            ? 'Delete'
+            : pending?.type === 'stop'
+              ? 'Stop now'
+              : 'Cancel and return'
+        }
+        danger={pending?.type === 'delete' || pending?.type === 'stop'}
         onConfirm={runPending}
         onCancel={() => setPending(null)}
       />
