@@ -334,6 +334,12 @@ export function stopRobotMission(missionId: string): Promise<ApiRobotMission> {
   });
 }
 
+export function forceCloseRobotMission(missionId: string): Promise<ApiRobotMission> {
+  return getJson<ApiRobotMission>(`/robot/missions/${encodeURIComponent(missionId)}/force-close`, {
+    method: 'POST',
+  });
+}
+
 /** Queue a connect/disconnect for a robot. The on-site agent picks it up and drives the panel. */
 export function createRobotCommand(
   robotId: string,

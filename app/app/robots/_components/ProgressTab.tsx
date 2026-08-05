@@ -5,6 +5,7 @@ import type { ApiRobotMission } from '@/types/api';
 import {
   activeStepSummary,
   canCancelMission,
+  canForceCloseMission,
   canStopMission,
   formatMissionTime,
   missionProgressEvents,
@@ -17,13 +18,14 @@ type Props = {
   mission: ApiRobotMission | null;
   onCancel: (mission: ApiRobotMission) => void;
   onStop: (mission: ApiRobotMission) => void;
+  onForceClose: (mission: ApiRobotMission) => void;
 };
 
 /**
  * The trusted view of a capture. Unlike the live map this is backed by mission steps from the
  * backend, so it keeps working when the robot's ROS stack is down.
  */
-export function ProgressTab({ mission, onCancel, onStop }: Props) {
+export function ProgressTab({ mission, onCancel, onStop, onForceClose }: Props) {
   if (!mission) {
     return (
       <div className="rounded-2xl border border-dashed border-base-700 px-4 py-14 text-center">
@@ -64,6 +66,15 @@ export function ProgressTab({ mission, onCancel, onStop }: Props) {
           >
             <XCircle size={13} />
             Stop now
+          </button>
+        ) : canForceCloseMission(mission.status) ? (
+          <button
+            type="button"
+            onClick={() => onForceClose(mission)}
+            className="inline-flex items-center gap-2 rounded-xl border border-red-500/40 px-3 py-2 text-[12px] text-red-200 transition hover:bg-red-500/10"
+          >
+            <XCircle size={13} />
+            Close stuck task
           </button>
         ) : null}
       </div>

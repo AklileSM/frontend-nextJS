@@ -40,6 +40,10 @@ export function canStopMission(status: string): boolean {
   return status === 'returning_to_start';
 }
 
+export function canForceCloseMission(status: string): boolean {
+  return status === 'stop_requested';
+}
+
 export function canDeleteMission(status: string): boolean {
   return [
     'queued',

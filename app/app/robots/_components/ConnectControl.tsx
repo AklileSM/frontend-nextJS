@@ -70,14 +70,26 @@ export function ConnectControl({
     <div className="rounded-2xl border border-base-800 bg-base-900/60 p-3">
       <div className="flex flex-wrap items-center gap-3">
         {busy ? (
-          <button
-            type="button"
-            onClick={onCancel}
-            className="inline-flex items-center gap-2 rounded-xl border border-base-700 px-4 py-2.5 text-[13px] font-medium text-ink-100 transition hover:border-ink-400"
-          >
-            <Loader2 size={15} className="animate-spin text-amber-300" />
-            Cancel
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={onCancel}
+              className="inline-flex items-center gap-2 rounded-xl border border-base-700 px-4 py-2.5 text-[13px] font-medium text-ink-100 transition hover:border-ink-400"
+            >
+              <Loader2 size={15} className="animate-spin text-amber-300" />
+              Cancel attempt
+            </button>
+            {timedOut ? (
+              <button
+                type="button"
+                onClick={onRetry}
+                className="inline-flex items-center gap-2 rounded-xl bg-amber-500 px-4 py-2.5 text-[13px] font-medium text-base-950 transition hover:bg-amber-400"
+              >
+                <Zap size={15} />
+                Cancel and try again
+              </button>
+            ) : null}
+          </>
         ) : connected ? (
           <button
             type="button"

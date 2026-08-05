@@ -9,6 +9,7 @@ import {
   cancelRobotMission,
   createRobotMission,
   deleteRobotMission,
+  forceCloseRobotMission,
   getRobotMap,
   listProjects,
   listRobotCapturePoints,
@@ -60,7 +61,7 @@ export default function RobotPage() {
   const [captureOutputs, setCaptureOutputs] = useState<CaptureOutput[]>(['image']);
   const [continueOnFailure, setContinueOnFailure] = useState(true);
   const [starting, startCapture] = useTransition();
-  const [pending, setPending] = useState<{ type: 'cancel' | 'stop' | 'delete'; mission: ApiRobotMission } | null>(null);
+  const [pending, setPending] = useState<{ type: 'cancel' | 'stop' | 'force-close' | 'delete'; mission: ApiRobotMission } | null>(null);
 
   // Live position only connects while its tab is on screen, most sessions never open it.
   const telemetry = useRobotTelemetry(robotId, tab === 'live');
@@ -195,6 +196,9 @@ export default function RobotPage() {
       } else if (pending.type === 'stop') {
         await stopRobotMission(pending.mission.id);
         toast.success('Stop requested — the robot will remain at its current position');
+      } else if (pending.type === 'force-close') {
+        await forceCloseRobotMission(pending.mission.id);
+        toast.success('Stuck task closed');
       } else {
         await deleteRobotMission(pending.mission.id);
         toast.success('Capture deleted');
@@ -298,6 +302,7 @@ export default function RobotPage() {
             mission={currentMission ?? visibleMissions[0] ?? null}
             onCancel={(mission) => setPending({ type: 'cancel', mission })}
             onStop={(mission) => setPending({ type: 'stop', mission })}
+            onForceClose={(mission) => setPending({ type: 'force-close', mission })}
           />
         ) : tab === 'live' ? (
           <LiveMapTab
@@ -324,6 +329,8 @@ export default function RobotPage() {
             ? 'Delete this capture?'
             : pending?.type === 'stop'
               ? 'Stop the robot now?'
+              : pending?.type === 'force-close'
+                ? 'Close task without robot confirmation?'
               : 'Cancel and return?'
         }
         body={
@@ -331,6 +338,8 @@ export default function RobotPage() {
             ? <>The record for <strong>{pending ? routeSummary(pending.mission) : ''}</strong> will be removed. Any files it already uploaded are kept.</>
             : pending?.type === 'stop'
               ? <>The return-to-start navigation will be cancelled. The robot will remain at its current position, so make sure it is safe to leave it there.</>
+              : pending?.type === 'force-close'
+                ? <>This only clears the stuck SiteScope task. It does not command or verify the robot. Continue only if the robot is already stopped or powered off.</>
               : <>The robot will stop its current navigation, skip the remaining stops, and return to its starting position. Captures already uploaded are kept.</>
         }
         confirmLabel={
@@ -338,9 +347,11 @@ export default function RobotPage() {
             ? 'Delete'
             : pending?.type === 'stop'
               ? 'Stop now'
+              : pending?.type === 'force-close'
+                ? 'Close stuck task'
               : 'Cancel and return'
         }
-        danger={pending?.type === 'delete' || pending?.type === 'stop'}
+        danger={pending?.type === 'delete' || pending?.type === 'stop' || pending?.type === 'force-close'}
         onConfirm={runPending}
         onCancel={() => setPending(null)}
       />
