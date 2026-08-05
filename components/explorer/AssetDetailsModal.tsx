@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Database, Loader2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, CircleHelp, Database, Loader2 } from 'lucide-react';
 import { getFileAssetDetails } from '@/services/api/files';
 import { Modal } from '@/components/ui/Modal';
 import type { ApiFileAssetDetails, ApiMediaFile } from '@/types/api';
@@ -35,6 +35,139 @@ const METRIC_LABELS: Record<string, string> = {
   bbox_volume_m3: 'Bounding-box volume',
   intensity_nonzero_frac: 'Non-zero intensity',
   intensity_sampled_points: 'Intensity samples',
+};
+
+type MetricHelpContent = {
+  description: string;
+  interpretation: string;
+  threshold: string;
+  thresholdType: 'gate' | 'advisory' | 'informational';
+};
+
+// Keep these values aligned with robot/capture_quality.py::ADVISORY_THRESHOLDS.
+// Existing quality records do not store the thresholds that evaluated them, so
+// this UI documents the schema-1 limits currently used by the robot.
+const METRIC_HELP: Record<string, MetricHelpContent> = {
+  blur_laplacian_var: {
+    description: 'Variance of a four-neighbour Laplacian on the normalized grayscale image. It measures the amount of fine edge detail.',
+    interpretation: 'Higher values generally mean a sharper image; very smooth scenes can also produce a low value.',
+    threshold: 'Pass: at least 60.',
+    thresholdType: 'gate',
+  },
+  mean_luminance: {
+    description: 'Average grayscale brightness on a scale from 0 (black) to 255 (white).',
+    interpretation: 'Very low values indicate underexposure; very high values indicate overexposure.',
+    threshold: 'Pass: 25 to 235, inclusive.',
+    thresholdType: 'gate',
+  },
+  rms_contrast: {
+    description: 'Standard deviation of grayscale pixel values, reported on the 0–255 brightness scale.',
+    interpretation: 'Higher values indicate more tonal variation. It does not by itself prove that an image is good or bad.',
+    threshold: 'No automated threshold.',
+    thresholdType: 'informational',
+  },
+  clipped_highlight_frac: {
+    description: 'Percentage of evaluated pixels with brightness at or above 250 out of 255, where bright detail is likely lost.',
+    interpretation: 'Lower is better.',
+    threshold: 'Pass: no more than 15%.',
+    thresholdType: 'gate',
+  },
+  clipped_shadow_frac: {
+    description: 'Percentage of evaluated pixels with brightness at or below 5 out of 255, where dark detail is likely lost.',
+    interpretation: 'Lower is better.',
+    threshold: 'Pass: no more than 25%.',
+    thresholdType: 'gate',
+  },
+  file_bytes: {
+    description: 'Size of the captured file stored on disk.',
+    interpretation: 'Useful for detecting unusual files, but file size depends on compression and scene detail.',
+    threshold: 'No automated threshold.',
+    thresholdType: 'informational',
+  },
+  width: {
+    description: 'Horizontal pixel count of the decoded image.',
+    interpretation: 'Records image resolution; it is not used to accept or reject a capture.',
+    threshold: 'No automated threshold.',
+    thresholdType: 'informational',
+  },
+  height: {
+    description: 'Vertical pixel count of the decoded image.',
+    interpretation: 'Records image resolution; it is not used to accept or reject a capture.',
+    threshold: 'No automated threshold.',
+    thresholdType: 'informational',
+  },
+  is_equirectangular: {
+    description: 'Whether the image aspect ratio matches a 2:1 equirectangular panorama.',
+    interpretation: 'When true, image statistics use only the middle 50% of the panorama height to reduce pole distortion.',
+    threshold: 'Detected when |width / height − 2.0| is below 0.04.',
+    thresholdType: 'informational',
+  },
+  pose_available: {
+    description: 'Whether a localized robot pose was recorded when the asset was captured.',
+    interpretation: 'A pose is required to calculate waypoint position and heading deviation.',
+    threshold: 'No automated threshold.',
+    thresholdType: 'informational',
+  },
+  pose_deviation_m: {
+    description: 'Three-dimensional distance between the commanded waypoint and the recorded capture pose.',
+    interpretation: 'Lower means the robot captured closer to the requested position.',
+    threshold: 'Advisory limit: no more than 0.35 m. This does not trigger image recapture.',
+    thresholdType: 'advisory',
+  },
+  pose_deviation_xy_m: {
+    description: 'Horizontal distance in the map plane between the commanded waypoint and the recorded capture pose.',
+    interpretation: 'Lower means better horizontal repeatability.',
+    threshold: 'No separate threshold; the 0.35 m advisory limit applies to total pose deviation.',
+    thresholdType: 'informational',
+  },
+  pose_deviation_z_m: {
+    description: 'Signed vertical difference between the commanded waypoint and the recorded capture pose.',
+    interpretation: 'A value closer to zero means better vertical repeatability.',
+    threshold: 'No separate threshold; the 0.35 m advisory limit applies to total pose deviation.',
+    thresholdType: 'informational',
+  },
+  pose_deviation_deg: {
+    description: 'Smallest absolute yaw-angle difference between the commanded heading and the recorded capture heading.',
+    interpretation: 'Lower means the camera faced closer to the requested direction.',
+    threshold: 'Advisory limit: no more than 15°. This does not trigger image recapture.',
+    thresholdType: 'advisory',
+  },
+  point_count: {
+    description: 'Total number of points stored in the LAS or LAZ point cloud.',
+    interpretation: 'Very low counts can indicate an incomplete or empty scan.',
+    threshold: 'Advisory minimum: 50,000 points.',
+    thresholdType: 'advisory',
+  },
+  bbox_extent_m: {
+    description: 'Point-cloud span along its X, Y, and Z axes, calculated as maximum minus minimum coordinate.',
+    interpretation: 'Shows the physical area covered by the scan.',
+    threshold: 'No separate threshold.',
+    thresholdType: 'informational',
+  },
+  bbox_max_extent_m: {
+    description: 'Largest of the point cloud’s X, Y, and Z bounding-box spans.',
+    interpretation: 'A very small value can indicate that the cloud covers almost no scene.',
+    threshold: 'Advisory minimum: 1.0 m.',
+    thresholdType: 'advisory',
+  },
+  bbox_volume_m3: {
+    description: 'Volume of the axis-aligned point-cloud bounding box: X span × Y span × Z span.',
+    interpretation: 'Summarizes spatial coverage but can be affected strongly by outliers.',
+    threshold: 'No automated threshold.',
+    thresholdType: 'informational',
+  },
+  intensity_nonzero_frac: {
+    description: 'Percentage of sampled point-cloud returns whose recorded intensity is not zero.',
+    interpretation: 'A low value can indicate missing intensity data; it does not necessarily mean the geometry is invalid.',
+    threshold: 'No automated threshold.',
+    thresholdType: 'informational',
+  },
+  intensity_sampled_points: {
+    description: 'Number of points inspected when calculating the non-zero intensity percentage.',
+    interpretation: 'The robot samples at most 200,000 points to limit memory and processing cost.',
+    threshold: 'No automated threshold.',
+    thresholdType: 'informational',
+  },
 };
 
 const IMAGE_GATE_METRICS = [
@@ -106,6 +239,42 @@ function metricIsFlagged(metric: string, flags: string[]): boolean {
   return flags.some((flag) => flag === metric || flag.startsWith(`${metric}_`));
 }
 
+function MetricHelp({ metric, label }: { metric: string; label: string }) {
+  const help = METRIC_HELP[metric] ?? {
+    description: `${label} is stored capture metadata.`,
+    interpretation: 'No additional interpretation has been defined for this metric.',
+    threshold: 'No automated threshold.',
+    thresholdType: 'informational' as const,
+  };
+  const thresholdClass = help.thresholdType === 'gate'
+    ? 'text-emerald-300'
+    : help.thresholdType === 'advisory'
+      ? 'text-amber-300'
+      : 'text-ink-300';
+
+  return (
+    <span className="group relative inline-flex shrink-0">
+      <button
+        type="button"
+        aria-label={`Explain ${label}`}
+        className="inline-flex h-4 w-4 items-center justify-center rounded-full text-ink-500 outline-none transition hover:bg-base-800 hover:text-amber-300 focus-visible:ring-1 focus-visible:ring-amber-400 focus-visible:text-amber-300"
+      >
+        <CircleHelp size={12} />
+      </button>
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute left-1/2 top-full z-50 mt-1.5 hidden w-64 -translate-x-1/2 rounded-md border border-base-700 bg-base-900 p-3 text-left shadow-xl shadow-black/50 group-hover:block group-focus-within:block"
+      >
+        <span className="block text-[11px] font-medium leading-relaxed text-ink-100">{help.description}</span>
+        <span className="mt-1.5 block text-[10px] leading-relaxed text-ink-400">{help.interpretation}</span>
+        <span className={`mt-2 block border-t border-base-700 pt-2 text-[10px] font-semibold leading-relaxed ${thresholdClass}`}>
+          {help.thresholdType === 'gate' ? 'Image gate · ' : help.thresholdType === 'advisory' ? 'Advisory only · ' : ''}{help.threshold}
+        </span>
+      </span>
+    </span>
+  );
+}
+
 function MetricGrid({ checks, flags, only }: { checks: JsonRecord; flags: string[]; only?: string[] }) {
   const entries = Object.entries(checks).filter(([key]) => !only || only.includes(key));
   if (!entries.length) return null;
@@ -114,13 +283,15 @@ function MetricGrid({ checks, flags, only }: { checks: JsonRecord; flags: string
       {entries.map(([key, value]) => {
         const unavailable = value == null;
         const flagged = metricIsFlagged(key, flags);
+        const label = METRIC_LABELS[key] ?? humanize(key);
         return (
-          <div key={key} className="rounded-md border border-base-800 bg-base-950/55 px-3 py-2.5">
+          <div key={key} className="relative rounded-md border border-base-800 bg-base-950/55 px-3 py-2.5">
             <div className="flex items-center gap-1.5">
               <span className={`h-1.5 w-1.5 rounded-full ${flagged ? 'bg-amber-400' : unavailable ? 'bg-base-600' : 'bg-emerald-400'}`} />
-              <p className="truncate text-[11px] text-ink-400" title={METRIC_LABELS[key] ?? humanize(key)}>
-                {METRIC_LABELS[key] ?? humanize(key)}
+              <p className="min-w-0 truncate text-[11px] text-ink-400" title={label}>
+                {label}
               </p>
+              <MetricHelp metric={key} label={label} />
             </div>
             <p className={`mt-1 break-words font-mono text-[12px] ${flagged ? 'text-amber-200' : unavailable ? 'text-ink-500' : 'text-white'}`}>
               {formatMetricValue(key, value)}
