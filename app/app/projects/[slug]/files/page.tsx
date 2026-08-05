@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { ArrowLeft, Calendar, Filter, Upload, X } from 'lucide-react';
+import { ArrowLeft, Calendar, FileDown, Filter, Upload, X } from 'lucide-react';
 import Link from 'next/link';
 import {
   bulkDeleteFiles,
@@ -18,6 +18,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useSelectedDate } from '@/context/SelectedDateContext';
 import { useMyProjectRole } from '@/hooks/useMyProjectRole';
 import { RoomFilterMenu } from '@/components/explorer/RoomFilterMenu';
+import { QualityCsvExportModal } from '@/components/explorer/QualityCsvExportModal';
 import { BulkActionBar } from '@/components/explorer/BulkActionBar';
 import { MediaTabs, type MediaTab } from '@/components/explorer/MediaTabs';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -48,6 +49,7 @@ export default function FileExplorerPage() {
   const [tab, setTab] = useState<MediaTab>('images');
   const [pendingDelete, setPendingDelete] = useState<ApiMediaFile | null>(null);
   const [showUploader, setShowUploader] = useState(false);
+  const [showQualityExport, setShowQualityExport] = useState(false);
   const [demoActive, setDemoActive] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
   const [roomFilter, setRoomFilter] = useState<Set<string> | null>(null);
@@ -348,6 +350,14 @@ export default function FileExplorerPage() {
             selected={effectiveSelected}
             onChange={setRoomFilter}
           />
+          <button
+            type="button"
+            onClick={() => setShowQualityExport(true)}
+            className="inline-flex items-center gap-2 rounded-md border border-base-700 bg-base-900/40 px-3 py-1.5 text-[13px] font-medium text-ink-200 transition-colors hover:border-ink-400 hover:text-white"
+          >
+            <FileDown size={14} />
+            Export CSV
+          </button>
           {canUpload && (
             <button
               type="button"
@@ -461,6 +471,20 @@ export default function FileExplorerPage() {
         onConfirm={handleDeleteConfirm}
         onCancel={() => setPendingDelete(null)}
       />
+
+      {showQualityExport && (
+        <QualityCsvExportModal
+          projectName={project.name}
+          projectSlug={project.slug}
+          rooms={rooms}
+          currentDate={date}
+          defaultRoomSlugs={Array.from(effectiveSelected)}
+          defaultMediaTypes={
+            tab === 'images' ? ['image'] : tab === 'pointclouds' ? ['pointcloud'] : ['image', 'pointcloud']
+          }
+          onClose={() => setShowQualityExport(false)}
+        />
+      )}
 
       <ConfirmDialog
         open={bulkConfirmDelete}

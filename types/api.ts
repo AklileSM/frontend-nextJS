@@ -281,6 +281,12 @@ export interface ApiFileAssetDetails {
   can_delete: boolean;
 }
 
+export interface ApiQualityExportEstimate {
+  asset_count: number;
+  row_count: number;
+  filename: string;
+}
+
 export interface ApiRoomMediaGroup {
   images: ApiMediaFile[];
   videos: ApiMediaFile[];

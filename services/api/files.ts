@@ -5,6 +5,7 @@
   ApiConversionStatus,
   ApiFileAssetDetails,
   ApiMyUpload,
+  ApiQualityExportEstimate,
   ApiRoomMediaGroup,
   DateMediaCounts,
   ExplorerByDateResponse,
@@ -62,6 +63,53 @@ export function getExplorerByRoom(roomSlug: string): Promise<ExplorerByRoomRespo
 
 export function getFileAssetDetails(fileId: string): Promise<ApiFileAssetDetails> {
   return getJson<ApiFileAssetDetails>(`/files/${encodeURIComponent(fileId)}/details`);
+}
+
+export type QualityExportMediaType = 'image' | 'pointcloud';
+export type QualityExportAttemptScope = 'all' | 'selected';
+
+export type QualityExportFilters = {
+  projectSlug: string;
+  dateFrom?: string;
+  dateTo?: string;
+  roomSlugs: string[];
+  mediaTypes: QualityExportMediaType[];
+  attemptScope: QualityExportAttemptScope;
+};
+
+function qualityExportParams(filters: QualityExportFilters): URLSearchParams {
+  const params = new URLSearchParams({
+    project_slug: filters.projectSlug,
+    attempt_scope: filters.attemptScope,
+  });
+  if (filters.dateFrom) params.set('date_from', filters.dateFrom);
+  if (filters.dateTo) params.set('date_to', filters.dateTo);
+  for (const roomSlug of filters.roomSlugs) params.append('room_slug', roomSlug);
+  for (const mediaType of filters.mediaTypes) params.append('media_type', mediaType);
+  return params;
+}
+
+export function getQualityExportEstimate(
+  filters: QualityExportFilters,
+  signal?: AbortSignal,
+): Promise<ApiQualityExportEstimate> {
+  return getJson<ApiQualityExportEstimate>(
+    `/files/quality-export/estimate?${qualityExportParams(filters).toString()}`,
+    { signal },
+  );
+}
+
+export async function fetchQualityExportCsv(
+  filters: QualityExportFilters,
+  signal?: AbortSignal,
+): Promise<Response> {
+  const response = await apiFetch(
+    `/files/quality-export.csv?${qualityExportParams(filters).toString()}`,
+    { signal },
+    true,
+  );
+  if (!response.ok) throw new Error(await parseApiError(response));
+  return response;
 }
 
 function addRoomGroupsToDateCounts(
