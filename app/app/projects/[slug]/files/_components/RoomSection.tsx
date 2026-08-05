@@ -68,7 +68,7 @@ export function RoomSection({
         projectSlug={projectSlug}
         date={date}
         origin="project"
-        isAdmin={canDelete}
+        canDelete={canDelete}
         onDelete={onDelete}
         batchActive={batchActive}
         selectedIds={selectedIds}

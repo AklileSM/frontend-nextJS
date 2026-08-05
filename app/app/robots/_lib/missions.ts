@@ -18,7 +18,7 @@ export const ACTIVE_POLL_MS = 2000;
 export const IDLE_POLL_MS = 30000;
 
 export type CaptureOutput = 'image' | 'pointcloud';
-export type MissionProgressStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'skipped' | 'cancelled';
+export type MissionProgressStatus = 'pending' | 'running' | 'succeeded' | 'warning' | 'failed' | 'skipped' | 'cancelled';
 
 export type MissionProgressEvent = {
   id: string;
@@ -158,6 +158,7 @@ export function normalizeProgressStatus(value: unknown): MissionProgressStatus {
   const status = typeof value === 'string' ? value.toLowerCase() : '';
   if (status === 'running') return 'running';
   if (status === 'succeeded' || status === 'success' || status === 'done') return 'succeeded';
+  if (status === 'warning' || status === 'flagged') return 'warning';
   if (status === 'failed' || status === 'error' || status === 'cancel_failed') return 'failed';
   if (status === 'skipped') return 'skipped';
   if (status === 'cancelled' || status === 'canceled') return 'cancelled';
@@ -189,6 +190,7 @@ const STEP_STATUS_LABEL: Record<MissionProgressStatus, string> = {
   pending: 'waiting',
   running: 'capturing now',
   succeeded: 'captured',
+  warning: 'captured with a quality warning',
   failed: 'could not capture',
   skipped: 'skipped',
   cancelled: 'cancelled',

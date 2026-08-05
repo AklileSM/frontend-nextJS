@@ -415,7 +415,7 @@ function Inner() {
                 roomSlug={activeSlug ?? ''}
                 projectSlug={projectSlug}
                 files={files}
-                isAdmin={user?.is_admin ?? false}
+                canDelete={canDelete}
                 onDelete={setPendingDelete}
                 batchActive={selectedIds.size > 0}
                 selectedIds={selectedIds}
@@ -469,4 +469,3 @@ function Inner() {
     </div>
   );
 }
-

@@ -9,7 +9,7 @@ type Props = {
   projectSlug?: string;
   date: string;
   origin: 'project' | 'room';
-  isAdmin: boolean;
+  canDelete: boolean;
   onDelete: (file: ApiMediaFile) => void;
   // Multi-select wiring. Selection lives on the page so it can span across
   // multiple FileGrid instances (rooms × dates × media types). `batchActive`
@@ -26,7 +26,7 @@ export function FileGrid({
   projectSlug = '',
   date,
   origin,
-  isAdmin,
+  canDelete,
   onDelete,
   batchActive = false,
   selectedIds,
@@ -44,7 +44,7 @@ export function FileGrid({
           projectSlug={projectSlug}
           date={date}
           origin={origin}
-          isAdmin={isAdmin}
+          canDelete={canDelete}
           onDelete={onDelete}
           index={i}
           batchActive={batchActive}

@@ -2,11 +2,13 @@
 
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { Check, Trash2, FileText, Image as ImageIcon, Box, Video } from 'lucide-react';
+import { Check, FileText, Image as ImageIcon, Box, Video } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { toast } from 'sonner';
 import { setViewerContext, viewerHrefFor } from './viewerContext';
+import { AssetDetailsModal } from './AssetDetailsModal';
+import { MoreMenu } from '@/components/ui/MoreMenu';
 import type { ApiMediaFile } from '@/types/api';
 
 type Props = {
@@ -15,7 +17,7 @@ type Props = {
   projectSlug?: string;
   date: string;
   origin: 'project' | 'room';
-  isAdmin: boolean;
+  canDelete: boolean;
   onDelete: (file: ApiMediaFile) => void;
   index?: number;
   // Multi-select. Each tile owns a checkbox in its corner. When `batchActive`
@@ -43,7 +45,7 @@ export function Thumbnail({
   projectSlug = '',
   date,
   origin,
-  isAdmin,
+  canDelete,
   onDelete,
   index = 0,
   batchActive = false,
@@ -52,8 +54,9 @@ export function Thumbnail({
 }: Props) {
   const router = useRouter();
   const meta = TYPE_META[file.type];
-  const [pending, setPending] = useState(false);
   const [thumbFailed, setThumbFailed] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const conversionStatus = file.conversion_status ?? null;
   const isPointcloud = file.type === 'pointcloud';
   const isPointcloudReady = !isPointcloud || conversionStatus === 'ready';
@@ -99,21 +102,27 @@ export function Thumbnail({
   // tile is already in the batch; otherwise it fades in on hover.
   const checkboxVisible = batchActive || selected;
 
+  const menuItems = [
+    { label: 'Details', onClick: () => setDetailsOpen(true) },
+    ...(canDelete ? [{ label: 'Delete', danger: true, onClick: () => onDelete(file) }] : []),
+  ];
+
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, delay: Math.min(index * 0.04, 0.48), ease: [0.22, 1, 0.36, 1] }}
-      whileHover={{ y: -3 }}
-      onClick={handleTileClick}
-      aria-selected={selected}
-      className={`group relative cursor-pointer overflow-hidden rounded-lg border bg-base-900 transition-colors ${
-        selected
-          ? 'border-amber-500 ring-2 ring-amber-500/40'
-          : 'border-base-800 hover:border-amber-500/40'
-      }`}
-    >
-      <div className={`relative aspect-[4/3] bg-gradient-to-br ${meta.gradient}`}>
+    <>
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, delay: Math.min(index * 0.04, 0.48), ease: [0.22, 1, 0.36, 1] }}
+        whileHover={{ y: -3 }}
+        onClick={handleTileClick}
+        aria-selected={selected}
+        className={`group relative cursor-pointer rounded-lg border bg-base-900 transition-colors ${menuOpen ? 'z-30' : 'z-0'} ${
+          selected
+            ? 'border-amber-500 ring-2 ring-amber-500/40'
+            : 'border-base-800 hover:border-amber-500/40'
+        }`}
+      >
+        <div className={`relative aspect-[4/3] overflow-hidden rounded-[7px] bg-gradient-to-br ${meta.gradient}`}>
 
         {/* Selection checkbox, corner widget. Hidden by default, fades in on
             tile hover. Once a batch is active or this tile is selected, it
@@ -186,7 +195,7 @@ export function Thumbnail({
         )}
 
         {/* Bottom info overlay */}
-        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-base-950/95 via-base-950/50 to-transparent px-3 pb-3 pt-10">
+        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-base-950/95 via-base-950/50 to-transparent pb-3 pl-3 pr-12 pt-10">
           <div className="flex items-end justify-between gap-2">
             <div className="min-w-0">
               <p className="truncate text-[12px] font-medium leading-snug text-white" title={file.file_name}>
@@ -196,26 +205,19 @@ export function Thumbnail({
                 {format(parseISO(file.capture_date), 'MMM d, yyyy')}
               </p>
             </div>
-            {isAdmin && (
-              <button
-                type="button"
-                disabled={pending}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setPending(true);
-                  onDelete(file);
-                  setTimeout(() => setPending(false), 600);
-                }}
-                aria-label={`Delete ${file.file_name}`}
-                className="shrink-0 rounded p-1 text-ink-400 opacity-0 transition-opacity group-hover:opacity-100 hover:text-amber-400 disabled:opacity-30"
-              >
-                <Trash2 size={13} />
-              </button>
-            )}
           </div>
         </div>
 
-      </div>
-    </motion.div>
+        </div>
+        <div
+          className="absolute bottom-2 right-2 z-20"
+          onClick={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          <MoreMenu items={menuItems} onOpenChange={setMenuOpen} placement="top" />
+        </div>
+      </motion.div>
+      <AssetDetailsModal file={file} open={detailsOpen} onClose={() => setDetailsOpen(false)} />
+    </>
   );
 }

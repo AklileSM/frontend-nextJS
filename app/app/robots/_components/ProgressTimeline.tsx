@@ -41,6 +41,7 @@ const DOT_STYLES: Record<MissionProgressStatus, string> = {
   pending: 'border-base-700 bg-base-900',
   running: 'border-amber-300 bg-amber-400',
   succeeded: 'border-emerald-300 bg-emerald-400',
+  warning: 'border-amber-300 bg-amber-400',
   failed: 'border-red-300 bg-red-400',
   skipped: 'border-base-600 bg-base-700',
   cancelled: 'border-base-600 bg-base-700',
@@ -50,6 +51,7 @@ const TEXT_STYLES: Record<MissionProgressStatus, string> = {
   pending: 'text-ink-500',
   running: 'text-amber-100',
   succeeded: 'text-white',
+  warning: 'text-amber-100',
   failed: 'text-red-100',
   skipped: 'text-ink-500',
   cancelled: 'text-ink-500',
@@ -77,7 +79,15 @@ export function ProgressTimeline({ events }: { events: MissionProgressEvent[] })
                   <span className="font-mono text-[11px] text-ink-500">{formatMissionTime(event.at)}</span>
                 ) : null}
               </div>
-              {event.detail ? <FailureDetail raw={event.detail} className="mt-1 text-[11px]" /> : null}
+              {event.detail ? (
+                event.status === 'warning' || event.status === 'succeeded' ? (
+                  <p className={`mt-1 break-words text-[11px] ${event.status === 'warning' ? 'text-amber-200' : 'text-ink-400'}`}>
+                    {event.detail}
+                  </p>
+                ) : (
+                  <FailureDetail raw={event.detail} className="mt-1 text-[11px]" />
+                )
+              ) : null}
             </div>
           </li>
         );

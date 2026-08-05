@@ -21,7 +21,7 @@ type Props = {
   roomSlug: string;
   projectSlug: string;
   files: ApiMediaFile[];
-  isAdmin: boolean;
+  canDelete: boolean;
   onDelete: (file: ApiMediaFile) => void;
   batchActive?: boolean;
   selectedIds?: ReadonlySet<string>;
@@ -34,7 +34,7 @@ export function DateSection({
   roomSlug,
   projectSlug,
   files,
-  isAdmin,
+  canDelete,
   onDelete,
   batchActive,
   selectedIds,
@@ -70,7 +70,7 @@ export function DateSection({
         projectSlug={projectSlug}
         date={date}
         origin="room"
-        isAdmin={isAdmin}
+        canDelete={canDelete}
         onDelete={onDelete}
         batchActive={batchActive}
         selectedIds={selectedIds}

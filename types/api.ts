@@ -261,6 +261,26 @@ export interface ApiMediaFile {
   conversion_error?: string | null;
 }
 
+export interface ApiFileAssetDetails {
+  id: string;
+  room_id: string;
+  room_name: string;
+  room_slug: string;
+  project_id: string;
+  project_name: string;
+  project_slug: string;
+  media_type: MediaType;
+  display_name: string;
+  original_name: string;
+  capture_date: string;
+  content_type: string | null;
+  file_size: number | null;
+  sha256_hash: string | null;
+  created_at: string;
+  metadata: Record<string, unknown>;
+  can_delete: boolean;
+}
+
 export interface ApiRoomMediaGroup {
   images: ApiMediaFile[];
   videos: ApiMediaFile[];

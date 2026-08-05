@@ -1,8 +1,9 @@
 /** File explorer, search, bulk operations, and pointcloud conversion controls.
  *  Upload routes live in `./upload`. */
-import type {
+ import type {
   ApiBulkActionResult,
   ApiConversionStatus,
+  ApiFileAssetDetails,
   ApiMyUpload,
   ApiRoomMediaGroup,
   DateMediaCounts,
@@ -57,6 +58,10 @@ export async function getExplorerByDateForProject(
 
 export function getExplorerByRoom(roomSlug: string): Promise<ExplorerByRoomResponse> {
   return getJson<ExplorerByRoomResponse>(`/files/explorer/room/${roomSlug}`);
+}
+
+export function getFileAssetDetails(fileId: string): Promise<ApiFileAssetDetails> {
+  return getJson<ApiFileAssetDetails>(`/files/${encodeURIComponent(fileId)}/details`);
 }
 
 function addRoomGroupsToDateCounts(

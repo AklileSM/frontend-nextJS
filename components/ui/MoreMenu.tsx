@@ -11,9 +11,11 @@ type MenuItem = {
 
 type Props = {
   items: MenuItem[];
+  onOpenChange?: (open: boolean) => void;
+  placement?: 'top' | 'bottom';
 };
 
-export function MoreMenu({ items }: Props) {
+export function MoreMenu({ items, onOpenChange, placement = 'bottom' }: Props) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -33,6 +35,10 @@ export function MoreMenu({ items }: Props) {
     };
   }, [open]);
 
+  useEffect(() => {
+    onOpenChange?.(open);
+  }, [open, onOpenChange]);
+
   return (
     <div ref={ref} className="relative">
       <button
@@ -45,7 +51,7 @@ export function MoreMenu({ items }: Props) {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-1 min-w-[130px] rounded-md border border-base-700 bg-base-900 py-1 shadow-xl shadow-black/40">
+        <div className={`absolute right-0 z-50 min-w-[130px] rounded-md border border-base-700 bg-base-900 py-1 shadow-xl shadow-black/40 ${placement === 'top' ? 'bottom-full mb-1' : 'top-full mt-1'}`}>
           {items.map((item) => (
             <button
               key={item.label}
