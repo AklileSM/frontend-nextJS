@@ -50,7 +50,7 @@ Context is stored per project slug under `a6.viewerContext.<projectSlug>` and su
 | `ctx.origin` | Back destination                         |
 | ------------ | ---------------------------------------- |
 | `'project'`  | `/app/projects/<slug>/files?date=<date>` |
-| `'room'`     | `/app/room-explorer?room=<roomSlug>`     |
+| `'room'`     | `/app/room-explorer?project=<projectSlug>&room=<roomSlug>` |
 
 
 If `ctx` is null (direct navigation), the fallback is the last project files page stored in `sidebar.lastProjectSlug`.

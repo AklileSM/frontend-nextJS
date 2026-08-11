@@ -33,6 +33,7 @@ export function Header() {
   const { toggle, open } = useSidebar();
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const onCompare = pathname?.startsWith('/app/compare');
 
   const [projects, setProjects] = useState<ApiProject[] | null>(null);
@@ -44,8 +45,9 @@ export function Header() {
   }, []);
 
   const slugFromPath = pathname?.match(/^\/app\/projects\/([^/]+)/)?.[1] ?? null;
+  const slugFromQuery = searchParams.get('project');
   const slugFromStorage = (() => { try { return sessionStorage.getItem('sidebar.lastProjectSlug'); } catch { return null; } })();
-  const currentSlug = slugFromPath ?? slugFromStorage ?? null;
+  const currentSlug = slugFromPath ?? slugFromQuery ?? slugFromStorage ?? null;
 
   // Track whether the user has navigated within this session so the back
   // button can use router.back() instead of the structural fallback URL.
@@ -63,7 +65,7 @@ export function Header() {
     prevPathname.current = pathname;
   }, [pathname]);
 
-  const fallback = backFallbackFor(pathname ?? '/app', slugFromStorage);
+  const fallback = backFallbackFor(pathname ?? '/app', currentSlug);
 
   const handleBack = useCallback(() => {
     if (hasAppHistory) {

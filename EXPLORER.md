@@ -93,7 +93,7 @@ A legacy key `a6.viewerContext` is read as a fallback for sessions that pre-date
 | `ctx.origin` | Back URL                                 |
 | ------------ | ---------------------------------------- |
 | `'project'`  | `/app/projects/<slug>/files?date=<date>` |
-| `'room'`     | `/app/room-explorer?room=<slug>`         |
+| `'room'`     | `/app/room-explorer?project=<projectSlug>&room=<slug>` |
 
 
 Viewer pages also show a "Back to Explorer" fallback when `ctx` is null (e.g., the user bookmarked the viewer URL).
@@ -208,5 +208,4 @@ The per-project explorer paginates rooms, `visibleCount: 10` initially, "Load mo
 | Selected-date context | `context/SelectedDateContext.tsx`                   |
 | Hash helper           | `lib/hashFile.ts`                                   |
 | Recent files widget   | `components/home/RecentFiles.tsx`                   |
-
 

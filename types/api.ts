@@ -287,6 +287,12 @@ export interface ApiQualityExportEstimate {
   filename: string;
 }
 
+export interface ApiMissionSummaryExportEstimate {
+  mission_count: number;
+  waypoint_count: number;
+  filename: string;
+}
+
 export interface ApiRoomMediaGroup {
   images: ApiMediaFile[];
   videos: ApiMediaFile[];

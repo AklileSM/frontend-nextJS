@@ -108,7 +108,7 @@ export function backHrefFor(ctx: ViewerContext): string {
   if (ctx.origin === 'project') {
     return `/app/projects/${ctx.projectSlug}/files?date=${encodeURIComponent(ctx.date)}`;
   }
-  return `/app/room-explorer?room=${encodeURIComponent(ctx.roomSlug)}`;
+  return `/app/room-explorer?project=${encodeURIComponent(ctx.projectSlug)}&room=${encodeURIComponent(ctx.roomSlug)}`;
 }
 
 export function viewerHrefFor(file: ApiMediaFile): string {

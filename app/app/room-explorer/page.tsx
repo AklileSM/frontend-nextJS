@@ -32,7 +32,9 @@ import { Skeleton } from './_components/Skeleton';
 
 export const dynamic = 'force-dynamic';
 
-const LAST_ROOM_KEY = 'a6.lastRoom';
+const LEGACY_LAST_ROOM_KEY = 'a6.lastRoom';
+const LAST_PROJECT_KEY = 'sidebar.lastProjectSlug';
+const lastRoomKey = (projectSlug: string) => `sitescope.lastRoom.${projectSlug}`;
 
 export default function RoomExplorerPage() {
   return (
@@ -74,11 +76,18 @@ function Inner() {
   dateFilterRef.current = dateFilter;
 
   const queryRoom = params.get('room');
+  const queryProjectSlug = params.get('project');
+  const [storedProjectSlug] = useState<string | null>(() => {
+    try { return sessionStorage.getItem(LAST_PROJECT_KEY); } catch { return null; }
+  });
+  const requestedProjectSlug = queryProjectSlug ?? storedProjectSlug;
   // ?date= is honored as a deeplink seed for the filter (e.g. from the sidebar
   // calendar), it initializes the filter to that single date.
   const seedDate = params.get('date');
 
-  // Resolve current room slug: query param wins, otherwise localStorage, then first room.
+  // Resolve the room within an explicit project context. New links always carry
+  // both values; the persisted project is only a compatibility fallback for old
+  // `?room=<slug>` links.
   const [activeSlug, setActiveSlug] = useState<string | null>(queryRoom);
   useEffect(() => {
     if (queryRoom) {
@@ -86,63 +95,99 @@ function Inner() {
       return;
     }
     try {
-      const stored = localStorage.getItem(LAST_ROOM_KEY);
-      if (stored) setActiveSlug(stored);
+      const stored = requestedProjectSlug
+        ? localStorage.getItem(lastRoomKey(requestedProjectSlug))
+        : localStorage.getItem(LEGACY_LAST_ROOM_KEY);
+      setActiveSlug(stored || null);
     } catch {
-      /* ignore */
+      setActiveSlug(null);
     }
-  }, [queryRoom]);
+  }, [queryRoom, requestedProjectSlug]);
 
-  // Load rooms + projects for project-slug derivation and fallback room selection.
+  // Load rooms + projects for composite (project, room) resolution.
   useEffect(() => {
     let cancelled = false;
     Promise.all([listRooms(), listProjects()]).then(([rs, ps]) => {
       if (cancelled) return;
       setAllRooms(rs);
       setProjects(ps);
-      // Fallback: pick first room when no ?room= param and nothing in localStorage.
-      if (!activeSlug && rs.length) setActiveSlug(rs[0].slug);
     });
     return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Persist last room
+  const requestedProject = useMemo(
+    () => projects.find((project) => project.slug === requestedProjectSlug) ?? null,
+    [projects, requestedProjectSlug],
+  );
+
+  // If no room was requested or persisted, pick the first room from the
+  // requested project rather than the first room in the global list.
   useEffect(() => {
-    if (!activeSlug) return;
+    if (activeSlug || !allRooms.length) return;
+    const projectId = requestedProject?.id;
+    const firstRoom = projectId
+      ? allRooms.find((room) => room.project_id === projectId)
+      : null;
+    if (firstRoom) setActiveSlug(firstRoom.slug);
+  }, [activeSlug, allRooms, requestedProject]);
+
+  const activeRoom = useMemo(() => {
+    if (!activeSlug) return null;
+    if (requestedProjectSlug) {
+      if (!requestedProject) return null;
+      return allRooms.find(
+        (room) => room.project_id === requestedProject.id && room.slug === activeSlug,
+      ) ?? null;
+    }
+    // Compatibility for a legacy link when there is no saved project. This is
+    // only safe when the room slug has exactly one match.
+    const matches = allRooms.filter((room) => room.slug === activeSlug);
+    return matches.length === 1 ? matches[0] : null;
+  }, [activeSlug, allRooms, requestedProject, requestedProjectSlug]);
+
+  const activeProjectId = activeRoom?.project_id ?? null;
+  const projectSlug = requestedProject?.slug
+    ?? projects.find((project) => project.id === activeProjectId)?.slug
+    ?? requestedProjectSlug
+    ?? '';
+
+  // Persist the last room per project so equal room slugs cannot overwrite one
+  // another's navigation context.
+  useEffect(() => {
+    if (!activeSlug || !projectSlug) return;
     try {
-      localStorage.setItem(LAST_ROOM_KEY, activeSlug);
+      localStorage.setItem(lastRoomKey(projectSlug), activeSlug);
     } catch {
       /* ignore */
     }
-  }, [activeSlug]);
+  }, [activeSlug, projectSlug]);
 
   // Clear stale data immediately on room change so we don't briefly render
   // the previous room's files under the new header.
   useEffect(() => {
     setResponse(null);
-  }, [activeSlug]);
+  }, [activeSlug, activeProjectId]);
 
   // Load files for the active room. On poll-triggered reloads (reloadToken bump)
   // we leave the existing response in place until the new data arrives, that
   // keeps the thumbnails mounted, avoiding the framer-motion re-animation blink.
   useEffect(() => {
-    if (!activeSlug) return;
+    if (!activeSlug || !activeProjectId) return;
     let cancelled = false;
-    getExplorerByRoom(activeSlug).then((r) => {
+    getExplorerByRoom(activeSlug, activeProjectId).then((r) => {
       if (!cancelled) setResponse(r);
     });
     return () => {
       cancelled = true;
     };
-  }, [activeSlug, reloadToken]);
+  }, [activeSlug, activeProjectId, reloadToken]);
 
   // When the room changes, stash the current filter (to restore applicable dates
   // after the new room loads) and reset to "show all" until data arrives.
   useEffect(() => {
     savedFilterRef.current = dateFilterRef.current;
     setDateFilter(null);
-  }, [activeSlug]);
+  }, [activeSlug, activeProjectId]);
 
   // All dates the active room has files for, newest first.
   const allDates = useMemo(() => {
@@ -163,11 +208,11 @@ function Inner() {
   useEffect(() => {
     if (!response || !seedDate || !activeSlug) return;
     if (!allDates.includes(seedDate)) return;
-    const sig = `${activeSlug}|${seedDate}`;
+    const sig = `${activeProjectId}|${activeSlug}|${seedDate}`;
     if (lastSeededRef.current === sig) return;
     setDateFilter(new Set([seedDate]));
     lastSeededRef.current = sig;
-  }, [response, seedDate, allDates, activeSlug]);
+  }, [response, seedDate, allDates, activeProjectId, activeSlug]);
 
   // After a room switch, restore whichever saved dates still exist in the new room.
   useEffect(() => {
@@ -189,19 +234,9 @@ function Inner() {
       .map((d) => [d, response.dates[d]] as [string, ApiRoomMediaGroup]);
   }, [response, allDates, effectiveSelected]);
 
-  const projectSlug = useMemo(() => {
-    if (!activeSlug || !allRooms.length || !projects.length) return '';
-    const room = allRooms.find((r) => r.slug === activeSlug);
-    return projects.find((p) => p.id === room?.project_id)?.slug ?? '';
-  }, [activeSlug, allRooms, projects]);
-
   // Bulk actions are gated on delete permission (admin OR owner/editor) to match
   // the project File Explorer, rather than admin-only. The backend enforces the
   // same per-asset gate, so this only aligns which actions the UI exposes.
-  const activeProjectId = useMemo(
-    () => allRooms.find((r) => r.slug === activeSlug)?.project_id ?? null,
-    [allRooms, activeSlug],
-  );
   const { canDelete: roleCanDelete } = useMyProjectRole(activeProjectId);
   const canDelete = (user?.is_admin ?? false) || roleCanDelete;
 
@@ -251,7 +286,7 @@ function Inner() {
   useEffect(() => {
     setSelectedIds(new Set());
     selectionAnchorRef.current = null;
-  }, [tab, activeSlug, dateFilter]);
+  }, [tab, activeSlug, activeProjectId, dateFilter]);
 
 
   // Flat, ordered list of files currently rendered (active tab × visible

@@ -44,7 +44,9 @@ export function Floorplan({ floorplanUrl, projectSlug, rooms, hoveredRoom, onHov
   const pinRooms     = placedRooms.filter((r) => isPinCoords(r.floor_plan_coordinates));
 
   const handleClick = (room: ApiRoom) => {
-    router.push(`/app/room-explorer?room=${room.slug}`);
+    router.push(
+      `/app/room-explorer?project=${encodeURIComponent(projectSlug)}&room=${encodeURIComponent(room.slug)}`,
+    );
   };
 
   return (

@@ -58,8 +58,10 @@ export function MiniCalendar({ projectId }: { projectId?: string }) {
   const projectSlug = useMemo(() => {
     const fromPath = pathname.match(/\/app\/projects\/([^/]+)/)?.[1];
     if (fromPath) return fromPath;
+    const fromQuery = searchParams.get('project');
+    if (fromQuery) return fromQuery;
     try { return sessionStorage.getItem(PERSIST_KEY) ?? ''; } catch { return ''; }
-  }, [pathname]);
+  }, [pathname, searchParams]);
 
   const onPick = (iso: string) => {
     setDateForScope(SCOPE, iso);

@@ -13,30 +13,32 @@ import { useEffect, useState } from 'react';
 import { getExplorerByRoom } from '@/services/apiClient';
 import type { ApiRoom, ApiRoomMediaGroup } from '@/types/api';
 
-const roomOpenKey = (slug: string) => `a6.sidebar.roomOpen.${slug}`;
+const roomOpenKey = (roomId: string) => `sitescope.sidebar.roomOpen.${roomId}`;
 
-export function RoomAccordion({ room }: { room: ApiRoom }) {
+export function RoomAccordion({ room, projectSlug }: { room: ApiRoom; projectSlug: string }) {
   const params = useSearchParams();
-  const isActive = params.get('room') === room.slug;
+  const isActive =
+    params.get('room') === room.slug &&
+    (params.get('project') === projectSlug || params.get('project') === null);
   const [open, setOpen] = useState(() => {
-    try { return sessionStorage.getItem(roomOpenKey(room.slug)) === '1'; } catch { return false; }
+    try { return sessionStorage.getItem(roomOpenKey(room.id)) === '1'; } catch { return false; }
   });
   const [dates, setDates] = useState<Array<[string, ApiRoomMediaGroup]> | null>(null);
 
   // Fetch dates whenever the accordion opens for the first time.
   useEffect(() => {
     if (!open || dates) return;
-    getExplorerByRoom(room.slug).then((res) => {
+    getExplorerByRoom(room.slug, room.project_id).then((res) => {
       setDates(Object.entries(res.dates).sort(([a], [b]) => b.localeCompare(a)));
     }).catch(() => {});
-  }, [open, dates, room.slug]);
+  }, [open, dates, room.project_id, room.slug]);
 
   const toggle = () => {
     setOpen((v) => {
       const next = !v;
       try {
-        if (next) sessionStorage.setItem(roomOpenKey(room.slug), '1');
-        else sessionStorage.removeItem(roomOpenKey(room.slug));
+        if (next) sessionStorage.setItem(roomOpenKey(room.id), '1');
+        else sessionStorage.removeItem(roomOpenKey(room.id));
       } catch { /* ignore */ }
       return next;
     });
@@ -61,7 +63,7 @@ export function RoomAccordion({ room }: { room: ApiRoom }) {
           />
         </button>
         <Link
-          href={`/app/room-explorer?room=${room.slug}`}
+          href={`/app/room-explorer?project=${encodeURIComponent(projectSlug)}&room=${encodeURIComponent(room.slug)}`}
           className="flex flex-1 items-center justify-between gap-2 rounded py-1.5 pr-2 transition-colors hover:bg-base-800/50"
         >
           <span className="truncate">{room.name}</span>
@@ -87,7 +89,7 @@ export function RoomAccordion({ room }: { room: ApiRoom }) {
             )}
             {dates?.map(([date, group]) => (
               <li key={date}>
-                <DateNode roomSlug={room.slug} date={date} group={group} />
+                <DateNode projectSlug={projectSlug} roomSlug={room.slug} date={date} group={group} />
               </li>
             ))}
           </motion.ul>
@@ -98,10 +100,12 @@ export function RoomAccordion({ room }: { room: ApiRoom }) {
 }
 
 function DateNode({
+  projectSlug,
   roomSlug,
   date,
   group,
 }: {
+  projectSlug: string;
   roomSlug: string;
   date: string;
   group: ApiRoomMediaGroup;
@@ -110,7 +114,7 @@ function DateNode({
     group.images.length + group.videos.length + group.pointclouds.length + group.pdfs.length;
   return (
     <Link
-      href={`/app/room-explorer?room=${roomSlug}&date=${date}`}
+      href={`/app/room-explorer?project=${encodeURIComponent(projectSlug)}&room=${encodeURIComponent(roomSlug)}&date=${encodeURIComponent(date)}`}
       className="flex items-center justify-between gap-2 rounded px-2 py-1 font-mono text-[11px] text-ink-300 transition-colors hover:bg-base-800/40 hover:text-white"
     >
       <span className="flex items-center gap-2">

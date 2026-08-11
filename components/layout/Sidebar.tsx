@@ -44,6 +44,7 @@ export function Sidebar() {
 
   // Derive slug from URL — most reliable sources first.
   const slugFromPath = pathname.match(/\/app\/projects\/([^/]+)/)?.[1] ?? null;
+  const slugFromQuery = searchParams.get('project');
   const roomSlug = searchParams.get('room');
   const roomFromQuery = roomSlug && allRooms ? allRooms.find((r) => r.slug === roomSlug) : null;
   const slugFromRoom = roomFromQuery && projects
@@ -53,14 +54,14 @@ export function Sidebar() {
   // Persist whenever a URL-derived slug is available so it survives to pages
   // like viewers and /app home where the slug isn't in the URL.
   useEffect(() => {
-    const slug = slugFromPath ?? slugFromRoom;
+    const slug = slugFromPath ?? slugFromQuery ?? slugFromRoom;
     if (slug && slug !== lastSlug) {
       try { sessionStorage.setItem(PERSIST_KEY, slug); } catch { /* ignore */ }
       setLastSlug(slug);
     }
-  }, [slugFromPath, slugFromRoom, lastSlug]);
+  }, [slugFromPath, slugFromQuery, slugFromRoom, lastSlug]);
 
-  const currentSlug = slugFromPath ?? slugFromRoom ?? lastSlug ?? null;
+  const currentSlug = slugFromPath ?? slugFromQuery ?? slugFromRoom ?? lastSlug ?? null;
   const currentProject = currentSlug ? (projects?.find((p) => p.slug === currentSlug) ?? null) : null;
   const currentRooms = currentProject && allRooms
     ? allRooms

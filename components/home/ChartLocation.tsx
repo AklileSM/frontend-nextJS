@@ -26,7 +26,7 @@ export function ChartLocation({ projectId, hoveredRoom }: { projectId?: string; 
         const targetRooms = projectId ? rooms.filter((r) => r.project_id === projectId) : rooms;
         const result: Row[] = await Promise.all(
           targetRooms.map(async (r) => {
-            const res = await getExplorerByRoom(r.slug);
+            const res = await getExplorerByRoom(r.slug, r.project_id);
             const total = Object.values(res.dates).reduce(
               (s, g) =>
                 s +

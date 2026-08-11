@@ -91,7 +91,7 @@ export function ProjectAccordion({
             ) : (
               rooms.map((r) => (
                 <li key={r.id}>
-                  <RoomAccordion room={r} />
+                  <RoomAccordion room={r} projectSlug={project.slug} />
                 </li>
               ))
             )}

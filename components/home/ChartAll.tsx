@@ -34,7 +34,7 @@ export function ChartAll({ projectId }: { projectId?: string }) {
         const acc = new Map<string, Row>();
         await Promise.all(
           targetRooms.map(async (room) => {
-            const res = await getExplorerByRoom(room.slug);
+            const res = await getExplorerByRoom(room.slug, room.project_id);
             for (const [date, group] of Object.entries(res.dates)) {
               const cur =
                 acc.get(date) ?? { date, images: 0, videos: 0, pointclouds: 0, pdfs: 0 };

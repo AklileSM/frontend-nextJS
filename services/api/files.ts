@@ -4,6 +4,7 @@
   ApiBulkActionResult,
   ApiConversionStatus,
   ApiFileAssetDetails,
+  ApiMissionSummaryExportEstimate,
   ApiMyUpload,
   ApiQualityExportEstimate,
   ApiRoomMediaGroup,
@@ -57,8 +58,16 @@ export async function getExplorerByDateForProject(
   return { ...res, rooms: filtered };
 }
 
-export function getExplorerByRoom(roomSlug: string): Promise<ExplorerByRoomResponse> {
-  return getJson<ExplorerByRoomResponse>(`/files/explorer/room/${roomSlug}`);
+export function getExplorerByRoom(
+  roomSlug: string,
+  projectId?: string,
+): Promise<ExplorerByRoomResponse> {
+  const params = new URLSearchParams();
+  if (projectId) params.set('project_id', projectId);
+  const qs = params.toString();
+  return getJson<ExplorerByRoomResponse>(
+    `/files/explorer/room/${encodeURIComponent(roomSlug)}${qs ? `?${qs}` : ''}`,
+  );
 }
 
 export function getFileAssetDetails(fileId: string): Promise<ApiFileAssetDetails> {
@@ -112,6 +121,44 @@ export async function fetchQualityExportCsv(
   return response;
 }
 
+export type MissionSummaryExportFilters = {
+  projectSlug: string;
+  dateFrom?: string;
+  dateTo?: string;
+  roomSlugs: string[];
+};
+
+function missionSummaryExportParams(filters: MissionSummaryExportFilters): URLSearchParams {
+  const params = new URLSearchParams({ project_slug: filters.projectSlug });
+  if (filters.dateFrom) params.set('date_from', filters.dateFrom);
+  if (filters.dateTo) params.set('date_to', filters.dateTo);
+  for (const roomSlug of filters.roomSlugs) params.append('room_slug', roomSlug);
+  return params;
+}
+
+export function getMissionSummaryExportEstimate(
+  filters: MissionSummaryExportFilters,
+  signal?: AbortSignal,
+): Promise<ApiMissionSummaryExportEstimate> {
+  return getJson<ApiMissionSummaryExportEstimate>(
+    `/files/mission-summary-export/estimate?${missionSummaryExportParams(filters).toString()}`,
+    { signal },
+  );
+}
+
+export async function fetchMissionSummaryExportCsv(
+  filters: MissionSummaryExportFilters,
+  signal?: AbortSignal,
+): Promise<Response> {
+  const response = await apiFetch(
+    `/files/mission-summary-export.csv?${missionSummaryExportParams(filters).toString()}`,
+    { signal },
+    true,
+  );
+  if (!response.ok) throw new Error(await parseApiError(response));
+  return response;
+}
+
 function addRoomGroupsToDateCounts(
   acc: Record<string, DateMediaCounts>,
   dates: Record<string, ApiRoomMediaGroup>,
@@ -132,7 +179,7 @@ async function explorerDatesSummaryFromRooms(projectId?: string): Promise<Explor
   const byDate: Record<string, DateMediaCounts> = {};
   await Promise.all(
     target.map((room) =>
-      getExplorerByRoom(room.slug).then((res) => {
+      getExplorerByRoom(room.slug, room.project_id).then((res) => {
         addRoomGroupsToDateCounts(byDate, res.dates ?? {});
       }),
     ),
