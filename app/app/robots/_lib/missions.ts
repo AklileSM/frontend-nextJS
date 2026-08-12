@@ -41,7 +41,7 @@ export function canStopMission(status: string): boolean {
 }
 
 export function canForceCloseMission(status: string): boolean {
-  return status === 'stop_requested';
+  return ['cancel_requested', 'cancelling', 'stop_requested'].includes(status);
 }
 
 export function canDeleteMission(status: string): boolean {
