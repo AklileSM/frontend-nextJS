@@ -42,7 +42,7 @@ export function AuthPageProviders({ children }: { children: ReactNode }) {
     <AuthProvider>
       <ClientLogger />
       {children}
-      <FeedbackFab />
+      {/* <FeedbackFab /> */}
       <AppToaster />
     </AuthProvider>
   );
