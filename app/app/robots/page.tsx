@@ -17,7 +17,13 @@ import {
 } from '@/services/apiClient';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Tabs } from '@/components/ui/Tabs';
-import type { ApiProject, ApiRobotCapturePoint, ApiRobotMap, ApiRobotMission } from '@/types/api';
+import type {
+  ApiProject,
+  ApiRobotCapturePoint,
+  ApiRobotHomePose,
+  ApiRobotMap,
+  ApiRobotMission,
+} from '@/types/api';
 import { RobotContextBar } from './_components/RobotContextBar';
 import { ConnectControl } from './_components/ConnectControl';
 import { RouteTab } from './_components/RouteTab';
@@ -47,6 +53,34 @@ const TABS = [
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+function latestMissionStartPose(
+  missions: ApiRobotMission[],
+  robotId: string,
+  projectSlug: string,
+): ApiRobotHomePose | null {
+  for (const mission of missions) {
+    if (robotId && mission.robot_id !== robotId) continue;
+    if (projectSlug && mission.project_slug !== projectSlug) continue;
+    const pose = mission.result?.start_pose;
+    if (!pose || typeof pose !== 'object' || Array.isArray(pose)) continue;
+    const value = pose as Record<string, unknown>;
+    if (typeof value.x !== 'number' || !Number.isFinite(value.x)) continue;
+    if (typeof value.y !== 'number' || !Number.isFinite(value.y)) continue;
+    if (value.frame !== undefined && value.frame !== 'map') continue;
+    return {
+      x: value.x,
+      y: value.y,
+      z: typeof value.z === 'number' ? value.z : 0,
+      qx: typeof value.qx === 'number' ? value.qx : 0,
+      qy: typeof value.qy === 'number' ? value.qy : 0,
+      qz: typeof value.qz === 'number' ? value.qz : 0,
+      qw: typeof value.qw === 'number' ? value.qw : 1,
+      frame: 'map',
+    };
+  }
+  return null;
 }
 
 export default function RobotPage() {
@@ -87,6 +121,13 @@ export default function RobotPage() {
     [projectSlug, projects],
   );
   const projectId = selectedProject?.id ?? null;
+  const homePose = useMemo(
+    () => (
+      robots.find((robot) => robot.username === robotId)?.home_pose
+      ?? latestMissionStartPose(missions, robotId, projectSlug)
+    ),
+    [missions, projectSlug, robotId, robots],
+  );
 
   const loadCapturePoints = useCallback(() => {
     if (!projectId) return;
@@ -276,6 +317,7 @@ export default function RobotPage() {
             projectSlug={projectSlug}
             robotMap={robotMap}
             capturePoints={capturePoints}
+            homePose={homePose}
             selectedIds={selectedIds}
             onToggle={toggleStop}
             captureOutputs={captureOutputs}
@@ -308,6 +350,7 @@ export default function RobotPage() {
           <LiveMapTab
             robotMap={robotMap}
             capturePoints={capturePoints}
+            homePose={homePose}
             telemetry={telemetry}
             captureRunning={Boolean(currentMission && isActiveMissionStatus(currentMission.status))}
             robotOnline={presence.online}

@@ -4,8 +4,8 @@ import type { PointerEvent, ReactNode } from 'react';
 import { useCallback, useRef, useState } from 'react';
 import type { WheelEvent } from 'react';
 import { RotateCcw, ZoomIn, ZoomOut } from 'lucide-react';
-import type { ApiRobotCapturePoint, ApiRobotMap } from '@/types/api';
-import { mapPoseToNormalized } from '../_lib/robotMap';
+import type { ApiRobotCapturePoint, ApiRobotHomePose, ApiRobotMap } from '@/types/api';
+import { mapPoseToNormalized, visibleMarker } from '../_lib/robotMap';
 import type { MapMarker } from '../_lib/robotMap';
 
 /**
@@ -37,6 +37,8 @@ export type Placement = {
 type Props = {
   robotMap: ApiRobotMap;
   capturePoints: ApiRobotCapturePoint[];
+  /** The robot's configured return/start position in the map frame. */
+  homePose?: ApiRobotHomePose | null;
   /** Stop number per capture point id, drives the amber numbered pins on the Route tab. */
   stopNumbers?: Map<string, number>;
   onPointClick?: (point: ApiRobotCapturePoint) => void;
@@ -57,6 +59,7 @@ const DRAG_THRESHOLD_PX = 3;
 export function RobotMapSurface({
   robotMap,
   capturePoints,
+  homePose = null,
   stopNumbers,
   onPointClick,
   placing = false,
@@ -74,6 +77,7 @@ export function RobotMapSurface({
     panY: number;
     moved: boolean;
   } | null>(null);
+  const homeMarker = homePose ? mapPoseToNormalized(robotMap, homePose) : null;
 
   const reset = useCallback(() => {
     setZoom(1);
@@ -263,6 +267,20 @@ export function RobotMapSurface({
               </div>
             );
           })}
+
+          {visibleMarker(homeMarker) ? (
+            <div
+              className="group pointer-events-none absolute z-10 h-6 w-6 -translate-x-1/2 -translate-y-1/2"
+              style={{ left: `${homeMarker.x * 100}%`, top: `${homeMarker.y * 100}%` }}
+            >
+              <span className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-cyan-300 bg-base-950 font-mono text-[11px] font-bold text-cyan-200 shadow-md shadow-black/50 ring-2 ring-base-950/80">
+                H
+              </span>
+              <span className="absolute bottom-full left-1/2 z-20 mb-1 -translate-x-1/2 whitespace-nowrap rounded-md border border-base-700 bg-base-950 px-2 py-1 text-[11px] text-white opacity-0 shadow-lg shadow-black/40 transition-opacity group-hover:opacity-100">
+                Home / start position
+              </span>
+            </div>
+          ) : null}
 
           {placement ? (
             <>

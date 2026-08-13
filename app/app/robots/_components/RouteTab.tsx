@@ -11,7 +11,7 @@ import {
 } from '@/services/apiClient';
 import { Modal } from '@/components/ui/Modal';
 import { MoreMenu } from '@/components/ui/MoreMenu';
-import type { ApiRobotCapturePoint, ApiRobotMap } from '@/types/api';
+import type { ApiRobotCapturePoint, ApiRobotHomePose, ApiRobotMap } from '@/types/api';
 import { RobotMapSurface } from './RobotMapSurface';
 import type { Placement } from './RobotMapSurface';
 import { normalizedToMapPose } from '../_lib/robotMap';
@@ -28,6 +28,7 @@ type Props = {
   projectSlug: string;
   robotMap: ApiRobotMap | null;
   capturePoints: ApiRobotCapturePoint[];
+  homePose: ApiRobotHomePose | null;
   selectedIds: string[];
   onToggle: (pointId: string) => void;
   captureOutputs: CaptureOutput[];
@@ -45,6 +46,7 @@ export function RouteTab({
   projectSlug,
   robotMap,
   capturePoints,
+  homePose,
   selectedIds,
   onToggle,
   captureOutputs,
@@ -157,6 +159,7 @@ export function RouteTab({
           <RobotMapSurface
             robotMap={robotMap}
             capturePoints={capturePoints}
+            homePose={homePose}
             stopNumbers={stopNumbers}
             onPointClick={(point) => onToggle(point.id)}
             placing={placing}

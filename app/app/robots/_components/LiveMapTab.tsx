@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef } from 'react';
 import { MapPin } from 'lucide-react';
-import type { ApiRobotCapturePoint, ApiRobotMap } from '@/types/api';
+import type { ApiRobotCapturePoint, ApiRobotHomePose, ApiRobotMap } from '@/types/api';
 import { RobotMapSurface } from './RobotMapSurface';
 import { mapPoseToNormalized, visibleMarker } from '../_lib/robotMap';
 import type { MapMarker } from '../_lib/robotMap';
@@ -14,6 +14,7 @@ import type { PoseTween } from '../_lib/poseTween';
 type Props = {
   robotMap: ApiRobotMap | null;
   capturePoints: ApiRobotCapturePoint[];
+  homePose: ApiRobotHomePose | null;
   telemetry: TelemetryState;
   /** Shown in the banner so the user is pointed at the view that still works. */
   captureRunning: boolean;
@@ -95,6 +96,7 @@ const NOTICE_STYLES: Record<NoticeTone, { box: string; headline: string; detail:
 export function LiveMapTab({
   robotMap,
   capturePoints,
+  homePose,
   telemetry,
   captureRunning,
   robotOnline,
@@ -268,6 +270,7 @@ export function LiveMapTab({
         <RobotMapSurface
           robotMap={robotMap}
           capturePoints={capturePoints}
+          homePose={homePose}
           overlay={<canvas ref={canvasRef} className="pointer-events-none absolute inset-0 z-20 h-full w-full" />}
         />
       </div>
