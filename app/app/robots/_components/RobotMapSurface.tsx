@@ -28,6 +28,14 @@ function capturePointMarker(robotMap: ApiRobotMap, point: ApiRobotCapturePoint):
   return null;
 }
 
+function homePoseMarker(robotMap: ApiRobotMap, pose: ApiRobotHomePose): MapMarker {
+  const yaw = Math.atan2(
+    2 * (pose.qw * pose.qz + pose.qx * pose.qy),
+    1 - 2 * (pose.qy * pose.qy + pose.qz * pose.qz),
+  );
+  return mapPoseToNormalized(robotMap, { x: pose.x, y: pose.y, yaw });
+}
+
 export type Placement = {
   position: MapMarker;
   facing: MapMarker | null;
@@ -77,7 +85,7 @@ export function RobotMapSurface({
     panY: number;
     moved: boolean;
   } | null>(null);
-  const homeMarker = homePose ? mapPoseToNormalized(robotMap, homePose) : null;
+  const homeMarker = homePose ? homePoseMarker(robotMap, homePose) : null;
 
   const reset = useCallback(() => {
     setZoom(1);
@@ -270,10 +278,24 @@ export function RobotMapSurface({
 
           {visibleMarker(homeMarker) ? (
             <div
-              className="group pointer-events-none absolute z-10 h-6 w-6 -translate-x-1/2 -translate-y-1/2"
+              className="group pointer-events-none absolute z-10 h-8 w-8 -translate-x-1/2 -translate-y-1/2"
               style={{ left: `${homeMarker.x * 100}%`, top: `${homeMarker.y * 100}%` }}
             >
-              <span className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-cyan-300 bg-base-950 font-mono text-[11px] font-bold text-cyan-200 shadow-md shadow-black/50 ring-2 ring-base-950/80">
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 40 40"
+                className="absolute left-1/2 top-1/2 h-10 w-10 overflow-visible drop-shadow-md"
+                style={{ transform: `translate(-50%, -50%) rotate(${-(homeMarker.yaw ?? 0)}rad)` }}
+              >
+                <path
+                  d="M26 14L38 20L26 26Z"
+                  fill="rgb(103 232 249)"
+                  stroke="rgb(2 6 23)"
+                  strokeWidth="2.5"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              <span className="relative flex h-8 w-8 items-center justify-center rounded-full border-2 border-cyan-300 bg-base-950 font-mono text-[12px] font-bold text-cyan-200 shadow-md shadow-black/50 ring-2 ring-base-950/80">
                 H
               </span>
               <span className="absolute bottom-full left-1/2 z-20 mb-1 -translate-x-1/2 whitespace-nowrap rounded-md border border-base-700 bg-base-950 px-2 py-1 text-[11px] text-white opacity-0 shadow-lg shadow-black/40 transition-opacity group-hover:opacity-100">
