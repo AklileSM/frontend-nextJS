@@ -16,10 +16,14 @@ import type { MapMarker } from '../_lib/robotMap';
  */
 function capturePointMarker(robotMap: ApiRobotMap, point: ApiRobotCapturePoint): MapMarker | null {
   if (typeof point.map_x === 'number' && typeof point.map_y === 'number') {
-    return mapPoseToNormalized(robotMap, { x: point.map_x, y: point.map_y });
+    return mapPoseToNormalized(robotMap, { x: point.map_x, y: point.map_y, yaw: point.yaw });
   }
   if (point.floorplan_x !== null && point.floorplan_y !== null) {
-    return { x: point.floorplan_x, y: point.floorplan_y };
+    return {
+      x: point.floorplan_x,
+      y: point.floorplan_y,
+      yaw: point.yaw - robotMap.origin_yaw,
+    };
   }
   return null;
 }
@@ -211,27 +215,52 @@ export function RobotMapSurface({
             const stop = stopNumbers?.get(point.id);
             const selected = stop !== undefined;
             return (
-              <button
+              <div
                 key={point.id}
-                type="button"
-                disabled={placing || !onPointClick}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onPointClick?.(point);
-                }}
-                title={point.name}
-                className={`group absolute flex h-5 w-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border text-[10px] font-medium shadow transition ${
-                  selected
-                    ? 'border-base-950 bg-amber-400 text-base-950'
-                    : 'border-base-950 bg-emerald-400 text-transparent hover:scale-125'
-                } ${placing ? 'pointer-events-none opacity-60' : ''}`}
+                className={`group absolute h-5 w-5 -translate-x-1/2 -translate-y-1/2 ${
+                  placing ? 'pointer-events-none opacity-60' : ''
+                }`}
                 style={{ left: `${marker.x * 100}%`, top: `${marker.y * 100}%` }}
               >
-                {stop ?? ''}
-                <span className="pointer-events-none absolute left-1/2 bottom-full z-20 mb-1 -translate-x-1/2 whitespace-nowrap rounded-md border border-base-700 bg-base-950 px-2 py-1 text-[11px] text-white opacity-0 shadow-lg shadow-black/40 transition-opacity group-hover:opacity-100">
+                {marker.yaw !== null && marker.yaw !== undefined ? (
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 32 12"
+                    className={`pointer-events-none absolute left-1/2 top-1/2 z-0 h-3 w-8 origin-left overflow-visible drop-shadow-sm ${
+                      selected ? 'text-amber-400' : 'text-emerald-400'
+                    }`}
+                    style={{ transform: `translateY(-50%) rotate(${-marker.yaw}rad)` }}
+                  >
+                    <path
+                      d="M7 6H28M23 1L28 6L23 11"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.25"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                ) : null}
+                <button
+                  type="button"
+                  disabled={placing || !onPointClick}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onPointClick?.(point);
+                  }}
+                  title={point.name}
+                  className={`relative z-10 flex h-5 w-5 items-center justify-center rounded-full border border-base-950 text-[10px] font-medium shadow transition ${
+                    selected
+                      ? 'bg-amber-400 text-base-950'
+                      : 'bg-emerald-400 text-transparent group-hover:scale-125'
+                  }`}
+                >
+                  {stop ?? ''}
+                </button>
+                <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1 -translate-x-1/2 whitespace-nowrap rounded-md border border-base-700 bg-base-950 px-2 py-1 text-[11px] text-white opacity-0 shadow-lg shadow-black/40 transition-opacity group-hover:opacity-100">
                   {point.name}
                 </span>
-              </button>
+              </div>
             );
           })}
 
