@@ -30,7 +30,7 @@ export function AppProviders({ children }: { children: ReactNode }) {
       <SelectedDateProvider>
         <ClientLogger />
         {children}
-        <FeedbackFab />
+        {/* <FeedbackFab /> */}
         <AppToaster />
       </SelectedDateProvider>
     </AuthProvider>
