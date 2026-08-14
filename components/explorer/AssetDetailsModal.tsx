@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, CircleHelp, Loader2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ChevronDown, CircleHelp, Loader2 } from 'lucide-react';
 import { getFileAssetDetails } from '@/services/api/files';
 import { Modal } from '@/components/ui/Modal';
 import type { ApiFileAssetDetails, ApiMediaFile } from '@/types/api';
@@ -521,12 +521,17 @@ export function AssetDetailsModal({ file, open, onClose }: Props) {
 
           {captureMetadata.length > 0 && (
             <section>
-              <h3 className="mb-3 font-display text-[15px] font-semibold text-white">Robot capture metadata</h3>
-              <dl className="rounded-md border border-base-800 bg-base-950/30 px-4">
-                {captureMetadata.map(({ key, label, value }) => (
-                  <OverviewRow key={key} label={label} value={formatMetadataValue(value)} mono={typeof value !== 'string'} />
-                ))}
-              </dl>
+              <details className="group rounded-md border border-base-800 bg-base-950/30">
+                <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 transition hover:bg-base-900/40">
+                  <h3 className="font-display text-[15px] font-semibold text-white">Robot capture metadata</h3>
+                  <ChevronDown size={14} className="ml-auto text-ink-500 transition-transform group-open:rotate-180" />
+                </summary>
+                <dl className="border-t border-base-800 px-4">
+                  {captureMetadata.map(({ key, label, value }) => (
+                    <OverviewRow key={key} label={label} value={formatMetadataValue(value)} mono={typeof value !== 'string'} />
+                  ))}
+                </dl>
+              </details>
             </section>
           )}
         </div>
