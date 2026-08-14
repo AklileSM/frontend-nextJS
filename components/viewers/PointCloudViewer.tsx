@@ -154,7 +154,6 @@ export function PointCloudViewer() {
             viewerKind="point-cloud"
             aiDescription=""
             state={{ mode: 'point-cloud' }}
-            viewerContext={{ roomSlug: ctx.roomSlug, date: ctx.date }}
           />
         )}
       </motion.aside>

@@ -451,7 +451,6 @@ export function StaticViewer() {
         viewerKind="static"
         aiDescription={aiDescription}
         state={{ scale }}
-        viewerContext={{ roomSlug: ctx.roomSlug, date: ctx.date }}
         annotations={annotations}
       />
 

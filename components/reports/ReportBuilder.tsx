@@ -12,6 +12,7 @@ import {
   type PdfAnnotation,
 } from '@/lib/engineeringReportPdf';
 import { flagsFromObservationBooleans } from '@/lib/observationReportFlags';
+import { getFileAssetDetails } from '@/services/api/files';
 import {
   createReportWithPdf,
   createViewerFieldDraft,
@@ -20,17 +21,11 @@ import {
 } from '@/services/apiClient';
 import type { ApiAnnotation, ApiMediaFile } from '@/types/api';
 
-export type ReportBuilderViewerContext = {
-  roomSlug: string;
-  date: string;
-};
-
 type Props = {
   file: ApiMediaFile;
   viewerKind: 'static' | 'panorama' | 'point-cloud';
   aiDescription: string;
   state: Record<string, unknown>;
-  viewerContext?: ReportBuilderViewerContext | null;
   annotations?: ApiAnnotation[];
 };
 
@@ -57,17 +52,6 @@ function viewerKindForApi(kind: Props['viewerKind']): string {
   }
 }
 
-function locationLabel(ctx: ReportBuilderViewerContext | null | undefined): string {
-  if (!ctx?.roomSlug) return '—';
-  const room = ctx.roomSlug.replace(/-/g, ' ');
-  return `${room} · ${ctx.date || '—'}`;
-}
-
-function captureDateLabel(file: ApiMediaFile): string {
-  const d = file.capture_date?.trim();
-  return d ? d.slice(0, 10) : '—';
-}
-
 function triggerDownload(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -84,8 +68,8 @@ function triggerDownload(blob: Blob, filename: string) {
  */
 function buildReportName(roomSlug: string | undefined, captureDate: string | undefined): string {
   const room = (roomSlug ?? 'report').trim() || 'report';
-  // ISO-shaped date if the caller already has one (always true via
-  // viewerContext.date); otherwise fall back to today.
+  // The asset details endpoint supplies an ISO-shaped capture date. Retain a
+  // defensive fallback for callers constructing a report outside the viewer.
   const date = (captureDate ?? '').slice(0, 10) || new Date().toISOString().slice(0, 10);
   const now = new Date();
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -139,7 +123,7 @@ function CheckboxField({
   );
 }
 
-export function ReportBuilder({ file, viewerKind, aiDescription, state, viewerContext, annotations = [] }: Props) {
+export function ReportBuilder({ file, viewerKind, aiDescription, state, annotations = [] }: Props) {
   const { user } = useAuth();
   const [manualObservations, setManualObservations] = useState('');
   const [draftId, setDraftId] = useState<string | null>(null);
@@ -154,18 +138,6 @@ export function ReportBuilder({ file, viewerKind, aiDescription, state, viewerCo
   const [qualityConcern, setQualityConcern] = useState(false);
   const [scheduleDelayed, setScheduleDelayed] = useState(false);
 
-  const projectName = useMemo(
-    () => (typeof process.env.NEXT_PUBLIC_PROJECT_NAME === 'string' && process.env.NEXT_PUBLIC_PROJECT_NAME.trim()
-      ? process.env.NEXT_PUBLIC_PROJECT_NAME.trim()
-      : 'A6 Stern'),
-    [],
-  );
-
-  const documentTitle = useMemo(
-    () => `${projectName.replace(/\s+/g, '_')} Project Observation Report`,
-    [projectName],
-  );
-
   useEffect(() => {
     setDraftId(null);
   }, [file.id]);
@@ -177,6 +149,13 @@ export function ReportBuilder({ file, viewerKind, aiDescription, state, viewerCo
 
   const buildObservationPdf = async () => {
     const ref = fieldObservationReportReference();
+    const assetDetails = await getFileAssetDetails(file.id);
+    const projectName = assetDetails.project_name.trim() || 'Project';
+    const locationOrRoom = assetDetails.room_name.trim()
+      || assetDetails.room_slug.replace(/-/g, ' ')
+      || '—';
+    const imageCaptureDate = assetDetails.capture_date.trim().slice(0, 10) || '—';
+    const documentTitle = `${projectName.replace(/\s+/g, '_')} Project Observation Report`;
 
     // Pre-fetch each annotation's attachment to a data URL. jsPDF.addImage
     // is synchronous, so we resolve all network IO upfront and feed the
@@ -206,8 +185,8 @@ export function ReportBuilder({ file, viewerKind, aiDescription, state, viewerCo
       preparedBy: user?.username?.trim() || 'Not signed in',
       reportReference: ref,
       recordFileName: file.file_name,
-      locationOrRoom: locationLabel(viewerContext),
-      imageCaptureDate: captureDateLabel(file),
+      locationOrRoom,
+      imageCaptureDate,
       reportIssueDate: new Date(),
       sections: {
         includeVisualAssessment,
@@ -226,7 +205,11 @@ export function ReportBuilder({ file, viewerKind, aiDescription, state, viewerCo
         safetyConcern,
       },
     });
-    return { doc, ref };
+    return {
+      doc,
+      reportRoomSlug: assetDetails.room_slug,
+      reportCaptureDate: imageCaptureDate,
+    };
   };
 
   const onSaveDraft = async () => {
@@ -273,12 +256,12 @@ export function ReportBuilder({ file, viewerKind, aiDescription, state, viewerCo
     if (publishing) return;
     setPublishing(true);
     try {
-      const { doc } = await buildObservationPdf();
+      const { doc, reportRoomSlug, reportCaptureDate } = await buildObservationPdf();
       const pdfBlob = doc.output('blob');
       // Auto-generated name based on the room + capture date + current
       // minute. Used unchanged as the DB label (what shows up in the
       // profile Reports list) and as the downloaded filename. No prompt.
-      const reportName = buildReportName(viewerContext?.roomSlug, viewerContext?.date);
+      const reportName = buildReportName(reportRoomSlug, reportCaptureDate);
       const filename = `${reportName}.pdf`;
       if (draftId) {
         await publishViewerFieldDraft({
