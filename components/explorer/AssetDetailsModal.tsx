@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, CircleHelp, Database, Loader2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, CircleHelp, Loader2 } from 'lucide-react';
 import { getFileAssetDetails } from '@/services/api/files';
 import { Modal } from '@/components/ui/Modal';
 import type { ApiFileAssetDetails, ApiMediaFile } from '@/types/api';
@@ -176,6 +176,20 @@ const IMAGE_GATE_METRICS = [
   'clipped_highlight_frac',
   'clipped_shadow_frac',
 ];
+
+const ROBOT_METADATA_FIELDS = [
+  { key: 'capture_outputs', label: 'Capture output' },
+  { key: 'source', label: 'Source' },
+  { key: 'scheduled_for', label: 'Scheduled for' },
+  { key: 'agent_robot_id', label: 'Agent robot ID' },
+  { key: 'target_waypoint_pose', label: 'Target waypoint pose' },
+  { key: 'navigation_result', label: 'Navigation result' },
+  { key: 'waypoint_index', label: 'Waypoint index' },
+  { key: 'waypoint_count', label: 'Waypoint count' },
+  { key: 'sensor', label: 'Sensor' },
+  { key: 'captured_at', label: 'Captured at' },
+  { key: 'pose', label: 'Pose' },
+] as const;
 
 function asRecord(value: unknown): JsonRecord | null {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -404,7 +418,13 @@ export function AssetDetailsModal({ file, open, onClose }: Props) {
   const gate = asRecord(robot?.quality_gate);
   const gateBadge = gatePresentation(gate);
   const captureMetadata = useMemo(
-    () => robot ? Object.entries(robot).filter(([key]) => key !== 'quality' && key !== 'quality_gate') : [],
+    () => robot
+      ? ROBOT_METADATA_FIELDS.flatMap(({ key, label }) => (
+        Object.prototype.hasOwnProperty.call(robot, key)
+          ? [{ key, label, value: robot[key] }]
+          : []
+      ))
+      : [],
     [robot],
   );
 
@@ -445,15 +465,12 @@ export function AssetDetailsModal({ file, open, onClose }: Props) {
             </div>
             <dl className="rounded-md border border-base-800 bg-base-950/30 px-4">
               <OverviewRow label="Display name" value={details.display_name} />
-              <OverviewRow label="Original name" value={details.original_name} />
               <OverviewRow label="Project" value={details.project_name} />
               <OverviewRow label="Room" value={details.room_name} />
               <OverviewRow label="Capture date" value={details.capture_date} mono />
               <OverviewRow label="Uploaded" value={new Date(details.created_at).toLocaleString()} />
               <OverviewRow label="File size" value={formatBytes(details.file_size)} />
               <OverviewRow label="Content type" value={details.content_type ?? 'Not recorded'} mono />
-              <OverviewRow label="Asset ID" value={details.id} mono />
-              {details.sha256_hash && <OverviewRow label="SHA-256" value={details.sha256_hash} mono />}
             </dl>
           </section>
 
@@ -506,26 +523,12 @@ export function AssetDetailsModal({ file, open, onClose }: Props) {
             <section>
               <h3 className="mb-3 font-display text-[15px] font-semibold text-white">Robot capture metadata</h3>
               <dl className="rounded-md border border-base-800 bg-base-950/30 px-4">
-                {captureMetadata.map(([key, value]) => (
-                  <OverviewRow key={key} label={humanize(key)} value={formatMetadataValue(value)} mono={typeof value !== 'string'} />
+                {captureMetadata.map(({ key, label, value }) => (
+                  <OverviewRow key={key} label={label} value={formatMetadataValue(value)} mono={typeof value !== 'string'} />
                 ))}
               </dl>
             </section>
           )}
-
-          <section>
-            <details className="group rounded-md border border-base-800 bg-base-950/30">
-              <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-[12px] font-medium text-ink-200 transition hover:text-white">
-                <Database size={14} className="text-amber-400" />
-                All stored metadata
-                <span className="ml-auto text-[10px] text-ink-500 group-open:hidden">Show JSON</span>
-                <span className="ml-auto hidden text-[10px] text-ink-500 group-open:inline">Hide JSON</span>
-              </summary>
-              <pre className="max-h-96 overflow-auto border-t border-base-800 p-4 font-mono text-[10px] leading-relaxed text-ink-300">
-                {JSON.stringify(metadata, null, 2)}
-              </pre>
-            </details>
-          </section>
         </div>
       )}
     </Modal>
