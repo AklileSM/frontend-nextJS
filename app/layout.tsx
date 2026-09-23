@@ -1,22 +1,6 @@
 import type { Metadata } from 'next';
-import { Inter, Inter_Tight } from 'next/font/google';
 import './globals.css';
 import { AuthPageProviders } from '@/components/providers/RouteProviders';
-
-const inter = Inter({
-  subsets: ['latin'],
-  weight: ['400', '500', '600'],
-  variable: '--font-inter',
-  display: 'swap',
-});
-
-const interTight = Inter_Tight({
-  subsets: ['latin'],
-  weight: ['600', '700'],
-  variable: '--font-inter-tight',
-  display: 'swap',
-});
-
 
 export const metadata: Metadata = {
   title: 'SiteScope',
@@ -25,7 +9,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${interTight.variable}`}>
+    <html lang="en">
       <body className="bg-base-950 text-white antialiased">
         <AuthPageProviders>{children}</AuthPageProviders>
       </body>
