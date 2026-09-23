@@ -23,14 +23,12 @@ type Props = {
   onRetry: () => void;
 };
 
-const TIMEOUT_MESSAGE =
-  'The robot didn’t finish connecting in time. It may still be starting up — try again in a moment.';
-
 /**
  * The one-click "Connect robot" control. The button alone carries the state — Connect when idle,
  * a spinner-with-Cancel while working, Disconnect once up — so there is no separate status chip.
- * A failure (or a timeout) surfaces in a small modal offering Try again / Cancel; success is
- * silent, the button just flips to Disconnect. The progress tree stays inline under "Show details".
+ * A confirmed failure surfaces in a small modal offering Try again / Cancel; a slow command stays
+ * in progress and exposes retry inline without interrupting the operator. Success is silent, the
+ * button just flips to Disconnect. The progress tree stays inline under "Show details".
  */
 export function ConnectControl({
   robotId,
@@ -65,14 +63,15 @@ export function ConnectControl({
   const busy = submitting || (view.busy && !targetReached);
 
   const failedByStatus = command?.kind === 'connect' && command?.status === 'failed';
-  const showFailure = !connected && (failedByStatus || timedOut) && !dismissed;
+  // A browser timer is not proof that connection failed. The panel can legitimately continue
+  // bringing up localization and navigation after that threshold, so only an explicit terminal
+  // failure from the robot agent may interrupt the operator with a modal.
+  const showFailure = !connected && failedByStatus && !dismissed;
 
-  // A new command (or a fresh timeout) means a fresh failure to show.
+  // A new command means a fresh terminal result to show.
   useEffect(() => setDismissed(false), [command?.id]);
 
-  const failureMessage = timedOut
-    ? TIMEOUT_MESSAGE
-    : (failedByStatus ? friendlyError(command?.detail) : null) ?? 'The robot could not be connected.';
+  const failureMessage = friendlyError(command?.detail) ?? 'The robot could not be connected.';
 
   if (!robotId) return null;
 
