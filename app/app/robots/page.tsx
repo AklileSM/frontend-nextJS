@@ -17,13 +17,7 @@ import {
 } from '@/services/apiClient';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Tabs } from '@/components/ui/Tabs';
-import type {
-  ApiProject,
-  ApiRobotCapturePoint,
-  ApiRobotHomePose,
-  ApiRobotMap,
-  ApiRobotMission,
-} from '@/types/api';
+import type { ApiProject, ApiRobotCapturePoint, ApiRobotMap, ApiRobotMission } from '@/types/api';
 import { RobotContextBar } from './_components/RobotContextBar';
 import { ConnectControl } from './_components/ConnectControl';
 import { RouteTab } from './_components/RouteTab';
@@ -34,7 +28,7 @@ import { SchedulesTab } from './_components/SchedulesTab';
 import { useRobotMissions } from './_hooks/useRobotMissions';
 import { useRobotTelemetry } from './_hooks/useRobotTelemetry';
 import { useRobotConnection } from './_hooks/useRobotConnection';
-import { deriveConnection } from './_lib/connection';
+import { deriveCurrentConnection } from './_lib/connection';
 import { isActiveMissionStatus, routeSummary } from './_lib/missions';
 import type { CaptureOutput } from './_lib/missions';
 import { formatQuietFor, robotPresence } from './_lib/presence';
@@ -53,34 +47,6 @@ const TABS = [
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
-}
-
-function latestMissionStartPose(
-  missions: ApiRobotMission[],
-  robotId: string,
-  projectSlug: string,
-): ApiRobotHomePose | null {
-  for (const mission of missions) {
-    if (robotId && mission.robot_id !== robotId) continue;
-    if (projectSlug && mission.project_slug !== projectSlug) continue;
-    const pose = mission.result?.start_pose;
-    if (!pose || typeof pose !== 'object' || Array.isArray(pose)) continue;
-    const value = pose as Record<string, unknown>;
-    if (typeof value.x !== 'number' || !Number.isFinite(value.x)) continue;
-    if (typeof value.y !== 'number' || !Number.isFinite(value.y)) continue;
-    if (value.frame !== undefined && value.frame !== 'map') continue;
-    return {
-      x: value.x,
-      y: value.y,
-      z: typeof value.z === 'number' ? value.z : 0,
-      qx: typeof value.qx === 'number' ? value.qx : 0,
-      qy: typeof value.qy === 'number' ? value.qy : 0,
-      qz: typeof value.qz === 'number' ? value.qz : 0,
-      qw: typeof value.qw === 'number' ? value.qw : 1,
-      frame: 'map',
-    };
-  }
-  return null;
 }
 
 export default function RobotPage() {
@@ -121,13 +87,6 @@ export default function RobotPage() {
     [projectSlug, projects],
   );
   const projectId = selectedProject?.id ?? null;
-  const homePose = useMemo(
-    () => (
-      robots.find((robot) => robot.username === robotId)?.home_pose
-      ?? latestMissionStartPose(missions, robotId, projectSlug)
-    ),
-    [missions, projectSlug, robotId, robots],
-  );
 
   const loadCapturePoints = useCallback(() => {
     if (!projectId) return;
@@ -161,15 +120,21 @@ export default function RobotPage() {
   }, [activeMission, projectSlug, robotId]);
 
   /* Recomputed whenever the mission poll refreshes `robots`, which carries last_seen_at. */
-  const presence = useMemo(
-    () => robotPresence(robots.find((candidate) => candidate.username === robotId) ?? null, Date.now()),
+  const selectedRobot = useMemo(
+    () => robots.find((candidate) => candidate.username === robotId) ?? null,
     [robotId, robots],
   );
+  const presence = useMemo(() => robotPresence(selectedRobot, Date.now()), [selectedRobot]);
 
-  /* "Connected" is the latest command's latched state AND a live heartbeat: the command never
-   * expires on its own, so a powered-off robot would otherwise read as connected forever. This is
-   * the immediate UX fix; making the stored state itself expire is the follow-up (backend reaper). */
-  const isConnected = deriveConnection(connection.command).connection === 'connected' && presence.online;
+  /* Physical state comes from the robot heartbeat. A newer command temporarily wins so connect
+   * and disconnect feedback is immediate; the next heartbeat repairs cancellation races. */
+  const connectionState = deriveCurrentConnection(
+    connection.command,
+    selectedRobot?.connection,
+    selectedRobot?.last_seen_at,
+    presence.online,
+  );
+  const isConnected = connectionState === 'connected' && !connection.busy;
 
   const visibleMissions = useMemo(
     () => missions.filter((mission) => (
@@ -293,6 +258,7 @@ export default function RobotPage() {
             robotId={robotId}
             command={connection.command}
             robotOnline={presence.online}
+            connectionState={connectionState}
             submitting={connection.submitting}
             error={connection.error}
             timedOut={connection.timedOut}
@@ -317,7 +283,6 @@ export default function RobotPage() {
             projectSlug={projectSlug}
             robotMap={robotMap}
             capturePoints={capturePoints}
-            homePose={homePose}
             selectedIds={selectedIds}
             onToggle={toggleStop}
             captureOutputs={captureOutputs}
@@ -350,7 +315,6 @@ export default function RobotPage() {
           <LiveMapTab
             robotMap={robotMap}
             capturePoints={capturePoints}
-            homePose={homePose}
             telemetry={telemetry}
             captureRunning={Boolean(currentMission && isActiveMissionStatus(currentMission.status))}
             robotOnline={presence.online}

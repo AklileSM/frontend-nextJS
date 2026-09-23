@@ -46,19 +46,8 @@ export interface ApiRobotPresence {
   status: string;
   current_mission_id: string | null;
   hostname: string | null;
-  home_pose: ApiRobotHomePose | null;
+  connection: ApiRobotConnection | null;
   last_seen_at: string;
-}
-
-export interface ApiRobotHomePose {
-  x: number;
-  y: number;
-  z: number;
-  qx: number;
-  qy: number;
-  qz: number;
-  qw: number;
-  frame: string;
 }
 
 export interface ApiRobotSummary {
@@ -67,7 +56,7 @@ export interface ApiRobotSummary {
   status: string | null;
   current_mission_id: string | null;
   hostname: string | null;
-  home_pose: ApiRobotHomePose | null;
+  connection: ApiRobotConnection | null;
   last_seen_at: string | null;
 }
 

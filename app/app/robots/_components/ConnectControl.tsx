@@ -13,6 +13,7 @@ type Props = {
   robotId: string;
   command: ApiRobotCommand | null;
   robotOnline: boolean;
+  connectionState: ApiRobotCommand['connection'];
   submitting: boolean;
   error: string | null;
   timedOut: boolean;
@@ -35,6 +36,7 @@ export function ConnectControl({
   robotId,
   command,
   robotOnline,
+  connectionState,
   submitting,
   error,
   timedOut,
@@ -51,11 +53,11 @@ export function ConnectControl({
   /* The command state only says "the last connect succeeded" — it never expires. If the robot's
    * heartbeat has since gone quiet (powered off, lost link), it isn't really connected anymore, so
    * fall back to the Connect button instead of stranding a Disconnect on a robot that's gone. */
-  const connected = view.connection === 'connected' && robotOnline;
+  const connected = connectionState === 'connected' && robotOnline;
   const busy = view.busy || submitting;
 
   const failedByStatus = command?.kind === 'connect' && command?.status === 'failed';
-  const showFailure = (failedByStatus || timedOut) && !dismissed;
+  const showFailure = !connected && (failedByStatus || timedOut) && !dismissed;
 
   // A new command (or a fresh timeout) means a fresh failure to show.
   useEffect(() => setDismissed(false), [command?.id]);
@@ -83,7 +85,8 @@ export function ConnectControl({
               <button
                 type="button"
                 onClick={onRetry}
-                className="inline-flex items-center gap-2 rounded-xl bg-amber-500 px-4 py-2.5 text-[13px] font-medium text-base-950 transition hover:bg-amber-400"
+                disabled={submitting}
+                className="inline-flex items-center gap-2 rounded-xl bg-amber-500 px-4 py-2.5 text-[13px] font-medium text-base-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Zap size={15} />
                 Cancel and try again
@@ -138,14 +141,11 @@ export function ConnectControl({
           <>
             <button
               type="button"
-              onClick={() => {
-                setDismissed(true);
-                onCancel();
-              }}
+              onClick={() => setDismissed(true)}
               className="inline-flex items-center gap-2 rounded-md border border-base-700 px-3.5 py-1.5 text-[13px] font-medium text-ink-200 transition hover:border-ink-400"
             >
               <X size={14} />
-              Cancel
+              Close
             </button>
             <button
               type="button"
@@ -153,7 +153,8 @@ export function ConnectControl({
                 setDismissed(true);
                 onRetry();
               }}
-              className="inline-flex items-center gap-2 rounded-md bg-amber-500 px-3.5 py-1.5 text-[13px] font-semibold text-base-950 transition hover:bg-amber-400"
+              disabled={submitting}
+              className="inline-flex items-center gap-2 rounded-md bg-amber-500 px-3.5 py-1.5 text-[13px] font-semibold text-base-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Zap size={14} />
               Try again

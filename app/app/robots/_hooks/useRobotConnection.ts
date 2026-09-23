@@ -37,6 +37,7 @@ export function useRobotConnection(robotId: string): RobotConnectionState {
   const [error, setError] = useState<string | null>(null);
   const [timedOut, setTimedOut] = useState(false);
   const robotRef = useRef(robotId);
+  const actionInFlightRef = useRef(false);
   robotRef.current = robotId;
 
   const refresh = useCallback(async () => {
@@ -84,49 +85,50 @@ export function useRobotConnection(robotId: string): RobotConnectionState {
   }, [busy, command]);
 
   const send = useCallback(
-    async (kind: 'connect' | 'disconnect') => {
-      if (!robotId) return;
+    async (kind: 'connect' | 'disconnect', cancelCurrent = false) => {
+      if (!robotId || actionInFlightRef.current) return;
+      actionInFlightRef.current = true;
       setSubmitting(true);
       setError(null);
       setTimedOut(false);
       try {
+        if (cancelCurrent && command && isCommandActive(command)) {
+          await cancelRobotCommand(command.id);
+        }
         const created = await createRobotCommand(robotId, kind);
         setCommand(created);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Could not reach the robot.');
       } finally {
+        actionInFlightRef.current = false;
         setSubmitting(false);
       }
     },
-    [robotId],
+    [command, robotId],
   );
 
   const connect = useCallback(() => send('connect'), [send]);
   const disconnect = useCallback(() => send('disconnect'), [send]);
 
   const cancel = useCallback(async () => {
+    if (actionInFlightRef.current) return;
+    actionInFlightRef.current = true;
+    setSubmitting(true);
     setTimedOut(false);
-    if (command && isCommandActive(command)) {
-      try {
+    try {
+      if (command && isCommandActive(command)) {
         const cancelled = await cancelRobotCommand(command.id);
         setCommand(cancelled);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Could not cancel the connection.');
       }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not cancel the connection.');
+    } finally {
+      actionInFlightRef.current = false;
+      setSubmitting(false);
     }
   }, [command]);
 
-  const retry = useCallback(async () => {
-    // Cancel a stuck/failed run first so the backend doesn't hand us back the same command.
-    if (command && isCommandActive(command)) {
-      try {
-        await cancelRobotCommand(command.id);
-      } catch {
-        // best effort — the create below still supersedes on the happy path
-      }
-    }
-    await send('connect');
-  }, [command, send]);
+  const retry = useCallback(() => send('connect', true), [send]);
 
   return { command, busy, submitting, error, timedOut, connect, disconnect, cancel, retry, refresh };
 }

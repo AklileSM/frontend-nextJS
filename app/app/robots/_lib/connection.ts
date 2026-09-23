@@ -1,4 +1,5 @@
 import type { ApiRobotCommand, ApiRobotConnection } from '@/types/api';
+import { parseUtcTimestamp } from './robotMap';
 
 /* The button and chip both read off the robot's latest lifecycle command. "busy" means a
  * connect/disconnect is still in flight, so the control locks and the tree polls quickly. */
@@ -57,4 +58,33 @@ export function deriveConnection(command: ApiRobotCommand | null): ConnectionVie
     tone: command.kind === 'connect' ? RED : NEUTRAL,
     dot: command.kind === 'connect' ? 'bg-red-400' : 'bg-ink-500',
   };
+}
+
+/**
+ * Resolve current physical state from two independent timelines:
+ *
+ * - lifecycle commands describe requested work and may be cancelled while the panel continues;
+ * - heartbeats report what the local control panel says is physically true.
+ *
+ * Whichever observation is newer wins. This preserves immediate command feedback while ensuring
+ * the next heartbeat repairs cancellation races instead of leaving the UI permanently stale.
+ */
+export function deriveCurrentConnection(
+  command: ApiRobotCommand | null,
+  heartbeatConnection: ApiRobotConnection | null | undefined,
+  heartbeatAt: string | null | undefined,
+  robotOnline: boolean,
+): ApiRobotConnection {
+  if (!robotOnline) return 'disconnected';
+
+  const commandView = deriveConnection(command);
+  if (!heartbeatConnection) return commandView.connection;
+  if (!command) return heartbeatConnection;
+
+  const commandAt = parseUtcTimestamp(command.completed_at ?? command.created_at);
+  const reportedAt = parseUtcTimestamp(heartbeatAt);
+  if (commandAt !== null && (reportedAt === null || commandAt > reportedAt)) {
+    return commandView.connection;
+  }
+  return heartbeatConnection;
 }
