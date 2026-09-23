@@ -199,6 +199,22 @@ export interface ApiRobotMap {
   image_object_name: string | null;
 }
 
+/** Saved robot start/return pose reported by the on-site control panel. */
+export interface ApiRobotHomePose {
+  x: number;
+  y: number;
+  z: number;
+  qx: number;
+  qy: number;
+  qz: number;
+  qw: number;
+  frame: string;
+  source?: string | null;
+  yaw_rad?: number | null;
+  yaw_deg?: number | null;
+  captured_at_unix?: number | null;
+}
+
 export interface ApiRobotPairingToken {
   id: string;
   robot_id: string;

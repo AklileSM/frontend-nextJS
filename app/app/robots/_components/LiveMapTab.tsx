@@ -14,7 +14,7 @@ import type { PoseTween } from '../_lib/poseTween';
 type Props = {
   robotMap: ApiRobotMap | null;
   capturePoints: ApiRobotCapturePoint[];
-  homePose: ApiRobotHomePose | null;
+  homePose?: ApiRobotHomePose | null;
   telemetry: TelemetryState;
   /** Shown in the banner so the user is pointed at the view that still works. */
   captureRunning: boolean;
@@ -96,7 +96,7 @@ const NOTICE_STYLES: Record<NoticeTone, { box: string; headline: string; detail:
 export function LiveMapTab({
   robotMap,
   capturePoints,
-  homePose,
+  homePose = null,
   telemetry,
   captureRunning,
   robotOnline,
@@ -270,7 +270,6 @@ export function LiveMapTab({
         <RobotMapSurface
           robotMap={robotMap}
           capturePoints={capturePoints}
-          homePose={homePose}
           overlay={<canvas ref={canvasRef} className="pointer-events-none absolute inset-0 z-20 h-full w-full" />}
         />
       </div>

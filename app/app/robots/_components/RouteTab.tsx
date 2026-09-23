@@ -28,7 +28,7 @@ type Props = {
   projectSlug: string;
   robotMap: ApiRobotMap | null;
   capturePoints: ApiRobotCapturePoint[];
-  homePose: ApiRobotHomePose | null;
+  homePose?: ApiRobotHomePose | null;
   selectedIds: string[];
   onToggle: (pointId: string) => void;
   captureOutputs: CaptureOutput[];
@@ -46,7 +46,7 @@ export function RouteTab({
   projectSlug,
   robotMap,
   capturePoints,
-  homePose,
+  homePose = null,
   selectedIds,
   onToggle,
   captureOutputs,
@@ -159,7 +159,6 @@ export function RouteTab({
           <RobotMapSurface
             robotMap={robotMap}
             capturePoints={capturePoints}
-            homePose={homePose}
             stopNumbers={stopNumbers}
             onPointClick={(point) => onToggle(point.id)}
             placing={placing}
