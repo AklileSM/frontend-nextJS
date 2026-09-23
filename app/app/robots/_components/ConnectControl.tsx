@@ -53,8 +53,16 @@ export function ConnectControl({
   /* The command state only says "the last connect succeeded" — it never expires. If the robot's
    * heartbeat has since gone quiet (powered off, lost link), it isn't really connected anymore, so
    * fall back to the Connect button instead of stranding a Disconnect on a robot that's gone. */
-  const connected = connectionState === 'connected' && robotOnline;
-  const busy = view.busy || submitting;
+  const targetReached = view.busy && (
+    (command?.kind === 'connect' && connectionState === 'connected')
+    || (command?.kind === 'disconnect' && connectionState === 'disconnected')
+  );
+  const disconnectStillRunning = view.busy
+    && command?.kind === 'disconnect'
+    && !targetReached;
+  const connected = connectionState === 'connected' && robotOnline && !disconnectStillRunning;
+  // A newer physical observation wins over a lifecycle command whose terminal update was lost.
+  const busy = submitting || (view.busy && !targetReached);
 
   const failedByStatus = command?.kind === 'connect' && command?.status === 'failed';
   const showFailure = !connected && (failedByStatus || timedOut) && !dismissed;

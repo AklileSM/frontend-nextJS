@@ -32,6 +32,7 @@ import { deriveCurrentConnection } from './_lib/connection';
 import { isActiveMissionStatus, routeSummary } from './_lib/missions';
 import type { CaptureOutput } from './_lib/missions';
 import { formatQuietFor, robotPresence } from './_lib/presence';
+import { parseUtcTimestamp } from './_lib/robotMap';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,6 +45,9 @@ const TABS = [
   { id: 'live', label: 'Live map' },
   { id: 'history', label: 'History' },
 ] as const satisfies readonly { id: TabId; label: string }[];
+
+const CONNECTION_RECONCILE_MS = 5 * 60 * 1000;
+const CONNECTION_RECONCILE_POLL_MS = 2000;
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -134,7 +138,37 @@ export default function RobotPage() {
     selectedRobot?.last_seen_at,
     presence.online,
   );
-  const isConnected = connectionState === 'connected' && !connection.busy;
+  const lifecycleTargetReached = connection.busy && (
+    (connection.command?.kind === 'connect' && connectionState === 'connected')
+    || (connection.command?.kind === 'disconnect' && connectionState === 'disconnected')
+  );
+  const disconnectStillRunning = connection.busy
+    && connection.command?.kind === 'disconnect'
+    && !lifecycleTargetReached;
+  const isConnected = connectionState === 'connected' && !disconnectStillRunning;
+
+  // The command poll and presence poll are independent. While a connect may still converge
+  // locally (including after an early failure response), refresh presence quickly so a confirmed
+  // physical connection repairs the UI without waiting for the normal idle polling interval.
+  useEffect(() => {
+    const command = connection.command;
+    if (!robotId || !command || command.kind !== 'connect' || connectionState === 'connected') return;
+    const startedAt = parseUtcTimestamp(command.created_at);
+    if (startedAt === null) return;
+    const remaining = startedAt + CONNECTION_RECONCILE_MS - Date.now();
+    if (remaining <= 0) return;
+
+    void refresh({ partial: true });
+    const interval = window.setInterval(
+      () => void refresh({ partial: true }),
+      CONNECTION_RECONCILE_POLL_MS,
+    );
+    const deadline = window.setTimeout(() => window.clearInterval(interval), remaining);
+    return () => {
+      window.clearInterval(interval);
+      window.clearTimeout(deadline);
+    };
+  }, [connection.command, connectionState, refresh, robotId]);
 
   const visibleMissions = useMemo(
     () => missions.filter((mission) => (
