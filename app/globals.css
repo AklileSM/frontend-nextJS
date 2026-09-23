@@ -3,6 +3,8 @@
 @tailwind utilities;
 
 :root {
+  --font-inter: Inter;
+  --font-inter-tight: 'Inter Tight';
   --color-base-950: #0B0E12;
   --color-base-900: #13171D;
   --color-base-800: #1B2027;
