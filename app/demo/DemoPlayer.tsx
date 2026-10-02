@@ -114,7 +114,6 @@ export function DemoPlayer() {
         <header className="flex items-center justify-between border-b border-base-800 pb-5">
           <Logo />
           <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.2em] text-ink-400 sm:text-[11px]">
-            <span className="h-1.5 w-1.5 rounded-full bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,.8)]" />
             Product demo
           </div>
         </header>
@@ -122,14 +121,10 @@ export function DemoPlayer() {
         <section className="flex flex-1 flex-col justify-center py-8 sm:py-10 lg:py-12">
           <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
             <div>
-              <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-amber-500">Site intelligence, in context</p>
-              <h1 className="mt-2 font-display text-[28px] font-semibold tracking-[-0.02em] sm:text-[36px]">
+              <h1 className="mt-2 font-display text-[28px] font-semibold tracking-[-0.02em] sm:text-[36px] text-amber-500">
                 SiteScope platform overview
               </h1>
             </div>
-            <p className="max-w-[42ch] text-[13px] leading-6 text-ink-300 sm:text-right">
-              From field capture to a structured, reviewable construction record.
-            </p>
           </div>
 
           <div
