@@ -26,7 +26,10 @@ function formatTime(value: number): string {
 export function DemoPlayer() {
   const shellRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const timelineRef = useRef<HTMLDivElement>(null);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const scrubbingRef = useRef(false);
   const [playing, setPlaying] = useState(false);
   const [waiting, setWaiting] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -81,6 +84,36 @@ export function DemoPlayer() {
     };
   }, []);
 
+  // `timeupdate` is intentionally infrequent in several browsers. Sample the media clock while
+  // playing so the custom progress indicator moves continuously instead of jumping every second.
+  useEffect(() => {
+    if (!playing) return;
+    const updateProgress = () => {
+      if (videoRef.current && !scrubbingRef.current) {
+        setCurrentTime(videoRef.current.currentTime);
+      }
+      animationFrameRef.current = window.requestAnimationFrame(updateProgress);
+    };
+    animationFrameRef.current = window.requestAnimationFrame(updateProgress);
+    return () => {
+      if (animationFrameRef.current !== null) window.cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    };
+  }, [playing]);
+
+  const seekToClientX = useCallback((clientX: number) => {
+    const video = videoRef.current;
+    const timeline = timelineRef.current;
+    if (!video || !timeline) return;
+    const mediaDuration = Number.isFinite(video.duration) ? video.duration : duration;
+    if (!mediaDuration || mediaDuration <= 0) return;
+    const bounds = timeline.getBoundingClientRect();
+    const ratio = Math.min(1, Math.max(0, (clientX - bounds.left) / bounds.width));
+    const nextTime = ratio * mediaDuration;
+    video.currentTime = nextTime;
+    setCurrentTime(nextTime);
+  }, [duration]);
+
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     const video = videoRef.current;
     if (!video) return;
@@ -114,6 +147,7 @@ export function DemoPlayer() {
         <header className="flex items-center justify-between border-b border-base-800 pb-5">
           <Logo />
           <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.2em] text-ink-400 sm:text-[11px]">
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,.8)]" />
             Product demo
           </div>
         </header>
@@ -121,10 +155,14 @@ export function DemoPlayer() {
         <section className="flex flex-1 flex-col justify-center py-8 sm:py-10 lg:py-12">
           <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
             <div>
-              <h1 className="mt-2 font-display text-[28px] font-semibold tracking-[-0.02em] sm:text-[36px] text-amber-500">
+              <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-amber-500">Site intelligence, in context</p>
+              <h1 className="mt-2 font-display text-[28px] font-semibold tracking-[-0.02em] sm:text-[36px]">
                 SiteScope platform overview
               </h1>
             </div>
+            <p className="max-w-[42ch] text-[13px] leading-6 text-ink-300 sm:text-right">
+              From field capture to a structured, reviewable construction record.
+            </p>
           </div>
 
           <div
@@ -147,6 +185,7 @@ export function DemoPlayer() {
               onDoubleClick={() => void toggleFullscreen()}
               onLoadedMetadata={(event) => setDuration(event.currentTarget.duration)}
               onDurationChange={(event) => setDuration(event.currentTarget.duration)}
+              onCanPlay={(event) => setDuration(event.currentTarget.duration)}
               onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
               onPlay={() => {
                 setPlaying(true);
@@ -208,22 +247,51 @@ export function DemoPlayer() {
                 controlsVisible && !error ? 'opacity-100' : 'pointer-events-none opacity-0'
               }`}
             >
-              <label className="block" aria-label="Video progress">
-                <input
-                  type="range"
-                  min={0}
-                  max={duration || 0}
-                  step="0.01"
-                  value={Math.min(currentTime, duration || 0)}
-                  onChange={(event) => {
-                    const next = Number(event.target.value);
-                    if (videoRef.current) videoRef.current.currentTime = next;
-                    setCurrentTime(next);
-                  }}
-                  className={styles.timeline}
-                  style={{ '--progress': `${seekPercent}%` } as React.CSSProperties}
-                />
-              </label>
+              <div
+                ref={timelineRef}
+                role="slider"
+                tabIndex={0}
+                aria-label="Video progress"
+                aria-valuemin={0}
+                aria-valuemax={Math.round(duration || 0)}
+                aria-valuenow={Math.round(currentTime)}
+                aria-valuetext={`${formatTime(currentTime)} of ${formatTime(duration)}`}
+                onPointerDown={(event) => {
+                  scrubbingRef.current = true;
+                  event.currentTarget.setPointerCapture(event.pointerId);
+                  seekToClientX(event.clientX);
+                  revealControls();
+                }}
+                onPointerMove={(event) => {
+                  if (scrubbingRef.current) seekToClientX(event.clientX);
+                }}
+                onPointerUp={(event) => {
+                  seekToClientX(event.clientX);
+                  scrubbingRef.current = false;
+                  event.currentTarget.releasePointerCapture(event.pointerId);
+                  revealControls();
+                }}
+                onPointerCancel={() => {
+                  scrubbingRef.current = false;
+                }}
+                onKeyDown={(event) => {
+                  if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  const video = videoRef.current;
+                  if (!video) return;
+                  const delta = event.key === 'ArrowRight' ? 5 : -5;
+                  const next = Math.min(video.duration || 0, Math.max(0, video.currentTime + delta));
+                  video.currentTime = next;
+                  setCurrentTime(next);
+                }}
+                className={styles.timeline}
+              >
+                <span className={styles.timelineRail}>
+                  <span className={styles.timelineProgress} style={{ width: `${seekPercent}%` }} />
+                  <span className={styles.timelineThumb} style={{ left: `${seekPercent}%` }} />
+                </span>
+              </div>
 
               <div className="mt-2 flex items-center gap-1 sm:gap-2">
                 <button
