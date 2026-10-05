@@ -128,9 +128,15 @@ export function LiveMapTab({
     const canvas = canvasRef.current;
     if (!canvas || !robotMap) return;
 
+    // Draw in on-screen pixels so lines stay crisp when zoomed. The bounding rect of a rotated
+    // map has swapped sides, so take the size from the untransformed layout box and only the
+    // zoom factor from the rect (area ratio is rotation-invariant for quarter turns).
     const rect = canvas.getBoundingClientRect();
-    const width = Math.max(1, rect.width);
-    const height = Math.max(1, rect.height);
+    const layoutWidth = Math.max(1, canvas.offsetWidth);
+    const layoutHeight = Math.max(1, canvas.offsetHeight);
+    const screenScale = Math.sqrt((rect.width * rect.height) / (layoutWidth * layoutHeight)) || 1;
+    const width = layoutWidth * screenScale;
+    const height = layoutHeight * screenScale;
     const dpr = window.devicePixelRatio || 1;
     const pixelWidth = Math.round(width * dpr);
     const pixelHeight = Math.round(height * dpr);

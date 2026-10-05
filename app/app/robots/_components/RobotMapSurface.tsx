@@ -3,9 +3,9 @@
 import type { PointerEvent, ReactNode } from 'react';
 import { useCallback, useRef, useState } from 'react';
 import type { WheelEvent } from 'react';
-import { RotateCcw, ZoomIn, ZoomOut } from 'lucide-react';
-import type { ApiRobotCapturePoint, ApiRobotHomePose, ApiRobotMap } from '@/types/api';
-import { mapPoseToNormalized, visibleMarker } from '../_lib/robotMap';
+import { RotateCcw, RotateCcwSquare, RotateCwSquare, ZoomIn, ZoomOut } from 'lucide-react';
+import type { ApiRobotCapturePoint, ApiRobotMap } from '@/types/api';
+import { mapPoseToNormalized } from '../_lib/robotMap';
 import type { MapMarker } from '../_lib/robotMap';
 
 /**
@@ -16,24 +16,12 @@ import type { MapMarker } from '../_lib/robotMap';
  */
 function capturePointMarker(robotMap: ApiRobotMap, point: ApiRobotCapturePoint): MapMarker | null {
   if (typeof point.map_x === 'number' && typeof point.map_y === 'number') {
-    return mapPoseToNormalized(robotMap, { x: point.map_x, y: point.map_y, yaw: point.yaw });
+    return mapPoseToNormalized(robotMap, { x: point.map_x, y: point.map_y });
   }
   if (point.floorplan_x !== null && point.floorplan_y !== null) {
-    return {
-      x: point.floorplan_x,
-      y: point.floorplan_y,
-      yaw: point.yaw - robotMap.origin_yaw,
-    };
+    return { x: point.floorplan_x, y: point.floorplan_y };
   }
   return null;
-}
-
-function homePoseMarker(robotMap: ApiRobotMap, pose: ApiRobotHomePose): MapMarker {
-  const yaw = Math.atan2(
-    2 * (pose.qw * pose.qz + pose.qx * pose.qy),
-    1 - 2 * (pose.qy * pose.qy + pose.qz * pose.qz),
-  );
-  return mapPoseToNormalized(robotMap, { x: pose.x, y: pose.y, yaw });
 }
 
 export type Placement = {
@@ -45,8 +33,6 @@ export type Placement = {
 type Props = {
   robotMap: ApiRobotMap;
   capturePoints: ApiRobotCapturePoint[];
-  /** The robot's configured return/start position in the map frame. */
-  homePose?: ApiRobotHomePose | null;
   /** Stop number per capture point id, drives the amber numbered pins on the Route tab. */
   stopNumbers?: Map<string, number>;
   onPointClick?: (point: ApiRobotCapturePoint) => void;
@@ -58,6 +44,7 @@ type Props = {
 };
 
 const DRAG_THRESHOLD_PX = 3;
+const ROTATION_STEP_DEG = 90;
 
 /**
  * The map image plus its pins, with zoom/pan and an optional place-and-aim interaction.
@@ -67,7 +54,6 @@ const DRAG_THRESHOLD_PX = 3;
 export function RobotMapSurface({
   robotMap,
   capturePoints,
-  homePose = null,
   stopNumbers,
   onPointClick,
   placing = false,
@@ -77,6 +63,8 @@ export function RobotMapSurface({
 }: Props) {
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+  /** View-only rotation in degrees (0/90/180/270). Map coordinates and pins are unaffected. */
+  const [rotation, setRotation] = useState(0);
   const dragRef = useRef<{
     pointerId: number;
     startX: number;
@@ -85,20 +73,32 @@ export function RobotMapSurface({
     panY: number;
     moved: boolean;
   } | null>(null);
-  const homeMarker = homePose ? homePoseMarker(robotMap, homePose) : null;
 
   const reset = useCallback(() => {
     setZoom(1);
     setPan({ x: 0, y: 0 });
+    setRotation(0);
   }, []);
 
+  const rotateBy = useCallback((deltaDeg: number) => {
+    setRotation((current) => (((current + deltaDeg) % 360) + 360) % 360);
+  }, []);
+
+  // The bounding rect of a rotated element is its rotated bounding box, so undo the rotation
+  // about the centre (which rotation and scale both preserve) before normalising by the
+  // element's untransformed size.
   const markerFrom = useCallback((element: HTMLElement, clientX: number, clientY: number): MapMarker => {
     const rect = element.getBoundingClientRect();
+    const dx = clientX - (rect.left + rect.width / 2);
+    const dy = clientY - (rect.top + rect.height / 2);
+    const theta = (-rotation * Math.PI) / 180;
+    const localX = dx * Math.cos(theta) - dy * Math.sin(theta);
+    const localY = dx * Math.sin(theta) + dy * Math.cos(theta);
     return {
-      x: Math.min(1, Math.max(0, (clientX - rect.left) / rect.width)),
-      y: Math.min(1, Math.max(0, (clientY - rect.top) / rect.height)),
+      x: Math.min(1, Math.max(0, localX / (element.offsetWidth * zoom) + 0.5)),
+      y: Math.min(1, Math.max(0, localY / (element.offsetHeight * zoom) + 0.5)),
     };
-  }, []);
+  }, [rotation, zoom]);
 
   const onWheel = useCallback((event: WheelEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -189,6 +189,22 @@ export function RobotMapSurface({
         </button>
         <button
           type="button"
+          onClick={() => rotateBy(-ROTATION_STEP_DEG)}
+          className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-base-700 text-ink-200 transition hover:border-ink-400"
+          title="Rotate left"
+        >
+          <RotateCcwSquare size={13} />
+        </button>
+        <button
+          type="button"
+          onClick={() => rotateBy(ROTATION_STEP_DEG)}
+          className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-base-700 text-ink-200 transition hover:border-ink-400"
+          title="Rotate right"
+        >
+          <RotateCwSquare size={13} />
+        </button>
+        <button
+          type="button"
           onClick={reset}
           className="inline-flex items-center gap-1.5 rounded-lg border border-base-700 px-2 py-1 text-[11px] text-ink-200 transition hover:border-ink-400"
         >
@@ -214,7 +230,7 @@ export function RobotMapSurface({
           style={{
             width: 'min(100%, 840px)',
             aspectRatio: `${robotMap.width} / ${robotMap.height}`,
-            transform: `translate(calc(-50% + ${pan.x}px), calc(-50% + ${pan.y}px)) scale(${zoom})`,
+            transform: `translate(calc(-50% + ${pan.x}px), calc(-50% + ${pan.y}px)) scale(${zoom}) rotate(${rotation}deg)`,
             transformOrigin: 'center center',
           }}
         >
@@ -227,71 +243,34 @@ export function RobotMapSurface({
             const stop = stopNumbers?.get(point.id);
             const selected = stop !== undefined;
             return (
-              <div
+              <button
                 key={point.id}
-                className={`group absolute h-5 w-5 -translate-x-1/2 -translate-y-1/2 ${
-                  placing ? 'pointer-events-none opacity-60' : ''
-                }`}
-                style={{ left: `${marker.x * 100}%`, top: `${marker.y * 100}%` }}
+                type="button"
+                disabled={placing || !onPointClick}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onPointClick?.(point);
+                }}
+                title={point.name}
+                className={`group absolute flex h-5 w-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border text-[10px] font-medium shadow transition ${
+                  selected
+                    ? 'border-base-950 bg-amber-400 text-base-950'
+                    : 'border-base-950 bg-emerald-400 text-transparent hover:scale-125'
+                } ${placing ? 'pointer-events-none opacity-60' : ''}`}
+                // Counter-rotate so stop numbers and the name tooltip stay upright.
+                style={{
+                  left: `${marker.x * 100}%`,
+                  top: `${marker.y * 100}%`,
+                  ['--tw-rotate' as string]: `${-rotation}deg`,
+                }}
               >
-                {marker.yaw !== null && marker.yaw !== undefined ? (
-                  <svg
-                    aria-hidden="true"
-                    viewBox="0 0 32 12"
-                    className={`pointer-events-none absolute left-1/2 top-1/2 z-0 h-3 w-8 origin-left overflow-visible drop-shadow-sm ${
-                      selected ? 'text-amber-400' : 'text-emerald-400'
-                    }`}
-                    style={{ transform: `translateY(-50%) rotate(${-marker.yaw}rad)` }}
-                  >
-                    <path
-                      d="M7 6H28M23 1L28 6L23 11"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.25"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                ) : null}
-                <button
-                  type="button"
-                  disabled={placing || !onPointClick}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onPointClick?.(point);
-                  }}
-                  title={point.name}
-                  className={`relative z-10 flex h-5 w-5 items-center justify-center rounded-full border border-base-950 text-[10px] font-medium shadow transition ${
-                    selected
-                      ? 'bg-amber-400 text-base-950'
-                      : 'bg-emerald-400 text-transparent group-hover:scale-125'
-                  }`}
-                >
-                  {stop ?? ''}
-                </button>
-                <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1 -translate-x-1/2 whitespace-nowrap rounded-md border border-base-700 bg-base-950 px-2 py-1 text-[11px] text-white opacity-0 shadow-lg shadow-black/40 transition-opacity group-hover:opacity-100">
+                {stop ?? ''}
+                <span className="pointer-events-none absolute left-1/2 bottom-full z-20 mb-1 -translate-x-1/2 whitespace-nowrap rounded-md border border-base-700 bg-base-950 px-2 py-1 text-[11px] text-white opacity-0 shadow-lg shadow-black/40 transition-opacity group-hover:opacity-100">
                   {point.name}
                 </span>
-              </div>
+              </button>
             );
           })}
-
-          {visibleMarker(homeMarker) ? (
-            <div
-              className="group pointer-events-none absolute z-10 h-8 w-8 -translate-x-1/2 -translate-y-1/2"
-              style={{ left: `${homeMarker.x * 100}%`, top: `${homeMarker.y * 100}%` }}
-            >
-              <span
-                className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-cyan-300 bg-base-950 font-mono text-[12px] font-bold text-cyan-200 shadow-md shadow-black/50 ring-2 ring-base-950/80"
-                style={{ transform: `rotate(${-(homeMarker.yaw ?? 0)}rad)` }}
-              >
-                H
-              </span>
-              <span className="absolute bottom-full left-1/2 z-20 mb-1 -translate-x-1/2 whitespace-nowrap rounded-md border border-base-700 bg-base-950 px-2 py-1 text-[11px] text-white opacity-0 shadow-lg shadow-black/40 transition-opacity group-hover:opacity-100">
-                Home / start position
-              </span>
-            </div>
-          ) : null}
 
           {placement ? (
             <>
