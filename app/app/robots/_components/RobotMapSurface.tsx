@@ -44,7 +44,11 @@ type Props = {
 };
 
 const DRAG_THRESHOLD_PX = 3;
-const ROTATION_STEP_DEG = 90;
+const ROTATION_STEP_DEG = 5;
+
+function normalizeRotation(degrees: number): number {
+  return Number(((((degrees + 180) % 360) + 360) % 360 - 180).toFixed(1));
+}
 
 /**
  * The map image plus its pins, with zoom/pan and an optional place-and-aim interaction.
@@ -63,8 +67,9 @@ export function RobotMapSurface({
 }: Props) {
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
-  /** View-only rotation in degrees (0/90/180/270). Map coordinates and pins are unaffected. */
+  /** View-only rotation. Map coordinates and pins are unaffected. */
   const [rotation, setRotation] = useState(0);
+  const [rotationInput, setRotationInput] = useState('0');
   const dragRef = useRef<{
     pointerId: number;
     startX: number;
@@ -78,11 +83,18 @@ export function RobotMapSurface({
     setZoom(1);
     setPan({ x: 0, y: 0 });
     setRotation(0);
+    setRotationInput('0');
+  }, []);
+
+  const changeRotation = useCallback((degrees: number) => {
+    const next = normalizeRotation(degrees);
+    setRotation(next);
+    setRotationInput(String(next));
   }, []);
 
   const rotateBy = useCallback((deltaDeg: number) => {
-    setRotation((current) => (((current + deltaDeg) % 360) + 360) % 360);
-  }, []);
+    changeRotation(rotation + deltaDeg);
+  }, [changeRotation, rotation]);
 
   // The bounding rect of a rotated element is its rotated bounding box, so undo the rotation
   // about the centre (which rotation and scale both preserve) before normalising by the
@@ -167,7 +179,7 @@ export function RobotMapSurface({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-2 border-b border-base-800 px-3 py-2">
+      <div className="flex flex-wrap items-center gap-2 border-b border-base-800 px-3 py-2">
         <button
           type="button"
           onClick={() => setZoom((c) => Math.max(0.5, Number((c - 0.25).toFixed(2))))}
@@ -191,7 +203,8 @@ export function RobotMapSurface({
           type="button"
           onClick={() => rotateBy(-ROTATION_STEP_DEG)}
           className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-base-700 text-ink-200 transition hover:border-ink-400"
-          title="Rotate left"
+          title="Rotate left 5°"
+          aria-label="Rotate left 5 degrees"
         >
           <RotateCcwSquare size={13} />
         </button>
@@ -199,10 +212,44 @@ export function RobotMapSurface({
           type="button"
           onClick={() => rotateBy(ROTATION_STEP_DEG)}
           className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-base-700 text-ink-200 transition hover:border-ink-400"
-          title="Rotate right"
+          title="Rotate right 5°"
+          aria-label="Rotate right 5 degrees"
         >
           <RotateCwSquare size={13} />
         </button>
+        <label className="inline-flex items-center gap-1 rounded-lg border border-base-700 px-2 py-1 text-[11px] text-ink-200">
+          <span>Angle</span>
+          <input
+            type="number"
+            step="0.1"
+            value={rotationInput}
+            onChange={(event) => {
+              // Keep a draft so typing a minus sign or clearing the field is possible.
+              setRotationInput(event.target.value);
+              const degrees = event.target.valueAsNumber;
+              if (Number.isFinite(degrees)) setRotation(normalizeRotation(degrees));
+            }}
+            onBlur={() => changeRotation(rotation)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') event.currentTarget.blur();
+              if (event.key === 'Escape') changeRotation(rotation);
+            }}
+            aria-label="Map view rotation in degrees"
+            className="w-16 bg-transparent text-right font-mono outline-none focus:ring-1 focus:ring-amber-400"
+          />
+          <span aria-hidden="true">°</span>
+        </label>
+        <input
+          type="range"
+          min="-180"
+          max="180"
+          step="0.1"
+          value={rotation}
+          onChange={(event) => changeRotation(event.target.valueAsNumber)}
+          aria-label="Adjust map view rotation"
+          title="Straighten the view without changing map coordinates"
+          className="w-28 accent-amber-400"
+        />
         <button
           type="button"
           onClick={reset}
