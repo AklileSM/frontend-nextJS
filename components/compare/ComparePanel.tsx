@@ -263,9 +263,10 @@ export function ComparePanel() {
   const toggleSynchronization = () => {
     setIsSynchronized((prev) => {
       const next = !prev;
-      if (next) {
+        if (next) {
         // Keep the views exactly as the user lined them up: remember the heading difference.
         setYawOffset(yawOf(lastRightCameraState) - yawOf(lastLeftCameraState));
+        const seed = lastLeftCameraState ?? lastRightCameraState;
         if (seed) {
           setSharedCameraState({ ...seed, source: lastLeftCameraState ? 'left' : 'right', seq: seed.seq + 1 });
           setLockLeader(lastLeftCameraState ? 'left' : 'right');
@@ -616,7 +617,7 @@ export function ComparePanel() {
                       isSynchronized={isSynchronized}
                       syncYawOffset={side === 'right' ? yawOffset : -yawOffset}                       
                       onInteractStart={handleInteractStart}
-                      onTakeScreenshot={{
+                      onTakeScreenshot={
                         side === 'left' ? handleLeftScreenshotAssignment : handleRightScreenshotAssignment
                       }
                     />
