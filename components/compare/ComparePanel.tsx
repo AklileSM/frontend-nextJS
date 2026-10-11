@@ -78,7 +78,8 @@ export function ComparePanel() {
   const [lockLeader, setLockLeader] = useState<Side | null>(null);
   const [sharedCameraState, setSharedCameraState] = useState<CameraSyncState | null>(null);
   const [lastLeftCameraState, setLastLeftCameraState] = useState<CameraSyncState | null>(null);
-  const [lastRightCameraState, setLastRightCameraState] = useState<CameraSyncState | null>(null);
+  const [lastRightCameraState, setLastRightCameraState] = useState<CameraSyncState | null>(null);   // Heading difference (right minus left, radians) captured when the views are locked.   
+  const [yawOffset, setYawOffset] = useState(0);
 
   // Screenshot callbacks, stored via setState(() => fn) so functions are not called as lazy initializers
   const [leftTakeScreenshot, setLeftTakeScreenshot] = useState<(() => string | null) | null>(null);
@@ -255,11 +256,16 @@ export function ComparePanel() {
   }, [searchParams]);
 
   // Camera sync
+  // Heading of a camera around its orbit target (a view that was never moved faces yaw 0).
+  const yawOf = (s: CameraSyncState | null) =>
+    s ? Math.atan2(s.position[0] - s.target[0], s.position[2] - s.target[2]) : 0;
+
   const toggleSynchronization = () => {
     setIsSynchronized((prev) => {
       const next = !prev;
       if (next) {
-        const seed = lastLeftCameraState ?? lastRightCameraState;
+        // Keep the views exactly as the user lined them up: remember the heading difference.
+        setYawOffset(yawOf(lastRightCameraState) - yawOf(lastLeftCameraState));
         if (seed) {
           setSharedCameraState({ ...seed, source: lastLeftCameraState ? 'left' : 'right', seq: seed.seq + 1 });
           setLockLeader(lastLeftCameraState ? 'left' : 'right');
@@ -601,7 +607,8 @@ export function ComparePanel() {
                       sharedCameraState={sharedCameraState}
                       onCameraStateChange={handleCameraStateChange}
                       isSynchronized={isSynchronized}
-                      onTakeScreenshot={
+                      syncYawOffset={side === 'right' ? yawOffset : -yawOffset}
+                      onTakeScreenshot={{
                         side === 'left' ? handleLeftScreenshotAssignment : handleRightScreenshotAssignment
                       }
                     />
