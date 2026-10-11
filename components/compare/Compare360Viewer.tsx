@@ -29,6 +29,7 @@ interface Compare360ViewerProps {
     state: { position: [number, number, number]; target: [number, number, number] },
   ) => void;
   isSynchronized: boolean;
+  syncYawOffset?: number;
   onTakeScreenshot?: (fn: () => string | null) => void;
 }
 
@@ -68,6 +69,7 @@ export default function Compare360Viewer({
   sharedCameraState,
   onCameraStateChange,
   isSynchronized,
+  syncYawOffset = 0,
   onTakeScreenshot,
 }: Compare360ViewerProps) {
   const viewerRef = useRef<HTMLDivElement>(null);
@@ -97,20 +99,25 @@ export default function Compare360Viewer({
     });
   }, [onTakeScreenshot]);
 
-  useEffect(() => {
-    if (!isSynchronized || !cameraRef.current || !sharedCameraState) return;
-    if (sharedCameraState.source === viewerSide) return;
-    isApplyingRef.current = true;
-    cameraRef.current.position.set(...sharedCameraState.position);
-    if (orbitRef.current?.target) {
-      orbitRef.current.target.set(...sharedCameraState.target);
-      orbitRef.current.update();
-    }
-    isApplyingRef.current = false;
-  }, [sharedCameraState, isSynchronized, viewerSide]);
+    useEffect(() => {
+      if (!isSynchronized || !cameraRef.current || !sharedCameraState) return;
+      if (sharedCameraState.source === viewerSide) return;
+      isApplyingRef.current = true;
+      // Turn the other view's camera by the heading difference captured at lock time,
+      // so the two views keep their alignment instead of snapping to the same absolute angle.
+      const [px, py, pz] = sharedCameraState.position;
+      const [tx, ty, tz] = sharedCameraState.target;
+      const dx = px - tx, dz = pz - tz, c = Math.cos(syncYawOffset), s = Math.sin(syncYawOffset);
+      cameraRef.current.position.set(tx + dx * c + dz * s, py, tz - dx * s + dz * c);
+      if (orbitRef.current?.target) {
+        orbitRef.current.target.set(tx, ty, tz);
+        orbitRef.current.update();
+      }
+      isApplyingRef.current = false;
+    }, [sharedCameraState, isSynchronized, viewerSide, syncYawOffset]);
 
   const handleCameraChange = () => {
-    if (!cameraRef.current || !isSynchronized || isApplyingRef.current) return;
+    if (!cameraRef.current || isApplyingRef.current) return;
     const now = Date.now();
     if (now - lastBroadcastRef.current < 50) return;
     lastBroadcastRef.current = now;
