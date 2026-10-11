@@ -289,6 +289,13 @@ export function ComparePanel() {
     },
     [isSynchronized, lockLeader],
   );
+  // Whichever view the user grabs drives the other while locked.
+  const handleInteractStart = useCallback(
+    (side: Side) => {
+      if (isSynchronized) setLockLeader(side);
+    },
+    [isSynchronized],
+  );
 
   const handleLeftScreenshotAssignment = useCallback((fn: () => string | null) => {
     setLeftTakeScreenshot(() => fn);
@@ -607,7 +614,8 @@ export function ComparePanel() {
                       sharedCameraState={sharedCameraState}
                       onCameraStateChange={handleCameraStateChange}
                       isSynchronized={isSynchronized}
-                      syncYawOffset={side === 'right' ? yawOffset : -yawOffset}
+                      syncYawOffset={side === 'right' ? yawOffset : -yawOffset}                       
+                      onInteractStart={handleInteractStart}
                       onTakeScreenshot={{
                         side === 'left' ? handleLeftScreenshotAssignment : handleRightScreenshotAssignment
                       }
