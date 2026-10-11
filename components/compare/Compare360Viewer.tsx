@@ -29,7 +29,8 @@ interface Compare360ViewerProps {
     state: { position: [number, number, number]; target: [number, number, number] },
   ) => void;
   isSynchronized: boolean;
-  syncYawOffset?: number;
+  syncYawOffset?: number;   /** Called when the user starts dragging this view, so it becomes the one that drives. */   
+  onInteractStart?: (side: Side) => void;
   onTakeScreenshot?: (fn: () => string | null) => void;
 }
 
@@ -69,7 +70,8 @@ export default function Compare360Viewer({
   sharedCameraState,
   onCameraStateChange,
   isSynchronized,
-  syncYawOffset = 0,
+  syncYawOffset = 0,   
+  onInteractStart,
   onTakeScreenshot,
 }: Compare360ViewerProps) {
   const viewerRef = useRef<HTMLDivElement>(null);
@@ -181,7 +183,8 @@ export default function Compare360Viewer({
           enableZoom={false}
           enableDamping
           dampingFactor={0.3}
-          onChange={handleCameraChange}
+          onChange={handleCameraChange}           
+          onStart={() => onInteractStart?.(viewerSide)}
         />
       </Canvas>
     </div>
