@@ -36,6 +36,8 @@ export function DemoPlayer() {
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const scrubbingRef = useRef(false);
+  // Captured on pointerdown, before the shell's touchstart handler reveals the controls.
+  const tapRef = useRef({ touch: false, controlsWereVisible: true });
   const [playing, setPlaying] = useState(false);
   const [waiting, setWaiting] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -199,7 +201,20 @@ export function DemoPlayer() {
               src="/demo/demo.mp4"
               preload="metadata"
               playsInline
-              onClick={() => void togglePlayback()}
+              onPointerDown={(event) => {
+                tapRef.current = { touch: event.pointerType === 'touch', controlsWereVisible: controlsVisible };
+              }}
+              onClick={() => {
+                // On touch screens a tap toggles the controls; the play/pause buttons handle playback.
+                if (!tapRef.current.touch) {
+                  void togglePlayback();
+                } else if (tapRef.current.controlsWereVisible) {
+                  if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+                  setControlsVisible(false);
+                } else {
+                  revealControls();
+                }
+              }}
               onDoubleClick={() => void toggleFullscreen()}
               onLoadedMetadata={(event) => setDuration(event.currentTarget.duration)}
               onDurationChange={(event) => setDuration(event.currentTarget.duration)}
