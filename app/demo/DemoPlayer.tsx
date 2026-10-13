@@ -277,7 +277,9 @@ export function DemoPlayer() {
 
             <div
               className={`absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/95 via-black/65 to-transparent px-3 pb-3 pt-16 transition-opacity duration-200 sm:px-5 sm:pb-4 ${
-                controlsVisible && !error ? 'opacity-100' : 'pointer-events-none opacity-0'
+                // The gradient overlaps the centre play button on short (mobile) players, so only
+                // the controls themselves accept input.
+                controlsVisible && !error ? 'pointer-events-none opacity-100 [&>*]:pointer-events-auto' : 'pointer-events-none opacity-0'
               }`}
             >
               <div
