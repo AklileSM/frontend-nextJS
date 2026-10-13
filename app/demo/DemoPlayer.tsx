@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  ArrowRight,
   LoaderCircle,
   Maximize,
   Minimize,
@@ -10,6 +11,7 @@ import {
   Volume2,
   VolumeX,
 } from 'lucide-react';
+import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Logo } from '@/components/landing/Logo';
 import styles from './demo.module.css';
@@ -164,25 +166,39 @@ export function DemoPlayer() {
   const seekPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-base-950 text-white">
-      <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_-20%,rgba(245,158,11,0.12),transparent_42%)]" />
-      <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[0.035] [background-image:linear-gradient(rgba(255,255,255,.5)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.5)_1px,transparent_1px)] [background-size:48px_48px]" />
+    <main className="relative min-h-[100dvh] overflow-x-hidden bg-base-950 text-white">
+      <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[0.035] [background-image:linear-gradient(rgba(255,255,255,.5)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.5)_1px,transparent_1px)] [background-size:48px_48px] [mask-image:linear-gradient(to_bottom,black,transparent_70%)]" />
 
-      <div className="relative mx-auto flex min-h-screen w-full max-w-[1600px] flex-col px-5 py-5 sm:px-8 sm:py-7 lg:px-12">
-        <header className="flex items-center justify-between border-b border-base-800 pb-5">
+      <header className="sticky top-0 z-40 border-b border-base-800/80 bg-base-950/80 backdrop-blur-lg">
+        <div className="mx-auto flex h-14 w-full max-w-[1280px] items-center justify-between px-4 sm:h-16 sm:px-8 lg:px-12">
           <Logo />
-          <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.2em] text-ink-400 sm:text-[11px]">
-            Product demo
-          </div>
-        </header>
+          <nav className="flex items-center gap-1 sm:gap-2">
+            <Link
+              href="/login"
+              className="hidden rounded-md px-3 py-2 text-[14px] font-medium text-ink-200 transition-colors hover:text-white sm:inline-flex"
+            >
+              Sign in
+            </Link>
+            <Link
+              href="/register"
+              className="rounded-md bg-amber-500 px-3.5 py-2 text-[13px] font-semibold text-base-950 transition-colors hover:bg-amber-400 sm:px-4 sm:text-[14px]"
+            >
+              Get started
+            </Link>
+          </nav>
+        </div>
+      </header>
 
-        <section className="flex flex-1 flex-col justify-center py-8 sm:py-10 lg:py-12">
-          <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
-            <div>
-              <h1 className="mt-2 font-display text-[28px] font-semibold tracking-[-0.02em] sm:text-[36px] text-amber-500">
-                SiteScope platform overview
-              </h1>
-            </div>
+      <div className="relative mx-auto w-full max-w-[1280px] px-4 sm:px-8 lg:px-12">
+        <section className="pb-16 pt-10 sm:pb-24 sm:pt-16 lg:pt-20">
+          <div className="mx-auto mb-7 max-w-[760px] text-center sm:mb-10">
+            <h1 className="font-display text-[34px] font-semibold leading-[1.05] tracking-[-0.025em] text-white sm:mt-5 sm:text-[48px] lg:text-[58px]">
+              See <span className="text-amber-500">SiteScope</span> in action
+            </h1>
+            <p className="mx-auto mt-4 max-w-[56ch] text-[15px] leading-[1.65] text-ink-300 sm:mt-5 sm:text-[17px]">
+              Follow a capture from site to a date-indexed, room-by-room record, opened in the
+              right viewer and turned into a defensible PDF report.
+            </p>
           </div>
 
           <div
@@ -194,7 +210,7 @@ export function DemoPlayer() {
             onMouseMove={revealControls}
             onMouseLeave={() => playing && setControlsVisible(false)}
             onTouchStart={revealControls}
-            className="group relative aspect-video w-full overflow-hidden rounded-xl border border-base-700 bg-black shadow-[0_28px_90px_rgba(0,0,0,.45)] outline-none ring-amber-500/60 focus-visible:ring-2"
+            className="group relative -mx-4 aspect-video overflow-hidden border-y border-base-800 bg-black shadow-[0_28px_90px_rgba(0,0,0,.5)] outline-none ring-amber-500/60 focus-visible:ring-2 sm:mx-0 sm:rounded-2xl sm:border sm:border-base-700 sm:ring-offset-0 [&:fullscreen]:mx-0 [&:fullscreen]:rounded-none [&:fullscreen]:border-0"
           >
             <video
               ref={videoRef}
@@ -244,9 +260,9 @@ export function DemoPlayer() {
                 type="button"
                 onClick={() => void togglePlayback()}
                 aria-label="Play demo"
-                className="absolute left-1/2 top-1/2 z-10 inline-flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-base-950/75 text-white shadow-2xl backdrop-blur-md transition hover:scale-105 hover:border-amber-500/70 hover:bg-amber-500 hover:text-base-950 sm:h-20 sm:w-20"
+                className="absolute left-1/2 top-1/2 z-10 inline-flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-amber-500 text-base-950 shadow-[0_0_0_8px_rgba(245,158,11,.18),0_18px_40px_rgba(0,0,0,.5)] transition hover:scale-105 hover:bg-amber-400 active:scale-95 sm:h-20 sm:w-20"
               >
-                <Play className="ml-1" size={28} fill="currentColor" />
+                <Play className="ml-1 h-6 w-6 sm:h-7 sm:w-7" fill="currentColor" />
               </button>
             )}
 
@@ -276,7 +292,7 @@ export function DemoPlayer() {
             )}
 
             <div
-              className={`absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/95 via-black/65 to-transparent px-3 pb-3 pt-16 transition-opacity duration-200 sm:px-5 sm:pb-4 ${
+              className={`absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/90 via-black/50 to-transparent px-2 pb-1 pt-10 transition-opacity duration-200 sm:px-5 sm:pb-4 sm:pt-16 ${
                 // The gradient overlaps the centre play button on short (mobile) players, so only
                 // the controls themselves accept input.
                 controlsVisible && !error ? 'pointer-events-none opacity-100 [&>*]:pointer-events-auto' : 'pointer-events-none opacity-0'
@@ -405,9 +421,14 @@ export function DemoPlayer() {
             </div>
           </div>
 
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 font-mono text-[10px] uppercase tracking-[0.16em] text-ink-400">
-            <span>Demo preview · placeholder footage</span>
-            <span className="hidden sm:inline">Space to play · arrows to seek · F for fullscreen</span>
+          <div className="mt-10 text-center sm:mt-12">
+            <Link
+              href="/"
+              className="group inline-flex w-full items-center justify-center gap-2 rounded-md bg-amber-500 px-5 py-3 text-[14px] font-semibold text-base-950 transition-colors hover:bg-amber-400 sm:w-auto"
+            >
+              Learn more
+              <ArrowRight size={15} strokeWidth={2.2} className="transition-transform group-hover:translate-x-0.5" />
+            </Link>
           </div>
         </section>
       </div>
