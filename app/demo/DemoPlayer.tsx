@@ -16,6 +16,12 @@ import styles from './demo.module.css';
 
 const PLAYBACK_RATES = [1, 1.25, 1.5, 2, 0.75];
 
+// `lock` was dropped from TypeScript's DOM lib, and `webkitEnterFullscreen` is Safari-only.
+type LockableScreenOrientation = ScreenOrientation & {
+  lock?: (orientation: 'landscape' | 'portrait') => Promise<void>;
+};
+type WebkitVideoElement = HTMLVideoElement & { webkitEnterFullscreen?: () => void };
+
 function formatTime(value: number): string {
   if (!Number.isFinite(value)) return '0:00';
   const seconds = Math.max(0, Math.floor(value));
@@ -66,17 +72,34 @@ export function DemoPlayer() {
 
   const toggleFullscreen = useCallback(async () => {
     const shell = shellRef.current;
+    const video = videoRef.current as WebkitVideoElement | null;
     if (!shell) return;
     try {
-      if (document.fullscreenElement) await document.exitFullscreen();
-      else await shell.requestFullscreen();
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      } else if (shell.requestFullscreen) {
+        await shell.requestFullscreen();
+        // Phones stay in portrait unless the orientation is locked explicitly. Locking is only
+        // permitted while fullscreen and is unsupported on some browsers, so failures are ignored.
+        const orientation = screen.orientation as LockableScreenOrientation | undefined;
+        if (window.matchMedia('(pointer: coarse)').matches && orientation?.lock) {
+          await orientation.lock('landscape').catch(() => {});
+        }
+      } else if (video?.webkitEnterFullscreen) {
+        // iPhone Safari has no element fullscreen; its native video fullscreen rotates with the device.
+        video.webkitEnterFullscreen();
+      }
     } catch {
       // Fullscreen may be unavailable in an embedded browser; playback remains usable.
     }
   }, []);
 
   useEffect(() => {
-    const onFullscreenChange = () => setFullscreen(document.fullscreenElement === shellRef.current);
+    const onFullscreenChange = () => {
+      const isFullscreen = document.fullscreenElement === shellRef.current;
+      setFullscreen(isFullscreen);
+      if (!isFullscreen) screen.orientation?.unlock?.();
+    };
     document.addEventListener('fullscreenchange', onFullscreenChange);
     return () => {
       document.removeEventListener('fullscreenchange', onFullscreenChange);
