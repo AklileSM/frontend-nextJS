@@ -42,7 +42,7 @@ export function Sidebar() {
     return () => { cancelled = true; };
   }, []);
 
-  // Derive slug from URL — most reliable sources first.
+  // Derive slug from URL â€” most reliable sources first.
   const slugFromPath = pathname.match(/\/app\/projects\/([^/]+)/)?.[1] ?? null;
   const slugFromQuery = searchParams.get('project');
   const roomSlug = searchParams.get('room');
@@ -105,12 +105,15 @@ export function Sidebar() {
             aria-label="All projects"
             className={`flex items-center gap-2.5 ${open ? '' : 'lg:gap-0'}`}
           >
-            <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[5px] bg-amber-500 font-display text-[11px] font-bold text-base-950">
-              SS
-            </span>
-            <span className={`font-display text-[15px] font-semibold tracking-tight text-white ${open ? 'inline' : 'lg:hidden'}`}>
-              SiteScope
-            </span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/brand/sitescope-icon-orange.svg" alt="" aria-hidden className="h-7 w-7 shrink-0" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/brand/sitescope-wordmark-color-on-dark.svg"
+              alt=""
+              aria-hidden
+              className={`h-[21px] w-auto ${open ? 'block' : 'lg:hidden'}`}
+            />
           </Link>
           <button
             type="button"
@@ -124,7 +127,7 @@ export function Sidebar() {
         </div>
 
         <nav data-tour="sidebar-nav" className="flex-1 overflow-y-auto px-3 py-4">
-          {/* Home — always shown, links to current project home if known */}
+          {/* Home â€” always shown, links to current project home if known */}
           <NavLink
             href={currentSlug ? `/app/projects/${currentSlug}` : '/projects'}
             icon={<Home size={14} />}
@@ -133,7 +136,7 @@ export function Sidebar() {
             isActive={!!currentSlug && pathname === `/app/projects/${currentSlug}`}
           />
 
-          {/* All projects hub — always shown */}
+          {/* All projects hub â€” always shown */}
           <NavLink
             href="/projects"
             icon={<LayoutGrid size={14} />}
@@ -150,7 +153,7 @@ export function Sidebar() {
             isActive={pathname === '/app/robots'}
           />
 
-          {/* Current project accordion — always shown */}
+          {/* Current project accordion â€” always shown */}
           <div data-tour="sidebar-project-accordion" className="mt-2">
             {currentProject && currentRooms !== null ? (
               <ul className="space-y-0.5">
@@ -166,13 +169,13 @@ export function Sidebar() {
               /* Loading state or no project in URL yet */
               open ? (
                 <p className="px-3 py-2 font-mono text-[11px] text-ink-400">
-                  {!projects ? 'Loading…' : 'No project selected'}
+                  {!projects ? 'Loadingâ€¦' : 'No project selected'}
                 </p>
               ) : null
             )}
           </div>
 
-          {/* Admin — conditional */}
+          {/* Admin â€” conditional */}
           {user?.is_admin && (
             <>
               <SectionLabel expanded={open}>Platform</SectionLabel>
@@ -195,7 +198,7 @@ export function Sidebar() {
 
         <UserFooter
           expanded={open}
-          username={user?.username ?? '—'}
+          username={user?.username ?? 'â€”'}
           role={user?.is_admin ? 'admin' : 'member'}
         />
       </aside>
