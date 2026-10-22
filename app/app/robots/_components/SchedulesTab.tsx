@@ -20,6 +20,7 @@ import type {
   ApiRobotMissionScheduleRequest,
   ApiRobotMissionScheduleUpdateRequest,
 } from '@/services/api/robots';
+import type { RobotAssistantDraft } from '@/services/api/robotAssistant';
 import type { CaptureOutput } from '../_lib/missions';
 
 const DAYS = [
@@ -50,6 +51,28 @@ type Props = {
   robotId: string;
   capturePoints: ApiRobotCapturePoint[];
   onMissionQueued: () => void;
+  /** A schedule the assistant is building in the chat: shown filling in, read-only. */
+  assistantDraft?: Extract<RobotAssistantDraft, { kind: 'schedule' }> | null;
+  onAssistantDraftClose?: () => void;
+  /** Bumped when the assistant creates or enables a schedule, so the list reloads. */
+  refreshKey?: number;
+  /** A schedule to draw attention to, such as one the assistant just created. */
+  highlightId?: string | null;
+};
+
+/* Which part of the form each assistant question is about. */
+const FOCUS_SECTION: Record<string, 'name' | 'route' | 'time' | 'days' | 'capture'> = {
+  name: 'name',
+  waypoints: 'route',
+  waypoint_choice: 'route',
+  waypoint_query: 'route',
+  waypoint_confirm: 'route',
+  room_choice: 'route',
+  time: 'time',
+  time_ampm: 'time',
+  weekdays: 'days',
+  weekdays_confirm: 'days',
+  capture: 'capture',
 };
 
 function browserTimezone(): string {
@@ -135,6 +158,10 @@ export function SchedulesTab({
   robotId,
   capturePoints,
   onMissionQueued,
+  assistantDraft = null,
+  onAssistantDraftClose,
+  refreshKey = 0,
+  highlightId = null,
 }: Props) {
   const [schedules, setSchedules] = useState<ApiRobotMissionSchedule[]>([]);
   const [loading, setLoading] = useState(true);
@@ -159,6 +186,26 @@ export function SchedulesTab({
     const data = await listRobotMissionSchedules({ projectSlug, robotId });
     setSchedules(data);
   }, [projectSlug, robotId]);
+
+  useEffect(() => {
+    if (refreshKey) load().catch(() => undefined);
+  }, [load, refreshKey]);
+
+  /* The assistant's draft over the usual defaults; empty where it hasn't been answered yet. */
+  const shown: FormState = assistantDraft
+    ? {
+        ...emptyForm(),
+        name: assistantDraft.name,
+        capturePointIds: assistantDraft.point_ids,
+        localTime: assistantDraft.time ?? '',
+        weekdays: assistantDraft.weekdays,
+        captureOutputs: assistantDraft.capture,
+      }
+    : form;
+  const focus = assistantDraft?.focus ? FOCUS_SECTION[assistantDraft.focus] : undefined;
+  const glow = (section: string) => (
+    focus === section ? 'rounded-xl ring-2 ring-amber-400/70 ring-offset-4 ring-offset-base-900 transition' : 'transition'
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -353,7 +400,9 @@ export function SchedulesTab({
               return (
                 <article
                   key={schedule.id}
-                  className="rounded-2xl border border-base-800 bg-base-950/60 p-5"
+                  className={`rounded-2xl border bg-base-950/60 p-5 transition ${
+                    schedule.id === highlightId ? 'border-amber-400/70 ring-2 ring-amber-400/40' : 'border-base-800'
+                  }`}
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
@@ -435,13 +484,22 @@ export function SchedulesTab({
       </div>
 
       <Modal
-        open={formOpen}
-        onClose={() => setFormOpen(false)}
-        title={editing ? 'Edit recurring schedule' : 'New recurring schedule'}
-        subtitle="The backend will queue this route automatically."
+        open={formOpen || Boolean(assistantDraft)}
+        onClose={() => (assistantDraft ? onAssistantDraftClose?.() : setFormOpen(false))}
+        title={editing && !assistantDraft ? 'Edit recurring schedule' : 'New recurring schedule'}
+        subtitle={
+          assistantDraft
+            ? 'The assistant is filling this in as you answer in the chat.'
+            : 'The backend will queue this route automatically.'
+        }
         size="lg"
         busy={saving}
-        footer={
+        footer={assistantDraft ? (
+          <p className="flex items-center gap-2 text-[12px] text-ink-300">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-amber-400" />
+            Keep answering in the chat. It's created when every field is filled.
+          </p>
+        ) : (
           <button
             type="button"
             onClick={() => void save()}
@@ -451,27 +509,27 @@ export function SchedulesTab({
             {saving ? <Loader2 size={13} className="animate-spin" /> : <CalendarClock size={13} />}
             {editing ? 'Save changes' : 'Create schedule'}
           </button>
-        }
+        )}
       >
-        <div className="space-y-5">
-          <label className="block">
+        <fieldset disabled={Boolean(assistantDraft)} className="min-w-0 space-y-5">
+          <label className={`block ${glow('name')}`}>
             <span className="text-[12px] text-ink-300">Schedule name</span>
             <input
-              value={form.name}
+              value={shown.name}
               onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
               placeholder="Daily 5 PM inspection"
               className="mt-1.5 w-full rounded-xl border border-base-700 bg-base-950 px-3 py-2.5 text-[14px] text-white outline-none focus:border-amber-500"
             />
           </label>
 
-          <div>
+          <div className={glow('route')}>
             <div className="flex items-center justify-between">
               <span className="text-[12px] text-ink-300">Ordered route</span>
-              <span className="text-[11px] text-ink-500">{form.capturePointIds.length} stops</span>
+              <span className="text-[11px] text-ink-500">{shown.capturePointIds.length} stops</span>
             </div>
             <div className="mt-2 max-h-44 space-y-1 overflow-y-auto rounded-xl border border-base-800 bg-base-950 p-2">
               {capturePoints.map((point) => {
-                const stop = form.capturePointIds.indexOf(point.id);
+                const stop = shown.capturePointIds.indexOf(point.id);
                 return (
                   <button
                     key={point.id}
@@ -494,11 +552,11 @@ export function SchedulesTab({
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <label>
+            <label className={glow('time')}>
               <span className="text-[12px] text-ink-300">Time</span>
               <input
                 type="time"
-                value={form.localTime}
+                value={shown.localTime}
                 onChange={(event) => setForm((current) => ({ ...current, localTime: event.target.value }))}
                 className="mt-1.5 w-full rounded-xl border border-base-700 bg-base-950 px-3 py-2.5 text-[14px] text-white outline-none focus:border-amber-500"
               />
@@ -506,7 +564,7 @@ export function SchedulesTab({
             <label>
               <span className="text-[12px] text-ink-300">Timezone</span>
               <input
-                value={form.timezone}
+                value={shown.timezone}
                 onChange={(event) => setForm((current) => ({ ...current, timezone: event.target.value }))}
                 placeholder="Asia/Dubai"
                 className="mt-1.5 w-full rounded-xl border border-base-700 bg-base-950 px-3 py-2.5 text-[14px] text-white outline-none focus:border-amber-500"
@@ -514,11 +572,11 @@ export function SchedulesTab({
             </label>
           </div>
 
-          <div>
+          <div className={glow('days')}>
             <span className="text-[12px] text-ink-300">Repeat on</span>
             <div className="mt-2 grid grid-cols-7 gap-1.5">
               {DAYS.map((day) => {
-                const selected = form.weekdays.includes(day.value);
+                const selected = shown.weekdays.includes(day.value);
                 return (
                   <button
                     key={day.label}
@@ -539,7 +597,7 @@ export function SchedulesTab({
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <div>
+            <div className={glow('capture')}>
               <span className="text-[12px] text-ink-300">Capture</span>
               <div className="mt-2 space-y-2">
                 {([
@@ -549,8 +607,8 @@ export function SchedulesTab({
                   <label key={value} className="flex items-center gap-2.5 text-[13px] text-ink-200">
                     <input
                       type="checkbox"
-                      checked={form.captureOutputs.includes(value)}
-                      disabled={form.captureOutputs.length === 1 && form.captureOutputs.includes(value)}
+                      checked={shown.captureOutputs.includes(value)}
+                      disabled={shown.captureOutputs.length === 1 && shown.captureOutputs.includes(value)}
                       onChange={() => toggleOutput(value)}
                       className="h-4 w-4 rounded border-base-700 bg-base-950 text-amber-500"
                     />
@@ -562,7 +620,7 @@ export function SchedulesTab({
             <div>
               <span className="text-[12px] text-ink-300">If robot is busy</span>
               <select
-                value={form.busyPolicy}
+                value={shown.busyPolicy}
                 onChange={(event) => setForm((current) => ({
                   ...current,
                   busyPolicy: event.target.value as 'skip' | 'queue',
@@ -579,7 +637,7 @@ export function SchedulesTab({
             <label className="flex items-center gap-2.5 text-[13px] text-ink-200">
               <input
                 type="checkbox"
-                checked={form.autoConnect}
+                checked={shown.autoConnect}
                 onChange={(event) => setForm((current) => ({ ...current, autoConnect: event.target.checked }))}
                 className="h-4 w-4 rounded border-base-700 bg-base-950 text-amber-500"
               />
@@ -588,7 +646,7 @@ export function SchedulesTab({
             <label className="flex items-center gap-2.5 text-[13px] text-ink-200">
               <input
                 type="checkbox"
-                checked={form.continueOnFailure}
+                checked={shown.continueOnFailure}
                 onChange={(event) => setForm((current) => ({
                   ...current,
                   continueOnFailure: event.target.checked,
@@ -598,7 +656,7 @@ export function SchedulesTab({
               Keep going if one stop fails
             </label>
           </div>
-        </div>
+        </fieldset>
       </Modal>
 
       <ConfirmDialog
