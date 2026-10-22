@@ -28,6 +28,8 @@ type Props = {
   projectSlug: string;
   robotMap: ApiRobotMap | null;
   capturePoints: ApiRobotCapturePoint[];
+  /** Points placed on an older robot map: listed separately, never selectable. */
+  retiredPoints?: ApiRobotCapturePoint[];
   homePose?: ApiRobotHomePose | null;
   selectedIds: string[];
   onToggle: (pointId: string) => void;
@@ -46,6 +48,7 @@ export function RouteTab({
   projectSlug,
   robotMap,
   capturePoints,
+  retiredPoints = [],
   homePose = null,
   selectedIds,
   onToggle,
@@ -301,6 +304,36 @@ export function RouteTab({
                   </div>
                 );
               })}
+            </div>
+          </div>
+        ) : null}
+
+        {retiredPoints.length > 0 ? (
+          <div className="rounded-2xl border border-base-800 bg-base-950/60 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-500">From an older map</p>
+              <button
+                type="button"
+                onClick={() => retiredPoints.forEach((point) => handleDelete(point))}
+                className="text-[12px] text-red-300 transition hover:text-red-200"
+              >
+                Delete all
+              </button>
+            </div>
+            <p className="mt-2 text-[12px] leading-relaxed text-ink-500">
+              These were placed on a different robot map, so the robot can&apos;t use them. Place them again
+              on the current map, or switch the project back to their map in settings.
+            </p>
+            <div className="mt-2 space-y-1">
+              {retiredPoints.map((point) => (
+                <div key={point.id} className="flex items-center gap-2 rounded-lg px-1 opacity-60">
+                  <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-ink-600" />
+                  <span className="min-w-0 flex-1 truncate py-1.5 text-[13px] text-ink-400" title={point.name}>
+                    {point.name}
+                  </span>
+                  <MoreMenu items={[{ label: 'Delete', danger: true, onClick: () => handleDelete(point) }]} />
+                </div>
+              ))}
             </div>
           </div>
         ) : null}

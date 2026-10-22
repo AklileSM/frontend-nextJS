@@ -14,9 +14,12 @@ import type { ApiRobotMap } from '@/types/api';
 export function RobotMapUploader({
   projectId,
   onLoaded,
+  refreshKey = 0,
 }: {
   projectId: string;
   onLoaded?: (map: ApiRobotMap | null) => void;
+  /** Bumped when the map changed elsewhere (e.g. recorded from the robot), to reload it. */
+  refreshKey?: number;
 }) {
   const [map, setMap] = useState<ApiRobotMap | null>(null);
   const [yamlFile, setYamlFile] = useState<File | null>(null);
@@ -40,7 +43,7 @@ export function RobotMapUploader({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId]);
+  }, [projectId, refreshKey]);
 
   const handleUpload = () => {
     if (!yamlFile || !imageFile) {
@@ -78,7 +81,10 @@ export function RobotMapUploader({
         <div className="rounded-lg border border-base-800 bg-base-900/40 p-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-[13px] text-white">Map in place</p>
+              <p className="text-[13px] text-white">
+                {map.map_name ? map.map_name.replace(/\.yaml$/, '') : 'Map in place'}
+                {map.map_version ? <span className="ml-2 font-mono text-[11px] text-ink-500">v{map.map_version}</span> : null}
+              </p>
               <p className="mt-0.5 font-mono text-[11px] text-ink-500">
                 {map.width}×{map.height} px · {map.resolution} m/px
               </p>

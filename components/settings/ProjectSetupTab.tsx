@@ -7,6 +7,7 @@ import { FloorplanUploader } from './FloorplanUploader';
 import { ProjectRoomsTab } from './ProjectRoomsTab';
 import { HotspotEditor } from './HotspotEditor';
 import { RobotMapUploader } from './RobotMapUploader';
+import { RobotMapRecorder } from './RobotMapRecorder';
 import type { ApiProject, ApiRobotMap, ApiRoom } from '@/types/api';
 
 type Section = 'floorplan' | 'rooms' | 'hotspots' | 'robot-map';
@@ -41,6 +42,7 @@ export function ProjectSetupTab({
   const [active, setActive] = useState<Section>('floorplan');
   const [rooms, setRooms] = useState<ApiRoom[]>([]);
   const [robotMap, setRobotMap] = useState<ApiRobotMap | null>(null);
+  const [robotMapKey, setRobotMapKey] = useState(0);
 
   useEffect(() => {
     listRooms().then((all) =>
@@ -136,7 +138,13 @@ export function ProjectSetupTab({
               The map the robot navigates by, from your SLAM toolchain. Capture points and live
               position are placed on it.
             </p>
-            <RobotMapUploader projectId={project.id} onLoaded={setRobotMap} />
+            <RobotMapRecorder
+              projectId={project.id}
+              projectSlug={project.slug}
+              robotMap={robotMap}
+              onMapChanged={() => setRobotMapKey((key) => key + 1)}
+            />
+            <RobotMapUploader projectId={project.id} onLoaded={setRobotMap} refreshKey={robotMapKey} />
           </div>
         )}
       </div>

@@ -1,4 +1,5 @@
 import type {
+  ApiRobotCommandKind,
   ApiProject,
   ApiRobotCapturePoint,
   ApiRobotCommand,
@@ -343,12 +344,13 @@ export function forceCloseRobotMission(missionId: string): Promise<ApiRobotMissi
 /** Queue a connect/disconnect for a robot. The on-site agent picks it up and drives the panel. */
 export function createRobotCommand(
   robotId: string,
-  kind: 'connect' | 'disconnect',
+  kind: ApiRobotCommandKind,
+  params?: Record<string, unknown>,
 ): Promise<ApiRobotCommand> {
   return getJson<ApiRobotCommand>('/robot/commands', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ robot_id: robotId, kind }),
+    body: JSON.stringify({ robot_id: robotId, kind, params: params ?? {} }),
   });
 }
 
@@ -360,9 +362,13 @@ export function cancelRobotCommand(commandId: string): Promise<ApiRobotCommand> 
 }
 
 /** The most recent lifecycle command for a robot, or null if it has never had one. */
-export async function getLatestRobotCommand(robotId: string): Promise<ApiRobotCommand | null> {
+/** The robot's newest command; `kind` narrows it to connect/disconnect or to mapping. */
+export async function getLatestRobotCommand(
+  robotId: string,
+  kind?: 'connection' | 'map',
+): Promise<ApiRobotCommand | null> {
   const response = await apiFetch(
-    `/robots/${encodeURIComponent(robotId)}/commands/latest`,
+    `/robots/${encodeURIComponent(robotId)}/commands/latest${kind ? `?kind=${kind}` : ''}`,
     { method: 'GET' },
   );
   if (response.status === 204) return null;

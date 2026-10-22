@@ -157,10 +157,20 @@ export interface ApiRobotMissionSchedule {
 
 export type ApiRobotConnection = 'disconnected' | 'connecting' | 'connected' | 'disconnecting';
 
+export type ApiRobotCommandKind =
+  | 'connect'
+  | 'disconnect'
+  | 'map_start'
+  | 'map_save'
+  | 'map_cancel'
+  | 'map_rollback';
+
 export interface ApiRobotCommand {
   id: string;
   robot_id: string;
-  kind: 'connect' | 'disconnect';
+  kind: ApiRobotCommandKind;
+  /** Arguments for mapping commands, e.g. { map_name, project_id }. */
+  params?: Record<string, unknown>;
   status: string;
   connection: ApiRobotConnection | null;
   detail: string | null;
@@ -182,6 +192,9 @@ export interface ApiRobotCapturePoint {
   floorplan_y: number | null;
   source: string;
   metadata: Record<string, unknown>;
+  /** Placed on a different robot map than the project's current one: not usable. */
+  retired?: boolean;
+  map_version?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -197,6 +210,13 @@ export interface ApiRobotMap {
   frame: string;
   yaml_object_name: string | null;
   image_object_name: string | null;
+  map_version?: number | null;
+  map_name?: string | null;
+  uploaded_at?: string | null;
+  /** The map the project can switch back to. */
+  previous_map_name?: string | null;
+  previous_map_version?: number | null;
+  previous_uploaded_at?: string | null;
 }
 
 /** Saved robot start/return pose reported by the on-site control panel. */

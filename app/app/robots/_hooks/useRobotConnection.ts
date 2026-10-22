@@ -46,7 +46,8 @@ export function useRobotConnection(robotId: string): RobotConnectionState {
       return;
     }
     try {
-      const latest = await getLatestRobotCommand(robotId);
+      // Only connect/disconnect: a mapping command is not a connection change.
+      const latest = await getLatestRobotCommand(robotId, 'connection');
       // Guard against a stale response landing after the operator switched robots.
       if (robotRef.current === robotId) setCommand(latest);
     } catch {
