@@ -219,6 +219,36 @@ export interface ApiRobotMap {
   previous_uploaded_at?: string | null;
 }
 
+export interface ApiRobotMapPreviewPose {
+  x: number;
+  y: number;
+  yaw?: number | null;
+}
+
+/** The map being recorded, streamed from the laptop while SLAM runs. */
+export interface ApiRobotMapPreview {
+  session_id: string;
+  started_at_utc: string;
+  updated_at_utc: string;
+  map_updated_at_utc: string | null;
+  /** Where the robot was when mapping started: where it has to be when the map is saved. */
+  home: ApiRobotMapPreviewPose | null;
+  pose: ApiRobotMapPreviewPose | null;
+  trail: ApiRobotMapPreviewPose[];
+  distance_m: number;
+  map: {
+    seq: number;
+    width: number;
+    height: number;
+    resolution: number;
+    origin_x: number;
+    origin_y: number;
+    mapped_area_m2: number | null;
+    /** PNG data URL, null when the request said it already has this seq. */
+    image: string | null;
+  } | null;
+}
+
 /** Saved robot start/return pose reported by the on-site control panel. */
 export interface ApiRobotHomePose {
   x: number;

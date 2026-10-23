@@ -6,6 +6,7 @@ import { CheckCircle2, Loader2, Map as MapIcon, Play, RotateCcw, Save, Square, X
 import { toast } from 'sonner';
 import { createRobotCommand, getLatestRobotCommand, listRobots } from '@/services/apiClient';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { RobotMapLivePreview } from '@/components/settings/RobotMapLivePreview';
 import { ProgressTimeline } from '@/app/app/robots/_components/ProgressTimeline';
 import { normalizeProgressEvents } from '@/app/app/robots/_lib/missions';
 import { parseUtcTimestamp } from '@/app/app/robots/_lib/robotMap';
@@ -252,6 +253,7 @@ export function RobotMapRecorder({
             <li>Pass through intersections more than once, so the map closes its loops.</li>
             <li>Bring the robot back to exactly where it started, facing the same way, and stop.</li>
           </ol>
+          <RobotMapLivePreview robotId={robotId} since={parseUtcTimestamp(shown?.created_at)} />
           <div className="flex flex-wrap items-end gap-2">
             <label className="min-w-0 flex-1">
               <span className="mb-1 block text-[12px] text-ink-400">Map name</span>
@@ -301,6 +303,8 @@ export function RobotMapRecorder({
             </p>
           )}
           {events.length > 0 ? <ProgressTimeline events={events} /> : null}
+          {/* A failed save leaves SLAM running, so the live map is still there to drive by. */}
+          {phase === 'failed' && lastFailedKind === 'map_save' ? <RobotMapLivePreview robotId={robotId} since={null} /> : null}
           <div className="flex flex-wrap gap-2">
             {phase === 'saved' ? (
               <Link

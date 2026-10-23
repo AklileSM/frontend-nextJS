@@ -4,6 +4,7 @@ import type {
   ApiRobotCapturePoint,
   ApiRobotCommand,
   ApiRobotMap,
+  ApiRobotMapPreview,
   ApiRobotMission,
   ApiRobotMissionSchedule,
   ApiRobotPairingToken,
@@ -376,6 +377,18 @@ export async function getLatestRobotCommand(
     throw new Error(await parseApiError(response));
   }
   return response.json() as Promise<ApiRobotCommand>;
+}
+
+/** The live map while a new map is recorded, or null before the laptop has sent any. Pass the
+ *  map seq already shown to skip downloading the same image again. */
+export async function getRobotMapPreview(robotId: string, imageSeq?: number): Promise<ApiRobotMapPreview | null> {
+  const query = imageSeq === undefined ? '' : `?image_seq=${imageSeq}`;
+  const response = await apiFetch(`/robots/${encodeURIComponent(robotId)}/map-preview${query}`, { method: 'GET' });
+  if (response.status === 404) return null;
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
+  return response.json() as Promise<ApiRobotMapPreview>;
 }
 
 export async function deleteRobotMission(missionId: string): Promise<void> {
