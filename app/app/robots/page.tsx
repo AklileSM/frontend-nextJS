@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Bot } from 'lucide-react';
@@ -18,6 +18,7 @@ import {
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Tabs } from '@/components/ui/Tabs';
 import type { ApiProject, ApiRobotCapturePoint, ApiRobotMap, ApiRobotMission } from '@/types/api';
+import type { RobotAssistantDraft } from '@/services/api/robotAssistant';
 import { RobotContextBar } from './_components/RobotContextBar';
 import { ConnectControl } from './_components/ConnectControl';
 import { RouteTab } from './_components/RouteTab';
@@ -25,9 +26,12 @@ import { ProgressTab } from './_components/ProgressTab';
 import { LiveMapTab } from './_components/LiveMapTab';
 import { HistoryTab } from './_components/HistoryTab';
 import { SchedulesTab } from './_components/SchedulesTab';
+import { AssistantLauncher } from './_components/AssistantLauncher';
 import { useRobotMissions } from './_hooks/useRobotMissions';
 import { useRobotTelemetry } from './_hooks/useRobotTelemetry';
 import { useRobotConnection } from './_hooks/useRobotConnection';
+import { useRobotAssistant } from './_hooks/useRobotAssistant';
+import { useSpeech } from './_hooks/useSpeech';
 import { deriveCurrentConnection } from './_lib/connection';
 import { isActiveMissionStatus, routeSummary } from './_lib/missions';
 import type { CaptureOutput } from './_lib/missions';
@@ -64,6 +68,13 @@ export default function RobotPage() {
   const [retiredPoints, setRetiredPoints] = useState<ApiRobotCapturePoint[]>([]);
   const [robotMap, setRobotMap] = useState<ApiRobotMap | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  /* The assistant's live drafts: a schedule fills in the form on the Schedules tab, a route
+   * selects its stops on the Route tab, so people see what the chat is building. */
+  const [scheduleDraft, setScheduleDraft] = useState<Extract<RobotAssistantDraft, { kind: 'schedule' }> | null>(null);
+  const [scheduleDraftHidden, setScheduleDraftHidden] = useState(false);
+  const [schedulesRefreshKey, setSchedulesRefreshKey] = useState(0);
+  const [highlightScheduleId, setHighlightScheduleId] = useState<string | null>(null);
+  const draftKind = useRef<RobotAssistantDraft['kind'] | null>(null);
   const [captureOutputs, setCaptureOutputs] = useState<CaptureOutput[]>(['image']);
   const [continueOnFailure, setContinueOnFailure] = useState(true);
   const [starting, startCapture] = useTransition();
@@ -151,6 +162,57 @@ export default function RobotPage() {
     && connection.command?.kind === 'disconnect'
     && !lifecycleTargetReached;
   const isConnected = connectionState === 'connected' && !disconnectStillRunning;
+
+  const speech = useSpeech();
+  const assistant = useRobotAssistant({
+    projectSlug,
+    robotId,
+    connected: isConnected,
+    latestCommand: connection.command,
+    missions,
+    onAction: (action) => {
+      if (action.type === 'open_tab' && action.tab) setTab(action.tab);
+      else if (action.type === 'robot_connecting' || action.type === 'robot_disconnecting') void connection.refresh();
+      else if (action.type.startsWith('mission_')) {
+        setTab('progress');
+        void refresh();
+      } else if (action.type.startsWith('schedule_')) {
+        setTab('schedules');
+        setSchedulesRefreshKey((key) => key + 1);
+        setHighlightScheduleId(action.type === 'schedule_deleted' ? null : action.schedule_id ?? null);
+      }
+    },
+    onDraft: (draft) => {
+      const previousKind = draftKind.current;
+      draftKind.current = draft?.kind ?? null;
+      if (!draft) {
+        setScheduleDraft(null);
+        setScheduleDraftHidden(false);
+        // A route the chat selected goes away with the conversation; a started capture moves to Progress.
+        if (previousKind === 'route') setSelectedIds([]);
+        return;
+      }
+      // Jump to the right tab once per conversation, so switching tabs by hand isn't undone each reply.
+      if (draft.kind !== previousKind) setTab(draft.kind === 'schedule' ? 'schedules' : 'route');
+      if (draft.kind === 'schedule') {
+        setScheduleDraft(draft);
+        return;
+      }
+      setSelectedIds(draft.point_ids);
+      if (draft.capture.length) setCaptureOutputs(draft.capture);
+    },
+    // Requests made by voice get their reply spoken as well as written.
+    onReply: (reply, voice) => {
+      if (voice) speech.speak(reply);
+    },
+  });
+
+  // A schedule the chat just created glows briefly in the list.
+  useEffect(() => {
+    if (!highlightScheduleId) return;
+    const timer = setTimeout(() => setHighlightScheduleId(null), 6000);
+    return () => clearTimeout(timer);
+  }, [highlightScheduleId]);
 
   // The command poll and presence poll are independent. While a connect may still converge
   // locally (including after an early failure response), refresh presence quickly so a confirmed
@@ -336,6 +398,10 @@ export default function RobotPage() {
           />
         ) : tab === 'schedules' ? (
           <SchedulesTab
+            assistantDraft={scheduleDraftHidden ? null : scheduleDraft}
+            onAssistantDraftClose={() => setScheduleDraftHidden(true)}
+            refreshKey={schedulesRefreshKey}
+            highlightId={highlightScheduleId}
             projectSlug={projectSlug}
             robotId={robotId}
             capturePoints={capturePoints}
@@ -401,6 +467,22 @@ export default function RobotPage() {
         danger={pending?.type === 'delete' || pending?.type === 'stop' || pending?.type === 'force-close'}
         onConfirm={runPending}
         onCancel={() => setPending(null)}
+      />
+
+      <AssistantLauncher
+        messages={assistant.messages}
+        sending={assistant.sending}
+        onSend={(text) => void assistant.send(text)}
+        onReset={assistant.reset}
+        disabled={!projectSlug || !robotId}
+        voice={{
+          supported: speech.supported,
+          listening: speech.listening,
+          interim: speech.interim,
+          error: speech.error,
+          onStart: () => speech.listen((text) => void assistant.send(text, { voice: true })),
+          onStop: speech.stopListening,
+        }}
       />
     </div>
   );
