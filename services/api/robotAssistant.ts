@@ -1,4 +1,4 @@
-import { getJson } from './core';
+import { apiFetch, getJson } from './core';
 
 /** Opaque conversation state: returned with each reply and sent back unchanged with the next message. */
 export type RobotAssistantState = Record<string, unknown> & { awaiting?: string | null };
@@ -67,4 +67,16 @@ export function sendRobotAssistantMessage(body: RobotAssistantMessageRequest): P
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
+}
+
+/** A reply spoken by the server's voice (Kokoro), as MP3. Throws when that voice isn't available. */
+export async function fetchRobotAssistantSpeech(text: string, signal?: AbortSignal): Promise<Blob> {
+  const response = await apiFetch('/robot/assistant/speech', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+    signal,
+  });
+  if (!response.ok) throw new Error(`Assistant voice unavailable (${response.status})`);
+  return response.blob();
 }
