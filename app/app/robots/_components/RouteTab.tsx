@@ -16,7 +16,7 @@ import { RobotMapSurface } from './RobotMapSurface';
 import type { Placement } from './RobotMapSurface';
 import { normalizedToMapPose } from '../_lib/robotMap';
 import { formatCaptureOutputs } from '../_lib/missions';
-import type { CaptureOutput } from '../_lib/missions';
+import type { CaptureOutput, UnavailableCaptures } from '../_lib/missions';
 
 const CAPTURE_OUTPUT_OPTIONS: Array<{ value: CaptureOutput; label: string }> = [
   { value: 'image', label: 'Photo' },
@@ -35,6 +35,8 @@ type Props = {
   onToggle: (pointId: string) => void;
   captureOutputs: CaptureOutput[];
   onCaptureOutputsChange: (outputs: CaptureOutput[]) => void;
+  /** Capture types the robot can't do right now, with the reason; they can't be picked. */
+  unavailableCaptures?: UnavailableCaptures;
   continueOnFailure: boolean;
   onContinueOnFailureChange: (value: boolean) => void;
   onStart: () => void;
@@ -54,6 +56,7 @@ export function RouteTab({
   onToggle,
   captureOutputs,
   onCaptureOutputsChange,
+  unavailableCaptures = {},
   continueOnFailure,
   onContinueOnFailureChange,
   onStart,
@@ -154,6 +157,8 @@ export function RouteTab({
     }
     onCaptureOutputsChange([...captureOutputs, output]);
   }, [captureOutputs, onCaptureOutputsChange]);
+  // Only when nothing at all works: the page already swaps a missing type for one that does.
+  const captureBlocked = captureOutputs.every((output) => unavailableCaptures[output]);
 
   return (
     <div className="grid gap-5 xl:grid-cols-[1fr_minmax(300px,360px)]">
@@ -355,22 +360,36 @@ export function RouteTab({
               <div className="absolute left-0 right-0 top-full z-40 mt-2 rounded-xl border border-base-700 bg-base-900 p-2 shadow-xl shadow-black/40">
                 {CAPTURE_OUTPUT_OPTIONS.map((option) => {
                   const checked = captureOutputs.includes(option.value);
+                  const reason = unavailableCaptures[option.value];
                   return (
-                    <label key={option.value} className="flex cursor-pointer items-center gap-3 rounded-lg px-2.5 py-2 text-[13px] text-ink-200 transition hover:bg-base-800 hover:text-white">
+                    <label
+                      key={option.value}
+                      title={reason}
+                      className={`flex items-center gap-3 rounded-lg px-2.5 py-2 text-[13px] transition ${
+                        reason ? 'cursor-not-allowed text-ink-500' : 'cursor-pointer text-ink-200 hover:bg-base-800 hover:text-white'
+                      }`}
+                    >
                       <input
                         type="checkbox"
                         checked={checked}
-                        disabled={checked && captureOutputs.length === 1}
+                        disabled={Boolean(reason) || (checked && captureOutputs.length === 1)}
                         onChange={() => toggleOutput(option.value)}
                         className="h-4 w-4 rounded border-base-700 bg-base-950 text-amber-500 disabled:opacity-60"
                       />
                       {option.label}
+                      {reason ? <span className="ml-auto text-[11px] text-ink-500">unavailable</span> : null}
                     </label>
                   );
                 })}
               </div>
             ) : null}
           </div>
+
+          {CAPTURE_OUTPUT_OPTIONS.filter((option) => unavailableCaptures[option.value]).map((option) => (
+            <p key={option.value} className="mt-2 text-[12px] leading-relaxed text-amber-200/80">
+              {option.label} isn&apos;t available: {unavailableCaptures[option.value]}
+            </p>
+          ))}
 
           <label className="mt-3 flex items-center gap-3 text-[13px] text-ink-200">
             <input
@@ -386,12 +405,15 @@ export function RouteTab({
         <button
           type="button"
           onClick={onStart}
-          disabled={starting || route.length === 0 || !connected}
+          disabled={starting || route.length === 0 || !connected || captureBlocked}
           className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-amber-500 px-4 py-3 text-[14px] font-medium text-base-950 transition hover:bg-amber-400 disabled:opacity-40"
         >
           {starting ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
           Start capture
         </button>
+        {captureBlocked && route.length > 0 ? (
+          <p className="mt-2 text-center text-[12px] text-ink-500">The robot can&apos;t capture anything right now.</p>
+        ) : null}
         {!connected && route.length > 0 ? (
           <p className="mt-2 text-center text-[12px] text-ink-500">Connect the robot first to start a capture.</p>
         ) : null}

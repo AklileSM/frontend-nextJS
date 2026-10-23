@@ -58,6 +58,18 @@ export interface ApiRobotSummary {
   hostname: string | null;
   connection: ApiRobotConnection | null;
   last_seen_at: string | null;
+  /** What the robot can capture right now: supported by SiteScope and its payload detected. */
+  capture_capabilities?: ApiRobotCaptureCapability[];
+}
+
+export interface ApiRobotCaptureCapability {
+  output: string;
+  label: string;
+  available: boolean;
+  /** False for robots that don't report payloads yet: available by default. */
+  reported: boolean;
+  payload_name: string | null;
+  reason: string | null;
 }
 
 export interface ApiRobotTelemetryPoint {

@@ -21,7 +21,7 @@ import type {
   ApiRobotMissionScheduleUpdateRequest,
 } from '@/services/api/robots';
 import type { RobotAssistantDraft } from '@/services/api/robotAssistant';
-import type { CaptureOutput } from '../_lib/missions';
+import type { CaptureOutput, UnavailableCaptures } from '../_lib/missions';
 
 const DAYS = [
   { value: 0, short: 'M', label: 'Monday' },
@@ -50,6 +50,8 @@ type Props = {
   projectSlug: string;
   robotId: string;
   capturePoints: ApiRobotCapturePoint[];
+  /** Capture types the robot can't do right now, with the reason; they can't be picked. */
+  unavailableCaptures?: UnavailableCaptures;
   onMissionQueued: () => void;
   /** A schedule the assistant is building in the chat: shown filling in, read-only. */
   assistantDraft?: Extract<RobotAssistantDraft, { kind: 'schedule' }> | null;
@@ -83,14 +85,15 @@ function browserTimezone(): string {
   }
 }
 
-function emptyForm(): FormState {
+function emptyForm(unavailable: UnavailableCaptures = {}): FormState {
+  const firstWorking = (['image', 'pointcloud'] as CaptureOutput[]).find((output) => !unavailable[output]) ?? 'image';
   return {
     name: '',
     capturePointIds: [],
     localTime: '17:00',
     timezone: browserTimezone(),
     weekdays: DAYS.map((day) => day.value),
-    captureOutputs: ['image'],
+    captureOutputs: [firstWorking],
     continueOnFailure: true,
     busyPolicy: 'skip',
     autoConnect: true,
@@ -157,6 +160,7 @@ export function SchedulesTab({
   projectSlug,
   robotId,
   capturePoints,
+  unavailableCaptures = {},
   onMissionQueued,
   assistantDraft = null,
   onAssistantDraftClose,
@@ -224,7 +228,7 @@ export function SchedulesTab({
 
   const openCreate = () => {
     setEditing(null);
-    setForm(emptyForm());
+    setForm(emptyForm(unavailableCaptures));
     setFormOpen(true);
   };
 
@@ -603,19 +607,34 @@ export function SchedulesTab({
                 {([
                   ['image', 'Photo'],
                   ['pointcloud', '3D scan'],
-                ] as Array<[CaptureOutput, string]>).map(([value, label]) => (
-                  <label key={value} className="flex items-center gap-2.5 text-[13px] text-ink-200">
-                    <input
-                      type="checkbox"
-                      checked={shown.captureOutputs.includes(value)}
-                      disabled={shown.captureOutputs.length === 1 && shown.captureOutputs.includes(value)}
-                      onChange={() => toggleOutput(value)}
-                      className="h-4 w-4 rounded border-base-700 bg-base-950 text-amber-500"
-                    />
-                    {label}
-                  </label>
-                ))}
+                ] as Array<[CaptureOutput, string]>).map(([value, label]) => {
+                  const checked = shown.captureOutputs.includes(value);
+                  const reason = unavailableCaptures[value];
+                  return (
+                    <label
+                      key={value}
+                      title={reason}
+                      className={`flex items-center gap-2.5 text-[13px] ${reason ? 'text-ink-500' : 'text-ink-200'}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        // An unavailable type already on a schedule can still be unticked.
+                        disabled={(Boolean(reason) && !checked) || (shown.captureOutputs.length === 1 && checked)}
+                        onChange={() => toggleOutput(value)}
+                        className="h-4 w-4 rounded border-base-700 bg-base-950 text-amber-500"
+                      />
+                      {label}
+                      {reason ? <span className="text-[11px] text-ink-500">unavailable</span> : null}
+                    </label>
+                  );
+                })}
               </div>
+              {(['image', 'pointcloud'] as CaptureOutput[]).filter((value) => unavailableCaptures[value]).map((value) => (
+                <p key={value} className="mt-2 text-[12px] leading-relaxed text-amber-200/80">
+                  {value === 'image' ? 'Photo' : '3D scan'} isn&apos;t available: {unavailableCaptures[value]}
+                </p>
+              ))}
             </div>
             <div>
               <span className="text-[12px] text-ink-300">If robot is busy</span>

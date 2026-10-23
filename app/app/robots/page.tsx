@@ -33,7 +33,7 @@ import { useRobotConnection } from './_hooks/useRobotConnection';
 import { useRobotAssistant } from './_hooks/useRobotAssistant';
 import { useSpeech } from './_hooks/useSpeech';
 import { deriveCurrentConnection } from './_lib/connection';
-import { isActiveMissionStatus, routeSummary } from './_lib/missions';
+import { isActiveMissionStatus, routeSummary, unavailableCaptures } from './_lib/missions';
 import type { CaptureOutput } from './_lib/missions';
 import { formatQuietFor, robotPresence } from './_lib/presence';
 import { parseUtcTimestamp } from './_lib/robotMap';
@@ -145,6 +145,19 @@ export default function RobotPage() {
     [robotId, robots],
   );
   const presence = useMemo(() => robotPresence(selectedRobot, Date.now()), [selectedRobot]);
+  const unavailable = useMemo(() => unavailableCaptures(selectedRobot), [selectedRobot]);
+
+  /* The route's capture choice follows the robot's payloads: an unplugged LiDAR drops the 3D
+   * scan, and if nothing chosen is left, the first type that still works is picked. */
+  useEffect(() => {
+    setCaptureOutputs((current) => {
+      const usable = current.filter((output) => !unavailable[output]);
+      if (usable.length === current.length) return current;
+      if (usable.length) return usable;
+      const fallback = (['image', 'pointcloud'] as CaptureOutput[]).find((output) => !unavailable[output]);
+      return fallback ? [fallback] : current;
+    });
+  }, [unavailable]);
 
   /* Physical state comes from the robot heartbeat. A newer command temporarily wins so connect
    * and disconnect feedback is immediate; the next heartbeat repairs cancellation races. */
@@ -389,6 +402,7 @@ export default function RobotPage() {
             onToggle={toggleStop}
             captureOutputs={captureOutputs}
             onCaptureOutputsChange={setCaptureOutputs}
+            unavailableCaptures={unavailable}
             continueOnFailure={continueOnFailure}
             onContinueOnFailureChange={setContinueOnFailure}
             onStart={handleStart}
@@ -405,6 +419,7 @@ export default function RobotPage() {
             projectSlug={projectSlug}
             robotId={robotId}
             capturePoints={capturePoints}
+            unavailableCaptures={unavailable}
             onMissionQueued={() => {
               void refresh();
               setTab('progress');

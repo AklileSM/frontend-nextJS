@@ -1,4 +1,4 @@
-import type { ApiRobotMission, ApiRobotMissionStep } from '@/types/api';
+import type { ApiRobotMission, ApiRobotMissionStep, ApiRobotSummary } from '@/types/api';
 import { parseUtcTimestamp } from './robotMap';
 
 export const ACTIVE_MISSION_STATUSES = [
@@ -130,6 +130,19 @@ export function missionFailureMessage(mission: ApiRobotMission): string | null {
   if (stepError) return stepError;
   const resultError = mission.result?.['error'];
   return typeof resultError === 'string' && resultError.trim() ? resultError : null;
+}
+
+/** Why each capture type can't be done right now. A type that isn't listed is available. */
+export type UnavailableCaptures = Partial<Record<CaptureOutput, string>>;
+
+export function unavailableCaptures(robot: ApiRobotSummary | null | undefined): UnavailableCaptures {
+  const result: UnavailableCaptures = {};
+  for (const item of robot?.capture_capabilities ?? []) {
+    if (!item.available && (item.output === 'image' || item.output === 'pointcloud')) {
+      result[item.output] = item.reason || 'Not available on the robot right now.';
+    }
+  }
+  return result;
 }
 
 export function captureOutputsOf(mission: ApiRobotMission): CaptureOutput[] {
