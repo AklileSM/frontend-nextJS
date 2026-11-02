@@ -40,7 +40,7 @@ export function DemoPlayer() {
   const scrubbingRef = useRef(false);
   // Captured on pointerdown, before the shell's touchstart handler reveals the controls.
   const tapRef = useRef({ touch: false, controlsWereVisible: true });
-  const [playing, setPlaying] = useState(false);
+  const [playing, setPlaying] = useState(true);
   const [waiting, setWaiting] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
