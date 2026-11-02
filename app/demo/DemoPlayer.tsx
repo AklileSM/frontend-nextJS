@@ -40,12 +40,12 @@ export function DemoPlayer() {
   const scrubbingRef = useRef(false);
   // Captured on pointerdown, before the shell's touchstart handler reveals the controls.
   const tapRef = useRef({ touch: false, controlsWereVisible: true });
-  const [playing, setPlaying] = useState(true);
+  const [playing, setPlaying] = useState(false);
+  const [muted, setMuted] = useState(true);
   const [waiting, setWaiting] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(1);
-  const [muted, setMuted] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [fullscreen, setFullscreen] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
@@ -62,16 +62,15 @@ export function DemoPlayer() {
   const togglePlayback = useCallback(async () => {
     const video = videoRef.current;
     if (!video) return;
-    // if (video.paused) {
-    //   try {
-    //     await video.play();
-    //   } catch {
-    //     setError(true);
-    //   }
-    // } else {
-    //   video.pause();
-    // }
-    video.play();
+    if (video.paused) {
+      try {
+        await video.play();
+      } catch {
+        setError(true);
+      }
+    } else {
+      video.pause();
+    }
     revealControls();
   }, [revealControls]);
 
@@ -216,6 +215,8 @@ export function DemoPlayer() {
             <video
               ref={videoRef}
               src="/demo/demo.mp4"
+              autoPlay
+              muted={muted}
               preload="metadata"
               playsInline
               onPointerDown={(event) => {
