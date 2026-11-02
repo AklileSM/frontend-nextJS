@@ -62,15 +62,16 @@ export function DemoPlayer() {
   const togglePlayback = useCallback(async () => {
     const video = videoRef.current;
     if (!video) return;
-    if (video.paused) {
-      try {
-        await video.play();
-      } catch {
-        setError(true);
-      }
-    } else {
-      video.pause();
-    }
+    // if (video.paused) {
+    //   try {
+    //     await video.play();
+    //   } catch {
+    //     setError(true);
+    //   }
+    // } else {
+    //   video.pause();
+    // }
+    video.play();
     revealControls();
   }, [revealControls]);
 
